@@ -20,6 +20,14 @@ This directory is the canonical product-planning corpus for Slow Garden.
 - `operations/`: environments, deployment, observability, incident response, cost controls, and release gates.
 - `templates/`: lightweight formats for repeatable decisions and experiments.
 
+## Current H0 and H1 working records
+
+- [Product framing and differentiated wedge](product/PRODUCT_FRAMING.md)
+- [Competitive and substitute research](product/COMPETITIVE_RESEARCH.md)
+- [Trust and approval contract](product/TRUST_AND_APPROVAL_CONTRACT.md)
+- [Journeys and state model](design/JOURNEYS_AND_STATE_MODEL.md)
+- [Visual directions brief](design/VISUAL_DIRECTIONS_BRIEF.md)
+
 ## Status language
 
 - **Proposed:** documented but not yet accepted.

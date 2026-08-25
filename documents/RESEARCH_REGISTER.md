@@ -10,7 +10,7 @@
 | R-004 | How many blooms feel inviting before the return becomes a report? | Prototype test at 1, 3, and 5+ blooms | Bounded return-density rule | H1 | Proposed |
 | R-005 | Can people understand observation, inference, uncertainty, and research without reading documentation? | Usability and comprehension test | Correct classification in core scenarios | H1 | Proposed |
 | R-006 | Does a spatial garden improve connection-making enough to justify its interaction cost? | Spatial versus chronological prototype comparison | Better connection recall without unacceptable capture friction | H1 | Proposed |
-| R-007 | Which Flower-inspired motion communicates transformation rather than decoration? | Three-direction preference and comprehension study | Selected direction plus reduced-motion equivalent | H1 | Proposed |
+| R-007 | Which Flower-inspired motion communicates transformation rather than decoration? | Three-direction preference and comprehension study | Selected direction plus reduced-motion equivalent | H1 | In progress |
 | R-008 | What correction controls restore agency after a wrong or emotionally overreaching inference? | Error-recovery prototype test | Users can correct and prevent recurrence without editing sources | H1 | Proposed |
 | R-009 | What private-data and model-provider terms are acceptable for a personal journal? | Policy and threat-model review | Written data-use promise and provider requirements | H2 | Proposed |
 | R-010 | What is the minimum viable connection to Kyle Knowledge and Agent Ops? | Boundary-mapping study | One-way, bounded interfaces with authority and freshness rules | H3 | Deferred |
@@ -44,3 +44,12 @@
 - [Notion Custom Agents](https://www.notion.com/help/custom-agents): adjacent scheduled and event-triggered agent workflows.
 - [Reflective AI: A Slow Technology Approach for Design Education](https://doi.org/10.1145/3772318.3791691): intentional slowness and reflective AI framing.
 - [Reflective Agency: Ethical and Empirical Framework for AI-Mediated Self-Reflection Systems](https://doi.org/10.1609/aies.v8i2.36644): principles for preserving interpretive agency.
+
+## Desk-research receipt: 2026-08-25
+
+- Adjacent-category matrix and wedge analysis: [Competitive research](product/COMPETITIVE_RESEARCH.md).
+- Kyle-first workflow roles and product stop conditions: [Product framing](product/PRODUCT_FRAMING.md).
+- Trust hypotheses requiring comprehension and recovery tests: [Trust contract](product/TRUST_AND_APPROVAL_CONTRACT.md).
+- Three visual hypotheses and weighted selection rubric: [Visual directions brief](design/VISUAL_DIRECTIONS_BRIEF.md).
+- Three generated Garden frames are recorded in the visual brief; selection, Return Reveal, Bloom Detail, and reduced-motion testing remain open.
+- Desk research narrows the wedge but does not complete R-001 through R-008; observed and comparative evidence remains required.

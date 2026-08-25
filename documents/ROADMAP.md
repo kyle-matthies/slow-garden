@@ -54,9 +54,9 @@ Tasks:
 - [x] Record the product brief, initial decisions, risks, and research questions.
 - [x] Define planning status language and document ownership.
 - [ ] Choose the final working name and naming test criteria.
-- [ ] Define the privacy classification for source notes, derived blooms, research sources, telemetry, and exports.
-- [ ] Define how this project relates to Kyle Knowledge, Agent Ops, and the existing Personal OS without making any of them a V1 dependency.
-- [ ] Decide whether accepted product decisions should also project into the Kyle Knowledge vault and what constitutes a migration receipt.
+- [x] Define the privacy classification for source notes, derived blooms, research sources, telemetry, and exports.
+- [x] Define how this project relates to Kyle Knowledge, Agent Ops, and the existing Personal OS without making any of them a V1 dependency.
+- [x] Decide whether accepted product decisions should also project into the Kyle Knowledge vault and what constitutes a migration receipt.
 - [ ] Define repository contribution, review, branch, commit, and release conventions before implementation begins.
 - [ ] Decide license and repository visibility before any remote is created.
 
@@ -77,15 +77,15 @@ Goal: Prove the problem is more specific than “AI journaling” or “backgrou
 
 Tasks:
 
-- [ ] Write a jobs-to-be-done statement for personal reflection, decision incubation, creative problem solving, and research gardening.
-- [ ] Inventory current behavior using existing tools: paper/GoodNotes, journal, Obsidian, ChatGPT/Codex, and project notes.
+- [x] Write a jobs-to-be-done statement for personal reflection, decision incubation, creative problem solving, and research gardening.
+- [x] Inventory current behavior using existing tools: paper/GoodNotes, journal, Obsidian, ChatGPT/Codex, and project notes.
 - [ ] Run a two-week diary study of moments when immediate AI would interrupt thought and delayed synthesis could help.
-- [ ] Catalog adjacent products across AI journals, visual canvases, knowledge gardens, agent workspaces, and innovation-management tools.
-- [ ] Compare each product on capture interruption, accumulation, spatiality, delayed processing, provenance, correction, agency, and return ritual.
-- [ ] Identify the smallest differentiated wedge that existing products do not already satisfy.
+- [x] Catalog adjacent products across AI journals, visual canvases, knowledge gardens, agent workspaces, and innovation-management tools.
+- [x] Compare each product on capture interruption, accumulation, spatiality, delayed processing, provenance, correction, agency, and return ritual.
+- [x] Identify the smallest differentiated wedge that existing products do not already satisfy.
 - [ ] Test concept language including temporal co-thinking, slow AI, thinking garden, and asynchronous prompting.
 - [ ] Interview or observe 5 to 8 reflective knowledge workers only after Kyle-first workflows are documented.
-- [ ] Define disconfirming evidence that would stop or reposition the product.
+- [x] Define disconfirming evidence that would stop or reposition the product.
 
 Outputs:
 
@@ -104,15 +104,15 @@ Goal: Make human agency testable rather than aspirational.
 
 Tasks:
 
-- [ ] Define what the system may observe, infer, research, remember, and propose.
-- [ ] Define what always requires approval: knowledge promotion, external messages, project changes, code, publication, and data sharing.
-- [ ] Specify how observation, inference, uncertainty, contradiction, and research appear in the UI.
-- [ ] Define the correction model: reject, edit interpretation, dispute source, mark coincidence, and prevent recurrence.
-- [ ] Define the no-output behavior for sparse, duplicate, contradictory, or unchanged input.
-- [ ] Define maximum bloom count and information density for each return.
-- [ ] Define retention, export, deletion, model-training, and account-recovery promises.
-- [ ] Define the boundary between reflective support and mental-health or clinical claims.
-- [ ] Write anti-goals for engagement streaks, manipulative notifications, false certainty, and gamified emotional scoring.
+- [x] Define what the system may observe, infer, research, remember, and propose.
+- [x] Define what always requires approval: knowledge promotion, external messages, project changes, code, publication, and data sharing.
+- [x] Specify how observation, inference, uncertainty, contradiction, and research appear in the UI.
+- [x] Define the correction model: reject, edit interpretation, dispute source, mark coincidence, and prevent recurrence.
+- [x] Define the no-output behavior for sparse, duplicate, contradictory, or unchanged input.
+- [x] Define maximum bloom count and information density for each return.
+- [x] Define retention, export, deletion, model-training, and account-recovery promises.
+- [x] Define the boundary between reflective support and mental-health or clinical claims.
+- [x] Write anti-goals for engagement streaks, manipulative notifications, false certainty, and gamified emotional scoring.
 
 Outputs:
 
@@ -135,17 +135,17 @@ Goal: Define the smallest complete seed-to-bloom loop before visual styling.
 
 Tasks:
 
-- [ ] Map end-to-end journeys for first seed, ongoing capture, spatial arrangement, waiting, return, bloom review, correction, and archive.
-- [ ] Define entities and language: seed, bed, cluster, path, garden pass, bloom, response, and workflow proposal.
-- [ ] Specify seed creation, editing, revision history, deletion, restoration, and attachment behavior.
-- [ ] Specify spatial canvas behavior across mouse, touch, keyboard, and small screens.
-- [ ] Decide when chronology, search, filters, tags, and project context appear without overtaking the garden.
-- [ ] Define garden-pass states: queued, snapshotting, processing, partially complete, complete, failed, cancelled, superseded, and stale.
-- [ ] Define return timing and notification rules that avoid pressure or false urgency.
-- [ ] Specify bloom lifecycle: new, viewed, kept, corrected, pruned, promoted, and superseded.
-- [ ] Design provenance inspection from a bloom back to exact source revisions.
-- [ ] Design empty, loading, offline, failed, stale, contradictory, and reduced-motion states.
-- [ ] Define manual “let this grow” and automatic cadence controls separately from processing depth.
+- [x] Map end-to-end journeys for first seed, ongoing capture, spatial arrangement, waiting, return, bloom review, correction, and archive.
+- [x] Define entities and language: seed, bed, cluster, path, garden pass, bloom, response, and workflow proposal.
+- [x] Specify seed creation, editing, revision history, deletion, restoration, and attachment behavior.
+- [x] Specify spatial canvas behavior across mouse, touch, keyboard, and small screens.
+- [x] Decide when chronology, search, filters, tags, and project context appear without overtaking the garden.
+- [x] Define garden-pass states: queued, snapshotting, processing, partially complete, complete, failed, cancelled, superseded, and stale.
+- [x] Define return timing and notification rules that avoid pressure or false urgency.
+- [x] Specify bloom lifecycle: new, viewed, kept, corrected, pruned, promoted, and superseded.
+- [x] Design provenance inspection from a bloom back to exact source revisions.
+- [x] Design empty, loading, offline, failed, stale, contradictory, and reduced-motion states.
+- [x] Define manual “let this grow” and automatic cadence controls separately from processing depth.
 
 Outputs:
 
@@ -164,7 +164,7 @@ Goal: Turn the Flower inspiration into an interaction language rather than decor
 
 Tasks:
 
-- [ ] Produce exactly three distinct visual directions for Garden, Return Reveal, and Bloom Detail.
+- [x] Produce exactly three distinct visual directions establishing a Garden grammar that can extend to Return Reveal and Bloom Detail.
 - [ ] Establish how seeds, paths, clusters, and blooms differ visually without relying only on color.
 - [ ] Define color semantics and prevent decorative colors from implying unsupported meaning.
 - [ ] Define motion principles for gathering, wind, growth, reveal, correction, and pruning.

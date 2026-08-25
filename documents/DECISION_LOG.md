@@ -55,3 +55,35 @@
 - Decision: Use a weekly default for deep Connect passes, with manual processing for selected gardens and independent processing-depth controls.
 - Rationale: Weekly accumulation creates a meaningful delay while keeping early evaluation manageable.
 - Revisit when: Diary evidence identifies a better cadence by use case.
+
+## D-008: Slow Garden is an incubation layer, not an authority system
+
+- Status: Accepted
+- Date: 2026-08-25
+- Decision: Slow Garden specializes in unfinished thought and reviewable interpretation. Kyle Knowledge remains authoritative for accepted durable meaning, Agent Ops for operational state, and Personal OS for command-center access.
+- Rationale: Duplicating those systems would dilute the quiet foreground and create conflicting sources of truth.
+- Revisit when: A validated integration cannot preserve the authority and promotion boundaries.
+
+## D-009: Source and derived artifacts never silently merge
+
+- Status: Accepted
+- Date: 2026-08-25
+- Decision: Store user source revisions separately from observations, inferences, external research, corrections, and accepted derived artifacts. Every bloom cites exact source revisions.
+- Rationale: Interpretive agency, correction, reruns, and trustworthy exports require immutable lineage.
+- Revisit when: Never for silent replacement; storage mechanics may change while the semantic boundary remains.
+
+## D-010: Promotion creates a receipt and requires acceptance
+
+- Status: Accepted
+- Date: 2026-08-25
+- Decision: A bloom may project into Kyle Knowledge only after explicit acceptance and destination preview. Promotion creates a new user-owned artifact and receipt; it does not convert the system bloom or alter sources.
+- Rationale: The vault accepts curated meaning, not unattended model output.
+- Revisit when: The vault contract changes or another destination establishes an equally explicit authority contract.
+
+## D-011: Maximum three blooms and zero is valid
+
+- Status: Provisional
+- Date: 2026-08-25
+- Decision: A garden pass returns zero to three blooms. It ranks for supported usefulness and withholds obvious, unsupported, or overreaching output.
+- Rationale: Scarcity makes the return reviewable and gives no-output behavior product legitimacy.
+- Revisit when: Density testing at one, three, and five-plus blooms produces better evidence.
