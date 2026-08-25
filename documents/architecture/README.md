@@ -16,3 +16,16 @@ Required artifacts before production implementation:
 - Architecture decision records for every material choice.
 
 No production migration should be added until the owning decision is accepted and rollback is documented.
+
+## Current decision package
+
+- [Architecture baseline](ARCHITECTURE_BASELINE.md)
+- [Data and provenance](DATA_AND_PROVENANCE.md)
+- [Asynchronous processing](ASYNC_PROCESSING.md)
+- [Privacy, security, and threat model](PRIVACY_SECURITY_THREAT_MODEL.md)
+- [Cost and capacity](COST_AND_CAPACITY.md)
+- [Evaluation architecture](EVALUATION_ARCHITECTURE.md)
+- [ADR-001: Managed hybrid system](ADR-001_ALPHA_SYSTEM.md)
+- [ADR-002: Async control plane](ADR-002_ASYNC_CONTROL_PLANE.md)
+- [ADR-003: Data and trust boundary](ADR-003_DATA_AND_TRUST_BOUNDARY.md)
+- [ADR-004: Model and evaluation](ADR-004_MODEL_AND_EVALUATION.md)

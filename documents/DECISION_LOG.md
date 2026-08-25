@@ -87,3 +87,39 @@
 - Decision: A garden pass returns zero to three blooms. It ranks for supported usefulness and withholds obvious, unsupported, or overreaching output.
 - Rationale: Scarcity makes the return reviewable and gives no-output behavior product legitimacy.
 - Revisit when: Density testing at one, three, and five-plus blooms produces better evidence.
+
+## D-012: Managed hybrid alpha architecture
+
+- Status: Accepted
+- Date: 2026-08-25
+- Decision: Use a private React/Vite PWA with an encrypted IndexedDB mutation outbox and managed Supabase Postgres as the authoritative store in a TypeScript monorepo.
+- Rationale: Offline capture and transactional provenance are required; a full local-first sync engine is not required to validate the loop.
+- Evidence: [ADR-001](architecture/ADR-001_ALPHA_SYSTEM.md).
+- Revisit when: Safari offline or managed-operator privacy fails its documented gate.
+
+## D-013: Product-owned asynchronous control plane
+
+- Status: Accepted
+- Date: 2026-08-25
+- Decision: Separate the user-visible pass from Cron, queue delivery, job ledger, and provider batch state. Use IDs-only queue events and application idempotency.
+- Rationale: Provider and queue completion semantics cannot protect quiet capture, provenance, cancellation, or duplicate prevention alone.
+- Evidence: [ADR-002](architecture/ADR-002_ASYNC_CONTROL_PLANE.md) and passed job-ledger spike.
+- Revisit when: Reconciliation cannot meet the documented SLO without excessive compensating logic.
+
+## D-014: Pinned model and evidence-first release gate
+
+- Status: Accepted
+- Date: 2026-08-25
+- Decision: Select a pinned model snapshot through the comparative evaluation corpus; require strict outputs, exact evidence validation, no tools in Tend/Connect, and hard database cost caps.
+- Rationale: “Latest” and fluent prose are not measures of accumulation-dependent, trustworthy value.
+- Evidence: [ADR-004](architecture/ADR-004_MODEL_AND_EVALUATION.md) and passed cost-model spike.
+- Revisit when: A provider or workflow fails quality, privacy, cancellation, or cost thresholds.
+
+## D-015: Pressed Botanical is the provisional expert recommendation, not the selection
+
+- Status: Provisional
+- Date: 2026-08-25
+- Decision: Treat Pressed Botanical Studio as the strongest H1 trust grammar and Windborne Meadow as the emotional north star. Do not build or hybridize until Kyle selects or requests refinement.
+- Rationale: Expert rubric scoring favors evidence clarity while preserving a separate preference and comprehension gate.
+- Evidence: [Visual directions evaluation](design/VISUAL_DIRECTIONS_EVALUATION.md).
+- Revisit when: Kyle selects a direction or the comprehension test contradicts the review.

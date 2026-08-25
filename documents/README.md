@@ -11,6 +11,7 @@ This directory is the canonical product-planning corpus for Slow Garden.
 | [Decision log](DECISION_LOG.md) | Accepted and provisional product decisions | A durable choice is made or reversed |
 | [Research register](RESEARCH_REGISTER.md) | Questions, methods, evidence, and study queue | Research begins or evidence arrives |
 | [Risk register](RISK_REGISTER.md) | Product, safety, privacy, delivery, and business risks | Risk exposure or mitigation changes |
+| [H1 build-package audit](H1_BUILD_PACKAGE_AUDIT.md) | Requirement-by-requirement evidence and remaining gate | Package evidence or gate changes |
 
 ## Working areas
 
@@ -27,6 +28,14 @@ This directory is the canonical product-planning corpus for Slow Garden.
 - [Trust and approval contract](product/TRUST_AND_APPROVAL_CONTRACT.md)
 - [Journeys and state model](design/JOURNEYS_AND_STATE_MODEL.md)
 - [Visual directions brief](design/VISUAL_DIRECTIONS_BRIEF.md)
+- [Visual directions evaluation](design/VISUAL_DIRECTIONS_EVALUATION.md)
+- [Architecture baseline](architecture/ARCHITECTURE_BASELINE.md)
+- [Data and provenance contract](architecture/DATA_AND_PROVENANCE.md)
+- [Asynchronous processing architecture](architecture/ASYNC_PROCESSING.md)
+- [Privacy, security, and threat model](architecture/PRIVACY_SECURITY_THREAT_MODEL.md)
+- [Cost and capacity model](architecture/COST_AND_CAPACITY.md)
+- [Evaluation architecture](architecture/EVALUATION_ARCHITECTURE.md)
+- [Private-alpha implementation backlog](operations/ALPHA_IMPLEMENTATION_BACKLOG.md)
 
 ## Status language
 

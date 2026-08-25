@@ -11,3 +11,5 @@ This area will hold:
 - Release receipts and dogfood reports.
 
 Local tests, merge state, deployment state, live behavior, and external receipt are separate gates. Do not collapse them into “shipped.”
+
+Current plan: [Private-alpha implementation backlog](ALPHA_IMPLEMENTATION_BACKLOG.md).

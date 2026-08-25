@@ -224,21 +224,21 @@ Goal: Choose infrastructure from measured requirements rather than habit.
 
 Tasks:
 
-- [ ] Quantify expected seed volume, attachment size, garden count, snapshot size, batch duration, concurrency, and monthly cost envelope.
-- [ ] Decide web architecture and rendering model after canvas and offline requirements are known.
-- [ ] Decide whether the alpha is a monorepo and finalize `applications/`, `services/`, and `packages/` boundaries.
-- [ ] Compare managed Postgres/Supabase against local-first and hybrid storage options.
-- [ ] Decide authentication, authorization, encryption, key ownership, backup, deletion, and account recovery.
-- [ ] Define the source-revision, snapshot, bloom, provenance, response, evaluation, and job-ledger schemas.
-- [ ] Define API/event contracts and idempotency keys for garden passes.
-- [ ] Compare scheduled polling, database triggers, queues, durable workflows, and Codex scheduled tasks for orchestration.
-- [ ] Define model-provider abstraction, batch API use, structured output validation, retries, fallbacks, budgets, and cancellation.
-- [ ] Define prompt/version provenance and reproducible reruns.
-- [ ] Decide attachment storage, text extraction, image handling, and content limits.
+- [x] Quantify expected seed volume, attachment size, garden count, snapshot size, batch duration, concurrency, and monthly cost envelope.
+- [x] Decide web architecture and rendering model after canvas and offline requirements are known, with a measured fallback gate.
+- [x] Decide whether the alpha is a monorepo and finalize `apps/`, `packages/`, and `supabase/` boundaries.
+- [x] Compare managed Postgres/Supabase against local-first and hybrid storage options.
+- [x] Decide authentication, authorization, encryption, key ownership, backup, deletion, and account recovery.
+- [x] Define the source-revision, snapshot, bloom, provenance, response, evaluation, and job-ledger schemas.
+- [x] Define API/event contracts and idempotency keys for garden passes.
+- [x] Compare scheduled polling, database triggers, queues, durable workflows, and Codex scheduled tasks for orchestration.
+- [x] Define model-provider abstraction, batch API use, structured output validation, retries, fallbacks, budgets, and cancellation.
+- [x] Define prompt/version provenance and reproducible reruns.
+- [x] Decide attachment storage, text extraction, image handling, and content limits, with backup activation gate.
 - [ ] Prototype spatial rendering at 1,000 nodes on target iPhone and desktop hardware.
 - [ ] Prototype offline capture, conflict resolution, and delayed sync.
-- [ ] Produce a threat model covering private data, prompt injection, cross-garden leakage, service credentials, logs, and exports.
-- [ ] Produce a cost model for inference, storage, egress, observability, and backups.
+- [x] Produce a threat model covering private data, prompt injection, cross-garden leakage, service credentials, logs, and exports.
+- [x] Produce a cost model for inference, storage, egress, observability, and backups.
 
 Outputs:
 
@@ -259,14 +259,14 @@ Tasks:
 
 - [ ] Write separate implementation briefs for identity, garden data, canvas, batch orchestration, bloom review, provenance, settings, and observability.
 - [ ] Define schema migration order and reversible rollback for each data change.
-- [ ] Define API contracts with versioning and compatibility rules.
-- [ ] Define shared domain types and ownership between client and service layers.
-- [ ] Define seed data, test fixtures, local development, preview, staging, and production environments.
-- [ ] Define CI checks for types, lint, unit, integration, accessibility, security, migration, and end-to-end tests.
+- [x] Define API contracts with versioning and compatibility rules.
+- [x] Define shared domain types and ownership between client and service layers.
+- [x] Define seed data, test fixtures, local development, preview, and production environments.
+- [x] Define CI checks for types, lint, unit, integration, accessibility, security, migration, and end-to-end tests.
 - [ ] Define deployment promotion and rollback gates.
 - [ ] Define feature flags for processing modes, external research, notifications, and new model workflows.
-- [ ] Define operational dashboards, alerts, cost budgets, and incident ownership.
-- [ ] Break work into 1-to-3-day issues with explicit dependencies and acceptance criteria.
+- [x] Define operational dashboards, alerts, cost budgets, and incident ownership.
+- [x] Break work into 1-to-3-day issues with explicit dependencies and acceptance criteria.
 
 Outputs:
 
