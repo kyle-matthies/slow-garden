@@ -2,7 +2,7 @@
 
 Status: Accepted concept direction
 Audience: Kyle-first private lab
-Initial platforms: Responsive web, followed by native iOS if the core loop validates
+Initial platforms: Native iOS first, with a web companion
 Working category: Temporal co-thinking / contemplative AI
 
 ## Thesis
@@ -52,7 +52,8 @@ In scope:
 - Asynchronous processing with visible status and failure recovery.
 - A designed return and review ritual.
 - User correction and learning signals.
-- Responsive web use on desktop and iPhone.
+- A one-handed native iOS experience as the primary capture and return surface.
+- A web companion for desktop review, curation, search, and deeper project context.
 
 Out of scope:
 
@@ -61,7 +62,8 @@ Out of scope:
 - Automatic publication, messaging, code changes, or external-system mutation.
 - A general automation builder.
 - A chatbot as the primary interface.
-- Native iOS before the web loop is validated.
+- Shared UI code at the expense of platform-appropriate interaction; clients share contracts and semantics instead.
+- Web-only capability that leaves the primary iOS loop incomplete.
 - Importing the whole personal knowledge system before bounded-source retrieval is proven.
 
 ## Expansion paths

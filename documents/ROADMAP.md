@@ -10,8 +10,8 @@ Primary rule: Do not advance a horizon because code exists; advance when its exi
 |---|---|---|---|
 | H0: Frame | Concept and research program | Is delayed, visual synthesis meaningfully better than journaling plus a weekly summary? | No production features |
 | H1: Prove | Instrumented experience prototype | Can the seed-to-bloom loop create value without interrupting or overpowering the person? | Core loop only |
-| H2: Build | Private web alpha | Can the loop run safely and reliably on real private material? | Personal garden V1 |
-| H3: Extend | Native and agent-connected product | Which adjacent workflows strengthen the core rather than turn it into an automation dashboard? | iOS, Codex workbench, deeper research |
+| H2: Build | Native iOS private alpha + web companion foundation | Can the loop run safely and reliably on real private material? | Personal garden V1 |
+| H3: Extend | Agent-connected and multi-surface product | Which adjacent workflows strengthen the core rather than turn it into an automation dashboard? | Web depth, Codex workbench, deeper research |
 | H4: Generalize | External or team product | Can the model serve other people and organizations with trustworthy boundaries? | Collaboration, innovation, platform APIs |
 
 ## Dependency chain
@@ -33,9 +33,9 @@ Instrumented prototype + offline batch study
 Architecture selection + threat model + evaluation harness
         |
         v
-Private web alpha + four-week dogfood
+Native iOS alpha + web companion + four-week dogfood
         |
-        +--> Native iOS
+        +--> Deeper web curation
         +--> Codex workbench
         +--> External beta / team innovation
 ```
@@ -216,7 +216,7 @@ Exit gate:
 
 ---
 
-## H2: Build and validate the private web alpha
+## H2: Build and validate the native iOS private alpha
 
 ### Phase 2.1: Architecture selection and technical spikes
 
@@ -225,8 +225,8 @@ Goal: Choose infrastructure from measured requirements rather than habit.
 Tasks:
 
 - [x] Quantify expected seed volume, attachment size, garden count, snapshot size, batch duration, concurrency, and monthly cost envelope.
-- [x] Decide web architecture and rendering model after canvas and offline requirements are known, with a measured fallback gate.
-- [x] Decide whether the alpha is a monorepo and finalize `apps/`, `packages/`, and `supabase/` boundaries.
+- [x] Decide native iOS-first client architecture, web-companion boundary, and rendering models with measured fallback gates.
+- [x] Finalize `applications/`, `packages/`, `prototypes/`, and `supabase/` boundaries.
 - [x] Compare managed Postgres/Supabase against local-first and hybrid storage options.
 - [x] Decide authentication, authorization, encryption, key ownership, backup, deletion, and account recovery.
 - [x] Define the source-revision, snapshot, bloom, provenance, response, evaluation, and job-ledger schemas.
@@ -279,7 +279,7 @@ Exit gate:
 
 - An unfamiliar implementer can take any first-wave issue without making an unstated product or architecture decision.
 
-### Phase 2.3: Private web alpha feature sequence
+### Phase 2.3: Native iOS alpha feature sequence
 
 Feature group A, trusted source foundation:
 
@@ -291,9 +291,9 @@ Feature group A, trusted source foundation:
 
 Feature group B, quiet thinking surface:
 
-- Responsive spatial garden.
+- One-handed native Meadow garden with mobile-appropriate spatial exploration.
 - Fast text capture and editing.
-- Keyboard, touch, offline queue, and sync-conflict handling.
+- Touch, dictation, share-sheet capture, encrypted offline queue, and sync-conflict handling.
 - Chronology and bounded search as secondary lenses.
 - No AI during capture.
 
@@ -321,9 +321,15 @@ Feature group E, alpha readiness:
 - Cost guardrails and no-run behavior at budget limits.
 - Incident, rollback, and data-export verification.
 
+Web companion foundation:
+
+- Desktop Cabinet review, provenance inspection, search, and longer-form curation.
+- Contract-parity tests against the native client and the same source/derived authority rules.
+- Platform-specific offline behavior without shared UI-code constraints.
+
 Exit gate:
 
-- The alpha supports one complete private seed-to-bloom loop across desktop and iPhone web, including offline capture, failure recovery, provenance, correction, export, and deletion.
+- The alpha supports one complete private seed-to-bloom loop on native iPhone plus companion review on desktop web, including offline capture, failure recovery, provenance, correction, export, and deletion.
 
 ### Phase 2.4: Four-week Kyle-first dogfood
 
@@ -348,16 +354,15 @@ Exit gate:
 
 ## H3: Extend a validated personal product
 
-### Phase 3.1: Native iOS
+### Phase 3.1: Deeper web companion and native extensions
 
-- [ ] Decide native SwiftUI versus shared-client strategy from measured web limitations.
-- [ ] Design capture for one-handed use, share sheet, widgets, shortcuts, dictation, photos, and offline-first sync.
-- [ ] Define secure local storage, background refresh, notification, and battery policies.
-- [ ] Preserve interaction and provenance parity with web.
-- [ ] Test VoiceOver, Dynamic Type, reduced motion, low connectivity, and interrupted background work.
-- [ ] Plan TestFlight privacy disclosures, review notes, crash reporting, and release gates.
+- [ ] Add desktop-scale comparison, chronology, project context, and multi-bloom curation without turning the companion into an admin dashboard.
+- [ ] Add native widgets, shortcuts, richer share-sheet intake, dictation, photos, and carefully bounded notifications after the core loop validates.
+- [ ] Preserve contract, provenance, and correction parity while allowing platform-specific interactions.
+- [ ] Test VoiceOver, Dynamic Type, reduced motion, keyboard, low connectivity, and interrupted background work on each platform.
+- [ ] Plan TestFlight privacy disclosures, web release controls, crash reporting, and rollback gates.
 
-Gate: Build native only when it materially improves capture frequency, offline reliability, or return quality over the web experience.
+Gate: Extensions must materially improve capture or review without weakening the quiet foreground or creating a second authority system.
 
 ### Phase 3.2: Explore mode and deeper research
 

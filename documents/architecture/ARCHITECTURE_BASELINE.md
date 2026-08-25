@@ -2,11 +2,11 @@
 
 Status: Accepted for H1 implementation planning; provider choices remain reversible
 Date: 2026-08-25
-Scope: Kyle-first responsive web prototype and private alpha
+Scope: Kyle-first mobile prototype, native iOS private alpha, and web companion
 
 ## Decision summary
 
-Slow Garden will begin as a TypeScript monorepo with a private React progressive web app, a managed Supabase backend, a local IndexedDB outbox for offline capture, and short-lived Supabase Edge Functions around a durable Postgres job ledger and queue. AI garden passes use the OpenAI Responses endpoint through the Batch API when the return may arrive within 24 hours. Slow Garden—not the model provider, queue, or scheduler—owns eligibility, snapshots, idempotency, lifecycle, budgets, provenance, correction, and reveal.
+Slow Garden will begin with a native SwiftUI iOS client as the primary product and a React web companion for desktop review and curation. Each client owns a platform-appropriate encrypted local outbox and consumes the same versioned service contracts. A managed Supabase backend uses short-lived Edge Functions around a durable Postgres job ledger and queue. AI garden passes use the OpenAI Responses endpoint through the Batch API when the return may arrive within 24 hours. Slow Garden—not the model provider, queue, scheduler, or client platform—owns eligibility, snapshots, idempotency, lifecycle, budgets, provenance, correction, and reveal.
 
 This is intentionally not a general agent platform. Connect passes have no tools and cannot write outside Slow Garden.
 
@@ -23,13 +23,15 @@ Current as of 2026-08-25; recheck before implementation.
 ## System context
 
 ```text
-Kyle on desktop/iPhone
-        |
-        v
-React PWA ---- IndexedDB encrypted outbox
-        |
-        | Supabase Auth JWT
-        v
+Kyle on iPhone                         Kyle on desktop
+        |                                      |
+        v                                      v
+SwiftUI app -- encrypted local outbox   React companion -- IndexedDB outbox
+        |                                      |
+        +------------- shared HTTPS contracts-+
+                               |
+                               | Supabase Auth JWT
+                               v
 Typed Edge API -----------------------------+
         |                                    |
         v                                    v
@@ -59,7 +61,7 @@ Never direct
 ## Trust boundaries
 
 1. **Device boundary:** plaintext exists in the rendered client and briefly in a device-encrypted offline outbox. Device compromise is outside server controls.
-2. **Public application boundary:** the browser receives only a publishable Supabase key and user session. No service or model credentials ship to the client.
+2. **Client application boundary:** iOS Keychain/protected files and browser storage hold only scoped client credentials and local drafts. No service or model credentials ship to either client.
 3. **Data boundary:** every exposed row is owner-scoped with RLS; worker-only tables and queue schemas are not client-exposed.
 4. **Processing boundary:** only exact snapshot revisions and bounded metadata leave the database for a model pass.
 5. **Provider boundary:** provider request and output files are transient processing artifacts, deleted after ingestion and audit receipt subject to verified provider behavior.
@@ -69,9 +71,10 @@ Never direct
 
 | Concern | H1/H2 choice | Why | Reversal seam |
 |---|---|---|---|
-| Web client | React + TypeScript + Vite PWA | Private app needs rich client interaction, not public SSR | Domain and API packages contain no Vite dependency |
-| Spatial rendering | Accessible DOM nodes with viewport culling; paths on a non-semantic rendering layer | Text remains selectable and screen-reader structure is possible | Replace only path/background renderer if the 1,000-node spike fails |
-| Offline | IndexedDB mutation outbox; service worker app shell | Fast capture survives connectivity loss | Sync protocol is transport-neutral |
+| Primary client | Native SwiftUI iOS | One-handed capture, protected local data, dictation/share sheet, offline reliability, and platform-quality motion are core | Versioned HTTP contracts isolate the client from backend implementation |
+| Web companion | React + TypeScript + Vite | Desktop review, curation, search, and deeper evidence benefit from a larger surface | Domain and API schemas contain no React/Vite dependency |
+| Spatial rendering | SwiftUI views plus Canvas paths on iOS; accessible DOM nodes plus a non-semantic path layer on web; both use viewport culling | Source text remains selectable/reachable while paths stay decorative | Replace each platform's path/background renderer independently if the 1,000-node spike fails |
+| Offline | iOS encrypted local store/outbox; IndexedDB outbox for web | Fast capture survives connectivity loss on the primary device; companion uses the same conflict semantics | Sync protocol and idempotency contract are transport-neutral |
 | Authority store | Managed Supabase Postgres | Transactions, constraints, RLS, full-text search, queue proximity | SQL schema and export format remain ordinary Postgres/JSON |
 | Identity | Supabase [email one-time code](https://supabase.com/docs/guides/auth/auth-email-passwordless), allowlisted Kyle account | Avoids password storage and prefetch-sensitive magic-link consumption | OIDC/passkey provider can replace auth without changing owner IDs through identity mapping |
 | Attachments | Private Supabase Storage with database manifests | Signed access and owner policies | Object interface hides provider paths |
@@ -93,21 +96,24 @@ Never direct
 ## Monorepo boundary
 
 ```text
-apps/
-  web/                 private PWA and visual prototype
+applications/
+  ios/                 production SwiftUI primary client
+  web/                 React desktop companion
 packages/
-  domain/              state machines and invariant types
-  contracts/           versioned API and event schemas
-  ui/                  selected visual tokens and accessible primitives
+  contracts/           platform-neutral OpenAPI/JSON Schema/event definitions
+  web-domain/          generated TypeScript types and web state machines
+  ui-tokens/           semantic visual tokens exported for Swift and web
   evaluation/          corpus schemas, scorers, regression runner
 supabase/
   migrations/          ordered, reversible schema changes
   functions/           authenticated API, dispatcher, reconciler, export/delete
   tests/               pgTAP RLS and data-invariant tests
 spikes/                 disposable, evidence-producing technical probes
+prototypes/
+  mobile-h1/            disposable mobile interaction prototype; not production runtime
 ```
 
-Use pnpm workspaces with pinned package versions and a committed lockfile. Native iOS is not added until the web loop validates; it consumes the same HTTP contracts rather than sharing UI code.
+Keep the Swift package/Xcode project and web workspace independently reproducible. Generate client types from one versioned contract source, but do not share UI code. The mobile interaction prototype is intentionally isolated from both production clients.
 
 ## Capacity envelope
 
@@ -126,10 +132,10 @@ Design target for the private alpha, deliberately above expected Kyle use:
 
 ## Canvas and offline decision rules
 
-- Initial renderer uses DOM note cards and renders only nodes intersecting the viewport plus an overscan band.
-- Pass if desktop pan/zoom maintains p95 frame time under 20 ms at 1,000 nodes and iPhone p95 under 33 ms at 1,000 nodes, with input latency under 100 ms at 250 visible/logical nodes.
-- If paths dominate cost, move paths to Canvas/WebGL while keeping notes, focus, and semantics in DOM.
-- If note DOM dominates after culling, cap the visible neighborhood and use a structured-list lens; do not sacrifice accessibility for a decorative infinite canvas.
+- The initial iOS renderer uses SwiftUI seed/flower views and Canvas paths; the web companion uses DOM note cards and a non-semantic path layer. Both render only the viewport neighborhood plus an overscan band.
+- Pass if desktop-web pan/zoom maintains p95 frame time under 20 ms at 1,000 logical nodes and native iPhone p95 stays under 33 ms, with input latency under 100 ms at 250 visible/logical nodes.
+- If paths dominate cost, replace only the platform path layer while keeping source notes, focus, and accessibility semantics in native views or DOM.
+- If semantic views dominate after culling, cap the visible neighborhood and use a structured-list lens; do not sacrifice accessibility for a decorative infinite canvas.
 - Offline text mutations carry `base_revision_id`. Divergent text produces an explicit conflict; it never silently chooses last write.
 - Layout mutations merge per seed and retain the superseded position for undo. Concurrent edits to the same seed position produce a non-blocking conflict marker.
 
@@ -146,7 +152,8 @@ Design target for the private alpha, deliberately above expected Kyle use:
 The decisions above are complete enough to implement, but the following issue gates cannot be marked validated from documents:
 
 - DOM/canvas performance on Kyle’s target desktop and iPhone.
-- IndexedDB encryption, offline conflict, and background-sync behavior on Safari.
+- iOS protected local storage, offline conflict, background refresh, and interrupted-sync behavior.
+- IndexedDB encryption and offline-conflict behavior for the web companion on Safari and Chromium.
 - RLS and deletion behavior against a real local Supabase stack.
 - Batch provider retention, cancellation, structured-output conformance, and 24-hour expiry behavior with an API key.
 - Attachment backup and restore outside database backups.

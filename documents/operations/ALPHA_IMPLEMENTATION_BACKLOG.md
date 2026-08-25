@@ -15,7 +15,7 @@ An item is complete only when its listed evidence exists. A commit or deployed f
 ## Dependency order
 
 ```text
-F0 repo/tooling
+F0 repo/tooling + P1 mobile interaction prototype
   -> F1 contracts -> F2 schema/RLS -> F3 auth
                     |                 |
                     +-> C1 source API +-> C2 offline sync
@@ -33,10 +33,12 @@ Privacy/export/backup ---------------------------------+
 
 | ID | Pri | Package | Depends | Acceptance evidence |
 |---|---|---|---|---|
-| F0 | P0 | Scaffold pnpm monorepo, pinned toolchain, lockfile, lint/type/test scripts | none | Fresh clone installs reproducibly; CI runs format, lint, type, unit; no runtime secrets or production data |
+| P1 | P0 | Build disposable mobile Meadow/Cabinet interaction prototype | selected mobile refinement targets | One-handed capture, view switch, evidence review, and Keep/Correct/Prune states work at 390x844; visual comparison and design QA pass; prototype is labeled non-production |
+| F0 | P0 | Scaffold native iOS project, web workspace, shared contract source, pinned toolchains, lockfiles, and lint/type/test scripts | P1 | Fresh checkout builds both clients reproducibly; CI validates Swift, web, and generated-contract drift; no runtime secrets or production data |
 | F1 | P0 | Implement domain enums, state transitions, API/event JSON schemas | F0 | Contract tests cover every documented pass/bloom state; unknown enum and >3 blooms fail |
 | S1 | P0 | Canvas performance spike with 5/25/100/1,000 seeds | F0 | Desktop p95 frame <20 ms and iPhone p95 <33 ms at 1,000 logical nodes; input <100 ms; accessibility tree remains usable; fallback decision recorded if not |
-| S2 | P0 | Safari offline/outbox spike with WebCrypto and IndexedDB | F0,F1 | Create/edit offline, reload, reconnect, and sign out on iPhone Safari; no lost writes; ciphertext at rest; key/cache gone after sign-out; explicit conflict produced |
+| S2 | P0 | Native iOS offline/outbox spike with protected local storage | F0,F1 | Create/edit offline, terminate/relaunch, reconnect, and sign out; no lost writes; protected ciphertext at rest; key/cache gone after sign-out; explicit conflict produced |
+| S2W | P1 | Web companion offline/outbox spike with WebCrypto and IndexedDB | F0,F1 | Create/edit offline, reload, reconnect, and sign out on desktop Safari/Chromium; no lost writes; ciphertext at rest; key/cache gone after sign-out; explicit conflict produced |
 | S3 | P0 | Postgres ledger concurrency spike | F1 | Two workers and duplicate events create one pass, one accepted output, max 3 blooms; cancelled late output invisible; tests run 100 repetitions |
 | S4 | P1 | Live OpenAI Batch contract spike using synthetic inputs | F1 | Record submit/status/cancel/output/error/usage receipts; strict output parses; provider files deleted or retention gap documented; no real private data |
 | S5 | P1 | Attachment backup/restore comparison | F0 | Select backup mechanism, restore 20 synthetic objects by checksum after primary deletion, document monthly cost and deletion window |
@@ -58,9 +60,9 @@ Privacy/export/backup ---------------------------------+
 
 | ID | Pri | Package | Depends | Acceptance evidence |
 |---|---|---|---|---|
-| U1 | P0 | Meadow canvas, text capture, and structured-list alternative | D1,C1,S1 | Capture works with pointer/touch/keyboard; no AI interruption; 5/25/100/1,000-state thresholds; list alternative exposes all seed content and paths |
+| U1 | P0 | Native iOS Meadow, text capture, and structured-list alternative | D1,C1,S1 | Capture works one-handed with touch, dictation, and hardware keyboard; no AI interruption; 5/25/100/1,000-state thresholds; list alternative exposes all seed content and paths |
 | U2 | P0 | Beds, user paths, spatial revision history, bounded chronology/search | U1,DB1 | Proximity is never stored as system truth; movement undo works; search returns exact owner-scoped sources and opens garden neighborhood |
-| U3 | P1 | Responsive and accessibility hardening | U1,U2 | Automated checks plus keyboard, VoiceOver, 200% text, contrast, reduced motion, iPhone portrait receipts; no meaning depends on motion/color |
+| U3 | P1 | Native mobile and companion-web accessibility hardening | U1,U2 | Automated checks plus hardware keyboard, VoiceOver, Dynamic Type/200% text, contrast, reduced motion, iPhone portrait, and desktop-web receipts; no meaning depends on motion/color |
 
 ## Wave 3: Asynchronous return
 
@@ -92,7 +94,7 @@ Privacy/export/backup ---------------------------------+
 | O2 | P1 | Content-free observability, SLOs, alerts, cost controls | B5,E3 | Alerts fire for stuck job, failures, 50/80/100% budget, auth anomalies; canary content absent from logs |
 | O3 | P1 | Backup, restore, and disaster drill | C4,S5,O1 | Database plus 20 attachments restored by checksum into isolated environment; RLS and lineage verifier pass after restore |
 | O4 | P1 | Threat-model verification and incident/rotation drill | DB2,A1,C3,O2 | T-01 through T-13 receipts complete; processing kill switch and key/session rotation witnessed; known gaps explicitly accepted or block release |
-| O5 | P1 | Integrated desktop/iPhone seed-to-bloom acceptance | all P0, O1-O4 | Offline capture through delayed return, provenance, correction, export, deletion, failure recovery, reduced motion, and budget stop verified end-to-end |
+| O5 | P1 | Integrated native-iPhone/desktop-companion seed-to-bloom acceptance | all P0, O1-O4 | Offline native capture through delayed return and desktop companion review, provenance, correction, export, deletion, failure recovery, reduced motion, and budget stop verified end-to-end |
 
 ## P2 dogfood additions
 
@@ -109,8 +111,8 @@ Privacy/export/backup ---------------------------------+
 - Team accounts, sharing, public links, and collaboration.
 - Whole-vault ingestion, vector memory, or cross-garden synthesis.
 - Mood scores, diagnosis, streaks, and engagement notifications.
-- Native iOS before the web loop and Safari limitations are measured.
+- Shared UI code that constrains native iOS quality or forces the web companion to imitate mobile interaction.
 
 ## Release definition
 
-Private alpha is not “done” when the UI renders or a batch completes. It is ready only when O5 has an evidence bundle covering local tests, deployed state, live desktop/iPhone behavior, provider receipt, RLS negatives, backup/restore, export/deletion, cost stop, and the evaluation threshold. The four-week dogfood remains a separate product-validation gate.
+Private alpha is not “done” when the UI renders or a batch completes. It is ready only when O5 has an evidence bundle covering local tests, deployed state, live native-iPhone and desktop-companion behavior, provider receipt, RLS negatives, backup/restore, export/deletion, cost stop, and the evaluation threshold. The four-week dogfood remains a separate product-validation gate.

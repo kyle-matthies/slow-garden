@@ -40,13 +40,13 @@
 - Rationale: The existing app has its own active state and constraints. Isolation makes product evidence easier to interpret and preserves unrelated work.
 - Revisit when: The private alpha architecture is selected and integration costs can be compared with evidence.
 
-## D-006: Web-first, iOS after loop validation
+## D-006: Native iOS first, web companion in parallel
 
-- Status: Provisional
-- Date: 2026-08-24
-- Decision: Validate the complete experience in a responsive web prototype and private web alpha before committing to a native iOS client.
-- Rationale: The interaction and batch-return model is the highest-risk assumption; platform duplication should not precede its validation.
-- Revisit when: Web capture or offline limitations prevent a valid Kyle-first test.
+- Status: Accepted; supersedes the 2026-08-24 web-first proposal
+- Date: 2026-08-25
+- Decision: Treat native iOS as the primary product and the web app as a companion. Validate the visual and interaction model first in a disposable mobile web prototype, then implement the private alpha in SwiftUI while the web companion consumes the same versioned service contracts.
+- Rationale: Quiet, one-handed capture, device-native privacy, offline reliability, dictation, share-sheet input, and a deliberate return ritual are central rather than optional platform enhancements. A prototype can still de-risk the experience without making its browser runtime the production architecture.
+- Revisit when: Native implementation prevents rapid learning or a measured cross-platform strategy can preserve the iOS-quality bar with less duplication.
 
 ## D-007: Weekly default deep pass
 
@@ -88,14 +88,14 @@
 - Rationale: Scarcity makes the return reviewable and gives no-output behavior product legitimacy.
 - Revisit when: Density testing at one, three, and five-plus blooms produces better evidence.
 
-## D-012: Managed hybrid alpha architecture
+## D-012: Managed backend with native-first clients
 
 - Status: Accepted
 - Date: 2026-08-25
-- Decision: Use a private React/Vite PWA with an encrypted IndexedDB mutation outbox and managed Supabase Postgres as the authoritative store in a TypeScript monorepo.
-- Rationale: Offline capture and transactional provenance are required; a full local-first sync engine is not required to validate the loop.
+- Decision: Use a native SwiftUI iOS client with an encrypted local mutation outbox as the primary application, a React/Vite web companion with its own IndexedDB outbox, and managed Supabase Postgres as the authoritative store. Share versioned HTTP, event, and schema contracts rather than UI code.
+- Rationale: Offline capture and transactional provenance are required on both clients, while native iOS capabilities are part of the product thesis. Transport-neutral sync semantics keep the clients aligned without constraining either experience.
 - Evidence: [ADR-001](architecture/ADR-001_ALPHA_SYSTEM.md).
-- Revisit when: Safari offline or managed-operator privacy fails its documented gate.
+- Revisit when: iOS offline/background behavior, companion-web reliability, or managed-operator privacy fails its documented gate.
 
 ## D-013: Product-owned asynchronous control plane
 

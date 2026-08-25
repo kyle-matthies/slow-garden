@@ -1,6 +1,6 @@
 # Meadow and Cabinet visual system
 
-Status: Accepted H1 product direction; state-set and comprehension testing remain implementation work
+Status: Accepted H1 product direction with matched mobile targets; density, accessibility, and comprehension testing remain implementation work
 Date: 2026-08-25
 Decision owner: Kyle
 
@@ -116,7 +116,7 @@ The transition communicates a change from exploration to inspection. It must not
 
 - Meadow becomes a vertically navigable garden neighborhood with focused seeds and flowers rather than a miniature infinite field.
 - Selecting a flower opens Cabinet as a full-screen review route.
-- Cabinet stacks specimen, interpretation, evidence clippings, and actions in that order.
+- Cabinet pairs the specimen with a narrow evidence-clipping column at standard iPhone text sizes so provenance is visible without a second gesture. It stacks specimen, interpretation, evidence, and actions when Dynamic Type or available width makes the paired layout unreadable.
 - Return preserves scroll/focus position.
 
 ### Keyboard and screen reader
@@ -143,6 +143,13 @@ Generated as a matched pair on 2026-08-25 using the original Meadow, Pressed Bot
 
 These frames establish the paired visual target. They are not final production assets.
 
+The native-iOS-first correction produced a second matched pair at a 390 x 844 mobile target:
+
+- [Mobile Meadow](references/mobile-meadow.png): one-handed exploration, a living selected flower, three visible source markers, Review clipping, and thumb-reachable Plant a seed.
+- [Mobile Cabinet](references/mobile-cabinet.png): the same selected bloom as a pressed specimen, three exact source clippings, uncertainty, and Keep/Correct/Prune review actions.
+
+These mobile frames are the source of truth for the H1 interaction prototype. The prototype uses a disposable browser runtime for fast visual and interaction testing; the production client remains native SwiftUI.
+
 ## Known corrections for the state-set pass
 
 - Meadow still uses more paper surface than the long-term 25/100-seed state may tolerate; density frames must reduce persistent note area without harming capture.
@@ -155,4 +162,3 @@ These frames establish the paired visual target. They are not final production a
 ## Acceptance evidence still required
 
 The implementation target is ready, but D1 completes only after matching Garden, Return Reveal, Bloom Detail, 5/25/100-seed, iPhone, reduced-motion, keyboard-focus, and large-text frames exist. In comprehension testing, every participant must distinguish source from system material, and at least 80% must find exact provenance without instruction.
-
