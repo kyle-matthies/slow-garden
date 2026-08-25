@@ -1,0 +1,17 @@
+.DS_Store
+.env
+.env.*
+!.env.example
+.vercel
+.next
+node_modules
+dist
+build
+coverage
+*.log
+
+# Local private data and generated journal material must never be committed.
+data/private/
+data/raw/
+artifacts/private/
+artifacts/generated/
