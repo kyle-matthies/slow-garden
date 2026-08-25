@@ -1,9 +1,9 @@
 # Visual directions evaluation
 
-Status: Expert review complete; Kyle selection and comprehension test pending
+Status: Expert review and Kyle direction decision complete; comprehension test pending
 Date: 2026-08-25
 
-This is a rubric-based review of the three generated Garden frames. It is not user evidence and does not select a build target on Kyle’s behalf.
+This began as a rubric-based review of three generated Garden frames. Kyle’s subsequent review supplied the missing product judgment: Windborne and Pressed Botanical solve different thinking postures and should coexist as Meadow and Cabinet.
 
 ## Weighted review
 
@@ -47,21 +47,25 @@ Keep if selected: source slips, specimen-versus-interpretation distinction, evid
 
 Correct before build: restore more open spatial composition, hide evidence detail until requested, reduce literal dried-flower decoration, and borrow a small amount of Windborne’s environmental transformation.
 
-## Preliminary recommendation
+## Direction decision
 
-Pressed Botanical Studio is the safest H1 foundation because trust and evidence are harder to retrofit than atmosphere. Windborne Meadow provides the stronger emotional north star. A disciplined hybrid could use Pressed Botanical’s semantic grammar inside Windborne’s open, changing environment, but no hybrid should be generated until Kyle chooses a primary direction or explicitly asks for refinement.
+Kyle selected a paired system rather than a visual hybrid:
 
-Living Constellation should be preserved as a rejected alternative unless Kyle strongly prefers it; it carries the greatest risk of generic AI-graph and magical-intelligence cues.
+- Windborne Meadow becomes the open exploration and capture view.
+- Pressed Botanical Studio becomes the evidence-rich Cabinet review view.
+- A selected living flower in Meadow becomes the same pressed specimen in Cabinet, where its exact source clippings are visible.
+- The shared top bar, typography, labels, bloom identity, provenance, and response controls make the transition feel like a change of posture inside one garden.
+
+This resolves the earlier trade-off instead of averaging it away: Meadow retains the beautiful, flowing field, while Cabinet carries the practical folder structure and visual evidence. Living Constellation remains a rejected alternative because it adds generic AI-graph and magical-intelligence risk without a distinct product job.
 
 ## Selection and test gate
 
-After Kyle selects or refines a direction:
+After the paired direction decision:
 
 1. produce Garden, Return Reveal, and Bloom Detail at matching fidelity;
 2. create 5-, 25-, and 100-seed states;
 3. create reduced-motion, keyboard-focus, large-text, and iPhone review frames;
 4. run a five-scenario comprehension test for source, inference, research, contradiction, and correction;
-5. record the selected direction and preserved rejected alternatives in the decision log.
+5. test that switching views changes disclosure rather than appearing to create a second app or duplicate object.
 
 The direction is accepted only if all participants correctly distinguish source from system material in the core scenarios and provenance is found without instruction by at least 80% of tests.
-

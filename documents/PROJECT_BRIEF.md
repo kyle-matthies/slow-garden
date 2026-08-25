@@ -33,6 +33,8 @@ The first product must be useful as a thinking environment before any AI result 
 6. Each bloom distinguishes source evidence, system inference, and external research.
 7. Kyle may keep, correct, prune, annotate, or promote a bloom into a new user-owned seed.
 
+The primary experience has two views of the same garden. Meadow is the open capture and exploration surface; Cabinet is the focused review surface where a selected living flower becomes a pressed specimen beside its exact source clippings. Switching views changes disclosure, not data or authority.
+
 ## Processing modes
 
 - **Tend:** organize, label, deduplicate, and identify unfinished material without adding interpretive claims.

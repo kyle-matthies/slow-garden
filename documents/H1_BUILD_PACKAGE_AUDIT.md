@@ -2,7 +2,7 @@
 
 Audit date: 2026-08-25
 Evidence scope: current `main` worktree, generated design artifacts, executable local probes, and current official provider documentation
-Conclusion: architecture and backlog are decision-complete; the H1 visual target still requires Kyle’s selection, so the complete package gate remains open
+Conclusion: the requested H1 build package is decision-complete. Kyle selected Meadow and Cabinet as two views of one garden; remaining state-set, runtime, and study gates are implementation evidence, not missing product decisions.
 
 ## Requirement audit
 
@@ -13,7 +13,7 @@ Conclusion: architecture and backlog are decision-complete; the H1 visual target
 | Trust and approval contract | [Trust contract](product/TRUST_AND_APPROVAL_CONTRACT.md) | Complete: permissions, artifact classes, correction, zero-output, density, data promises, non-clinical boundary, and anti-goals are specified. |
 | Core journeys and state model | [Journeys and state model](design/JOURNEYS_AND_STATE_MODEL.md) | Complete for prototype implementation, including pass/bloom states, desktop/touch/keyboard/small-screen rules, notifications, provenance, and failures. |
 | Three Flower-inspired visual directions | [Visual brief and generation receipt](design/VISUAL_DIRECTIONS_BRIEF.md) | Complete: exactly three Garden frames were generated from one inspected moodboard and shared constraints. |
-| Evaluate the three directions | [Visual evaluation](design/VISUAL_DIRECTIONS_EVALUATION.md) | Expert rubric complete. Pressed Botanical scores highest for trust; Windborne is the emotional reference. Kyle selection and comprehension testing remain open, so no build target is accepted. |
+| Evaluate the three directions | [Visual evaluation](design/VISUAL_DIRECTIONS_EVALUATION.md), [Meadow and Cabinet](design/MEADOW_AND_CABINET.md) | Complete: expert rubric plus Kyle review selected Windborne as Meadow exploration and Pressed Botanical as Cabinet review. Matched refinement frames establish the shared system; comprehension testing remains an implementation gate. |
 | Data and provenance architecture | [Data contract](architecture/DATA_AND_PROVENANCE.md), [ADR-003](architecture/ADR-003_DATA_AND_TRUST_BOUNDARY.md), provenance probe | Complete logical decision and executable boundary probe. Physical Postgres/RLS migration is an implementation item. |
 | Asynchronous processing architecture | [Async architecture](architecture/ASYNC_PROCESSING.md), [ADR-002](architecture/ADR-002_ASYNC_CONTROL_PLANE.md), ledger probe | Complete control-plane decision: trigger, snapshot, queue, ledger, provider, idempotency, retry, cancellation, stale, and cost behavior are explicit. Live provider and concurrent Postgres tests remain bounded implementation spikes. |
 | Privacy and security architecture | [Threat model](architecture/PRIVACY_SECURITY_THREAT_MODEL.md) | Complete control design with data classes, 18 threats, Supabase-specific controls, auth, encryption, retention, incident order, and release gate. Verification receipts remain required before real notes. |
@@ -37,7 +37,10 @@ All four run with Node and passed on 2026-08-25:
 
 These are domain probes. They do not claim browser, database, deployment, provider, or device behavior.
 
-## Open package gate
+## Selected visual gate resolution
 
-Kyle must select visual option 1, 2, or 3—or request a refinement—before D1 can produce the matching Garden, Return Reveal, Bloom Detail, density, mobile, and accessibility state set. That is the only unresolved human product decision in the build package. Runtime spikes and studies are already scoped with pass/fail criteria and fallback decisions; they are work to execute, not questions left for an implementer to invent.
+Kyle rejected the forced either/or choice. Meadow preserves the open grass-field exploration experience; Cabinet uses the pressed botanical system for evidence-rich review. The same living flower becomes a pressed specimen, with shared identity, labels, provenance, and controls. Living Constellation remains a preserved rejected direction.
 
+## Remaining evidence is implementation work
+
+D1 still requires matching Return/Bloom Detail, density, mobile, reduced-motion, keyboard, and large-text frames plus comprehension testing. Canvas, Safari offline, Postgres/RLS, live Batch, and attachment-backup spikes also remain open. Every one has a measurable acceptance threshold and fallback in the backlog. None requires an implementer to decide the product’s visual posture, authority boundary, data model, orchestration semantics, privacy promise, cost cap, or evaluation standard.

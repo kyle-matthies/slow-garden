@@ -1,6 +1,6 @@
 # Visual directions brief
 
-Status: Three directions generated; awaiting selection and evaluation
+Status: Three directions evaluated; Meadow plus Cabinet refinement selected
 Date: 2026-08-25
 Target: Responsive desktop web first, 1440 x 1024 concept frame
 
@@ -80,4 +80,4 @@ Generated on 2026-08-25 from the same 1440 x 1024 product brief and the same ins
 - Living Constellation: `/Users/kylematthies/.codex/generated_images/01a0372f-7e6f-7e23-af8e-01ed5c5c9dfb/exec-5355cbd8-381d-4194-9363-8a12a902d119.png`
 - Pressed Botanical Studio: `/Users/kylematthies/.codex/generated_images/01a0372f-7e6f-7e23-af8e-01ed5c5c9dfb/exec-77c950d4-dee8-4bcb-b960-025b25ebb4d6.png`
 
-All three are exploration artifacts, not approved product assets. Selection and rubric scoring remain open; rejected directions will be preserved after a selection is recorded.
+All three remain preserved exploration artifacts. Kyle selected Windborne Meadow and Pressed Botanical Studio as two functional views of one product rather than a blended style or either/or choice. Living Constellation is a preserved rejected direction. The accepted paired system and refinement receipts are recorded in [Meadow and Cabinet](MEADOW_AND_CABINET.md).

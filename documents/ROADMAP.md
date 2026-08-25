@@ -1,6 +1,6 @@
 # Multi-horizon planning roadmap
 
-Status: Initial planning baseline
+Status: H1 build package decision-complete; implementation and validation gates open
 Planning model: Evidence-gated horizons, not date commitments
 Primary rule: Do not advance a horizon because code exists; advance when its exit evidence exists.
 

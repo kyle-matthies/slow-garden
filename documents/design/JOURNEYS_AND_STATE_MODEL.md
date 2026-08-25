@@ -122,6 +122,15 @@ Promoting creates a new user-owned artifact with an acceptance receipt; it does 
 
 Chronology, search, filters, tags, and project context are ways to locate or temporarily view material. They do not become the home surface. Search results open back into the relevant garden neighborhood. Tags remain optional; the first seed never requires classification.
 
+## Meadow and Cabinet views
+
+The Garden has two task postures over the same objects:
+
+- **Meadow:** source-forward capture, spatial exploration, and sparse living blooms with collapsed evidence.
+- **Cabinet:** one selected bloom, its exact source clippings, uncertainty, provenance, and response controls.
+
+“Review clipping” opens Cabinet without creating a new bloom or snapshot. “Return to meadow” restores viewport, selection, and focus. Keep, Correct, or Prune updates the same bloom lifecycle from either route; the alpha presents those controls in Cabinet to protect Meadow’s quiet foreground. See [the visual-system contract](MEADOW_AND_CABINET.md).
+
 ## Cadence and depth
 
 Two independent controls prevent “more aggressive AI” from becoming ambiguous:
@@ -147,4 +156,3 @@ Two independent controls prevent “more aggressive AI” from becoming ambiguou
 - Contradictory evidence with no system resolution.
 - Missing/deleted source and unavailable external citation.
 - Reduced-motion, keyboard-only, large-text, and structured-list alternatives.
-

@@ -115,11 +115,11 @@
 - Evidence: [ADR-004](architecture/ADR-004_MODEL_AND_EVALUATION.md) and passed cost-model spike.
 - Revisit when: A provider or workflow fails quality, privacy, cancellation, or cost thresholds.
 
-## D-015: Pressed Botanical is the provisional expert recommendation, not the selection
+## D-015: Meadow and Cabinet are two views of one garden
 
-- Status: Provisional
+- Status: Accepted
 - Date: 2026-08-25
-- Decision: Treat Pressed Botanical Studio as the strongest H1 trust grammar and Windborne Meadow as the emotional north star. Do not build or hybridize until Kyle selects or requests refinement.
-- Rationale: Expert rubric scoring favors evidence clarity while preserving a separate preference and comprehension gate.
-- Evidence: [Visual directions evaluation](design/VISUAL_DIRECTIONS_EVALUATION.md).
-- Revisit when: Kyle selects a direction or the comprehension test contradicts the review.
+- Decision: Use Windborne Meadow as the spacious exploration and capture view, and Pressed Botanical as an evidence-rich Cabinet review view. They share the same garden, bloom identity, provenance, controls, and visual tokens; switching views changes disclosure, not data or authority.
+- Rationale: Kyle identified a real task distinction rather than a style compromise: Meadow supports flowing connection-making, while Cabinet supports deliberate inspection of clippings and evidence. Keeping both preserves the Flower-inspired experience without forcing provenance into the capture surface.
+- Evidence: [Meadow and Cabinet visual system](design/MEADOW_AND_CABINET.md) and matched refinement frames.
+- Revisit when: Mode-switch comprehension, density, mobile, or accessibility testing shows the two views fragment the experience or duplicate work.

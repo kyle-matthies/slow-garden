@@ -29,6 +29,7 @@ This directory is the canonical product-planning corpus for Slow Garden.
 - [Journeys and state model](design/JOURNEYS_AND_STATE_MODEL.md)
 - [Visual directions brief](design/VISUAL_DIRECTIONS_BRIEF.md)
 - [Visual directions evaluation](design/VISUAL_DIRECTIONS_EVALUATION.md)
+- [Accepted Meadow and Cabinet visual system](design/MEADOW_AND_CABINET.md)
 - [Architecture baseline](architecture/ARCHITECTURE_BASELINE.md)
 - [Data and provenance contract](architecture/DATA_AND_PROVENANCE.md)
 - [Asynchronous processing architecture](architecture/ASYNC_PROCESSING.md)

@@ -1,6 +1,6 @@
 # Private-alpha implementation backlog
 
-Status: Decision-complete first plan; visual selection and runtime spikes remain gates
+Status: Decision-complete plan with accepted Meadow/Cabinet target; runtime and state-set evidence remain gates
 Date: 2026-08-25
 Sizing: each item is intended to fit one to three focused implementation days
 
@@ -22,7 +22,7 @@ F0 repo/tooling
                     +-> B1 snapshot/ledger -> B2 fake provider -> B3 live provider
                     +-> E1 corpus/evaluator -----------+
                                                        v
-Visual selection -> U1 garden -> U2 return/provenance -> U3 correction
+D-015 Meadow/Cabinet -> U1 garden -> U2 return/provenance -> U3 correction
                                                        |
 Privacy/export/backup ---------------------------------+
                                                        v
@@ -40,7 +40,7 @@ Privacy/export/backup ---------------------------------+
 | S3 | P0 | Postgres ledger concurrency spike | F1 | Two workers and duplicate events create one pass, one accepted output, max 3 blooms; cancelled late output invisible; tests run 100 repetitions |
 | S4 | P1 | Live OpenAI Batch contract spike using synthetic inputs | F1 | Record submit/status/cancel/output/error/usage receipts; strict output parses; provider files deleted or retention gap documented; no real private data |
 | S5 | P1 | Attachment backup/restore comparison | F0 | Select backup mechanism, restore 20 synthetic objects by checksum after primary deletion, document monthly cost and deletion window |
-| D1 | P0 | Select/refine visual direction and produce state set | Kyle selection | Garden/Return/Bloom Detail plus 5/25/100 seeds, iPhone, reduced-motion, keyboard, large-text frames; source/derived comprehension gate passes |
+| D1 | P0 | Produce the accepted Meadow/Cabinet state set | D-015 and matched refinement frames | Meadow, Cabinet/Return, Bloom Detail plus 5/25/100 seeds, iPhone, reduced-motion, keyboard, large-text frames; source/derived and one-product/two-view comprehension gates pass |
 
 ## Wave 1: Trusted source foundation
 
@@ -58,7 +58,7 @@ Privacy/export/backup ---------------------------------+
 
 | ID | Pri | Package | Depends | Acceptance evidence |
 |---|---|---|---|---|
-| U1 | P0 | Selected Garden canvas, text capture, and structured-list alternative | D1,C1,S1 | Capture works with pointer/touch/keyboard; no AI interruption; 5/25/100/1,000-state thresholds; list alternative exposes all seed content and paths |
+| U1 | P0 | Meadow canvas, text capture, and structured-list alternative | D1,C1,S1 | Capture works with pointer/touch/keyboard; no AI interruption; 5/25/100/1,000-state thresholds; list alternative exposes all seed content and paths |
 | U2 | P0 | Beds, user paths, spatial revision history, bounded chronology/search | U1,DB1 | Proximity is never stored as system truth; movement undo works; search returns exact owner-scoped sources and opens garden neighborhood |
 | U3 | P1 | Responsive and accessibility hardening | U1,U2 | Automated checks plus keyboard, VoiceOver, 200% text, contrast, reduced motion, iPhone portrait receipts; no meaning depends on motion/color |
 
@@ -76,7 +76,7 @@ Privacy/export/backup ---------------------------------+
 
 | ID | Pri | Package | Depends | Acceptance evidence |
 |---|---|---|---|---|
-| R1 | P0 | Bounded Return Reveal and bloom review | D1,B4,U1 | 0-3 reveal only; zero-output receipt does not pressure capture; state remains understandable without animation; private notification has no content |
+| R1 | P0 | Meadow-to-Cabinet Return Reveal and bloom review | D1,B4,U1 | 0-3 flowers reveal; Review clipping opens the same bloom in Cabinet; zero-output does not pressure capture; state/identity survives reduced motion; private notification has no content |
 | R2 | P0 | Exact provenance inspection | R1,DB1 | Every claim opens exact immutable revision/excerpt; contradiction visible; missing/deleted and stale sources handled; unknown evidence cannot render as valid |
 | R3 | P0 | Keep/refine/coincidence/wrong-source/prune responses | R2 | Append-only responses; source unchanged; recurrence rule preview/revoke works; duplicate response ID creates one response |
 | R4 | P1 | Promotion preview and receipt stub | R2,R3 | No destination write in alpha; preview clearly separates new artifact from source; cancel creates no receipt; adapter cannot execute without explicit approval capability |
@@ -114,4 +114,3 @@ Privacy/export/backup ---------------------------------+
 ## Release definition
 
 Private alpha is not “done” when the UI renders or a batch completes. It is ready only when O5 has an evidence bundle covering local tests, deployed state, live desktop/iPhone behavior, provider receipt, RLS negatives, backup/restore, export/deletion, cost stop, and the evaluation threshold. The four-week dogfood remains a separate product-validation gate.
-
