@@ -35,7 +35,7 @@ Research URLs may be public, but their association with a private garden is priv
 | T-06 | Model invents evidence or personal diagnosis | Interpretive harm | exact revision handles, excerpt verification, non-clinical policy, reject unsupported claims | corpus faithfulness and prohibited-claim gate |
 | T-07 | Duplicate delivery creates duplicate pass, bloom, or promotion | Confusion or external double write | database unique keys and idempotent transactions | ledger spike and concurrency integration tests |
 | T-08 | Stale output presented as current | Misleading interpretation | snapshot lineage and reveal-time head comparison | edit-during-pass test marks stale and blocks promotion |
-| T-09 | Offline plaintext persists after sync or sign-out | Device disclosure | WebCrypto-encrypted outbox, erase after acknowledged sync, erase key on sign-out | Safari/Chrome storage inspection and lost-device drill |
+| T-09 | Offline plaintext remains readable outside the intended device/session boundary | Device disclosure | iOS store directory uses Data Protection before SwiftData creates the store; future web outbox uses WebCrypto; acknowledged sync and sign-out erasure are implemented per platform when auth exists | iPhone locked/pre-first-unlock inspection plus future Safari/Chrome storage and sign-out drills |
 | T-10 | Session remains usable after account/session revocation | Unauthorized access | short access-token lifetime, revoke sessions before user deletion, validate active session for export/delete/promotion | revoked-session test against sensitive endpoints |
 | T-11 | Storage object bypasses row authorization | Attachment disclosure | private bucket, owner-prefixed paths, signed short-lived URLs, storage RLS, no public CDN | cross-user object tests and expired-link test |
 | T-12 | Database backup restores but attachments are lost | Incomplete recovery | independent object manifest and encrypted attachment backup; restore drill | sampled checksum restore and full quarterly drill |
@@ -70,7 +70,8 @@ Research URLs may be public, but their association with a private garden is priv
 
 - TLS for all network transport; HSTS on the web origin.
 - Provider-managed encryption at rest for database and Storage in alpha.
-- Device offline outbox encrypted with a non-exportable WebCrypto key. It is a convenience queue, not a permanent local archive.
+- Native iOS stores sources and the local outbox in an Application Support directory configured with `completeUntilFirstUserAuthentication` Data Protection before SwiftData creates its database and sidecar files. The local-only milestone has no account or sign-out path; those erasure semantics remain a gate for sync/auth work.
+- The future web companion uses an independently generated, non-exportable WebCrypto key for its IndexedDB outbox. Native and web key/storage controls are verified separately rather than treating browser behavior as the iOS control.
 - Provider API keys and server secrets live only in managed function secrets. Rotate after any suspected exposure.
 - Application-layer envelope encryption is deferred because it would either move decryption keys into the browser or require all content through a decryption service. Reconsider before multi-user beta or if the managed-operator threat becomes unacceptable.
 

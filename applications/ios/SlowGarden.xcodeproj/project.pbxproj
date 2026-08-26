@@ -1,0 +1,236 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {};
+	objectVersion = 60;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		B00000000000000000000001 /* SlowGardenApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C00000000000000000000001 /* SlowGardenApp.swift */; };
+		B00000000000000000000002 /* GardenAppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C00000000000000000000002 /* GardenAppModel.swift */; };
+		B00000000000000000000003 /* GardenRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C00000000000000000000003 /* GardenRootView.swift */; };
+		B00000000000000000000004 /* MeadowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C00000000000000000000004 /* MeadowView.swift */; };
+		B00000000000000000000005 /* CabinetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C00000000000000000000005 /* CabinetView.swift */; };
+		B00000000000000000000006 /* GardenManagerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C00000000000000000000006 /* GardenManagerView.swift */; };
+		B00000000000000000000007 /* SeedEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C00000000000000000000007 /* SeedEditorView.swift */; };
+		B00000000000000000000008 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C00000000000000000000008 /* Assets.xcassets */; };
+		B00000000000000000000009 /* SlowGardenCore in Frameworks */ = {isa = PBXBuildFile; productRef = M00000000000000000000001 /* SlowGardenCore */; };
+		B0000000000000000000000A /* SlowGardenUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C00000000000000000000009 /* SlowGardenUITests.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		D00000000000000000000005 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = P00000000000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = F00000000000000000000001;
+			remoteInfo = SlowGarden;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		C00000000000000000000001 /* SlowGardenApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SlowGardenApp.swift; sourceTree = "<group>"; };
+		C00000000000000000000002 /* GardenAppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GardenAppModel.swift; sourceTree = "<group>"; };
+		C00000000000000000000003 /* GardenRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GardenRootView.swift; sourceTree = "<group>"; };
+		C00000000000000000000004 /* MeadowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeadowView.swift; sourceTree = "<group>"; };
+		C00000000000000000000005 /* CabinetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CabinetView.swift; sourceTree = "<group>"; };
+		C00000000000000000000006 /* GardenManagerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GardenManagerView.swift; sourceTree = "<group>"; };
+		C00000000000000000000007 /* SeedEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SeedEditorView.swift; sourceTree = "<group>"; };
+		C00000000000000000000008 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		C00000000000000000000009 /* SlowGardenUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SlowGardenUITests.swift; sourceTree = "<group>"; };
+		C0000000000000000000000A /* SlowGarden.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SlowGarden.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		C0000000000000000000000B /* SlowGardenUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SlowGardenUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		E00000000000000000000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (B00000000000000000000009 /* SlowGardenCore in Frameworks */,);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E00000000000000000000004 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = ();
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		D00000000000000000000001 = {
+			isa = PBXGroup;
+			children = (
+				D00000000000000000000002 /* SlowGardenApp */,
+				D00000000000000000000003 /* SlowGardenUITests */,
+				D00000000000000000000004 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		D00000000000000000000002 /* SlowGardenApp */ = {
+			isa = PBXGroup;
+			children = (
+				C00000000000000000000001 /* SlowGardenApp.swift */,
+				C00000000000000000000002 /* GardenAppModel.swift */,
+				C00000000000000000000003 /* GardenRootView.swift */,
+				C00000000000000000000004 /* MeadowView.swift */,
+				C00000000000000000000005 /* CabinetView.swift */,
+				C00000000000000000000006 /* GardenManagerView.swift */,
+				C00000000000000000000007 /* SeedEditorView.swift */,
+				C00000000000000000000008 /* Assets.xcassets */,
+			);
+			path = SlowGardenApp;
+			sourceTree = "<group>";
+		};
+		D00000000000000000000003 /* SlowGardenUITests */ = {
+			isa = PBXGroup;
+			children = (C00000000000000000000009 /* SlowGardenUITests.swift */,);
+			path = SlowGardenUITests;
+			sourceTree = "<group>";
+		};
+		D00000000000000000000004 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				C0000000000000000000000A /* SlowGarden.app */,
+				C0000000000000000000000B /* SlowGardenUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		F00000000000000000000001 /* SlowGarden */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = H00000000000000000000002 /* Build configuration list for PBXNativeTarget "SlowGarden" */;
+			buildPhases = (
+				E00000000000000000000002 /* Sources */,
+				E00000000000000000000001 /* Frameworks */,
+				E00000000000000000000003 /* Resources */,
+			);
+			buildRules = ();
+			dependencies = ();
+			name = SlowGarden;
+			packageProductDependencies = (M00000000000000000000001 /* SlowGardenCore */,);
+			productName = SlowGarden;
+			productReference = C0000000000000000000000A /* SlowGarden.app */;
+			productType = "com.apple.product-type.application";
+		};
+		F00000000000000000000002 /* SlowGardenUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = H00000000000000000000003 /* Build configuration list for PBXNativeTarget "SlowGardenUITests" */;
+			buildPhases = (
+				E00000000000000000000005 /* Sources */,
+				E00000000000000000000004 /* Frameworks */,
+				E00000000000000000000006 /* Resources */,
+			);
+			buildRules = ();
+			dependencies = (D00000000000000000000006 /* PBXTargetDependency */,);
+			name = SlowGardenUITests;
+			productName = SlowGardenUITests;
+			productReference = C0000000000000000000000B /* SlowGardenUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		P00000000000000000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2600;
+				LastUpgradeCheck = 2600;
+				TargetAttributes = {
+					F00000000000000000000001 = {CreatedOnToolsVersion = 26.0;};
+					F00000000000000000000002 = {CreatedOnToolsVersion = 26.0; TestTargetID = F00000000000000000000001;};
+				};
+			};
+			buildConfigurationList = H00000000000000000000001 /* Build configuration list for PBXProject "SlowGarden" */;
+			compatibilityVersion = "Xcode 15.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (en, Base,);
+			mainGroup = D00000000000000000000001;
+			packageReferences = (L00000000000000000000001 /* XCLocalSwiftPackageReference "SlowGardenCore" */,);
+			productRefGroup = D00000000000000000000004 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (F00000000000000000000001 /* SlowGarden */, F00000000000000000000002 /* SlowGardenUITests */,);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		E00000000000000000000003 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (B00000000000000000000008 /* Assets.xcassets in Resources */,); runOnlyForDeploymentPostprocessing = 0;};
+		E00000000000000000000006 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0;};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		E00000000000000000000002 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B00000000000000000000001 /* SlowGardenApp.swift in Sources */,
+				B00000000000000000000002 /* GardenAppModel.swift in Sources */,
+				B00000000000000000000003 /* GardenRootView.swift in Sources */,
+				B00000000000000000000004 /* MeadowView.swift in Sources */,
+				B00000000000000000000005 /* CabinetView.swift in Sources */,
+				B00000000000000000000006 /* GardenManagerView.swift in Sources */,
+				B00000000000000000000007 /* SeedEditorView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E00000000000000000000005 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (B0000000000000000000000A /* SlowGardenUITests.swift in Sources */,); runOnlyForDeploymentPostprocessing = 0;};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		D00000000000000000000006 /* PBXTargetDependency */ = {isa = PBXTargetDependency; target = F00000000000000000000001 /* SlowGarden */; targetProxy = D00000000000000000000005 /* PBXContainerItemProxy */;};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		G00000000000000000000001 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {CLANG_ENABLE_MODULES = YES; ENABLE_STRICT_OBJC_MSGSEND = YES; GCC_C_LANGUAGE_STANDARD = gnu17; SWIFT_VERSION = 6.0;}; name = Debug;};
+		G00000000000000000000002 /* Release */ = {isa = XCBuildConfiguration; buildSettings = {CLANG_ENABLE_MODULES = YES; ENABLE_STRICT_OBJC_MSGSEND = YES; GCC_C_LANGUAGE_STANDARD = gnu17; SWIFT_COMPILATION_MODE = wholemodule; SWIFT_VERSION = 6.0;}; name = Release;};
+		G00000000000000000000003 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "Slow Garden";
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				MARKETING_VERSION = 0.1;
+				PRODUCT_BUNDLE_IDENTIFIER = com.kylematthies.slowgarden;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		G00000000000000000000004 /* Release */ = {isa = XCBuildConfiguration; buildSettings = {CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 1; DEVELOPMENT_TEAM = ""; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_KEY_CFBundleDisplayName = "Slow Garden"; INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES; INFOPLIST_KEY_UILaunchScreen_Generation = YES; INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait; IPHONEOS_DEPLOYMENT_TARGET = 18.0; MARKETING_VERSION = 0.1; PRODUCT_BUNDLE_IDENTIFIER = com.kylematthies.slowgarden; PRODUCT_NAME = "$(TARGET_NAME)"; SDKROOT = iphoneos; SUPPORTED_PLATFORMS = "iphoneos iphonesimulator"; SWIFT_VERSION = 6.0; TARGETED_DEVICE_FAMILY = 1;}; name = Release;};
+		G00000000000000000000005 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {CODE_SIGN_STYLE = Automatic; GENERATE_INFOPLIST_FILE = YES; IPHONEOS_DEPLOYMENT_TARGET = 18.0; PRODUCT_BUNDLE_IDENTIFIER = com.kylematthies.slowgarden.uitests; PRODUCT_NAME = "$(TARGET_NAME)"; SDKROOT = iphoneos; SUPPORTED_PLATFORMS = "iphoneos iphonesimulator"; SWIFT_VERSION = 6.0; TARGETED_DEVICE_FAMILY = 1; TEST_TARGET_NAME = SlowGarden;}; name = Debug;};
+		G00000000000000000000006 /* Release */ = {isa = XCBuildConfiguration; buildSettings = {CODE_SIGN_STYLE = Automatic; GENERATE_INFOPLIST_FILE = YES; IPHONEOS_DEPLOYMENT_TARGET = 18.0; PRODUCT_BUNDLE_IDENTIFIER = com.kylematthies.slowgarden.uitests; PRODUCT_NAME = "$(TARGET_NAME)"; SDKROOT = iphoneos; SUPPORTED_PLATFORMS = "iphoneos iphonesimulator"; SWIFT_VERSION = 6.0; TARGETED_DEVICE_FAMILY = 1; TEST_TARGET_NAME = SlowGarden;}; name = Release;};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		H00000000000000000000001 /* Build configuration list for PBXProject "SlowGarden" */ = {isa = XCConfigurationList; buildConfigurations = (G00000000000000000000001 /* Debug */, G00000000000000000000002 /* Release */,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release;};
+		H00000000000000000000002 /* Build configuration list for PBXNativeTarget "SlowGarden" */ = {isa = XCConfigurationList; buildConfigurations = (G00000000000000000000003 /* Debug */, G00000000000000000000004 /* Release */,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release;};
+		H00000000000000000000003 /* Build configuration list for PBXNativeTarget "SlowGardenUITests" */ = {isa = XCConfigurationList; buildConfigurations = (G00000000000000000000005 /* Debug */, G00000000000000000000006 /* Release */,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release;};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		L00000000000000000000001 /* XCLocalSwiftPackageReference "SlowGardenCore" */ = {isa = XCLocalSwiftPackageReference; relativePath = SlowGardenCore;};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		M00000000000000000000001 /* SlowGardenCore */ = {isa = XCSwiftPackageProductDependency; productName = SlowGardenCore;};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = P00000000000000000000001 /* Project object */;
+}

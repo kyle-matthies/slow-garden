@@ -1,6 +1,6 @@
 # Private-alpha implementation backlog
 
-Status: Decision-complete plan with accepted Meadow/Cabinet target; runtime and state-set evidence remain gates
+Status: Native local vertical slice implemented; full-Xcode runtime and state-set evidence remain gates
 Date: 2026-08-25
 Sizing: each item is intended to fit one to three focused implementation days
 
@@ -11,6 +11,16 @@ Sizing: each item is intended to fit one to three focused implementation days
 - **P2:** valuable during dogfood but cannot weaken P0/P1 gates.
 
 An item is complete only when its listed evidence exists. A commit or deployed function alone is not acceptance.
+
+## Native vertical-slice receipt — 2026-08-26
+
+| Backlog seam | Implemented now | Evidence still required |
+|---|---|---|
+| F0/F1 | Xcode project, local Swift package, domain enums, repository interfaces, versioned JSON schema and fixture | Full-Xcode clean build and generated-contract drift automation |
+| S2 | Protected SwiftData store configuration, immutable revisions, atomic local outbox mutations, relaunch-shaped persistence boundary | Simulator/device relaunch, on-disk protection inspection, sign-out behavior after auth exists |
+| U1 | Native iPhone Meadow, quiet text capture/editing, stable focused neighborhood and local-state receipt | Device one-handed/dictation test, 5/25/100/1,000 performance and structured-list alternative |
+| B1/B2 | Frozen three-revision snapshot, idempotent queued pass, five-minute due time, foreground reconciliation and deterministic fixture generator | Full failure-state UI, cancellation/retry controls and Xcode integration execution |
+| R1-R3 | Cabinet reveal, exact three-source clippings, earlier-version disclosure and Keep/Correct/Prune append-only responses | VoiceOver, Dynamic Type, reduced-motion, visual comparison and XCUITest receipt |
 
 ## Dependency order
 

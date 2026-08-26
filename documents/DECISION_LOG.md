@@ -123,3 +123,12 @@
 - Rationale: Kyle identified a real task distinction rather than a style compromise: Meadow supports flowing connection-making, while Cabinet supports deliberate inspection of clippings and evidence. Keeping both preserves the Flower-inspired experience without forcing provenance into the capture surface.
 - Evidence: [Meadow and Cabinet visual system](design/MEADOW_AND_CABINET.md) and matched refinement frames.
 - Revisit when: Mode-switch comprehension, density, mobile, or accessibility testing shows the two views fragment the experience or duplicate work.
+
+## D-016: First native milestone is a local delayed-return vertical slice
+
+- Status: Accepted and implemented; full-Xcode runtime validation pending
+- Date: 2026-08-26
+- Decision: Implement multiple text-only gardens with create, rename, archive, and restore; immutable seed revisions; a protected local mutation outbox; a manual pass that becomes eligible after five minutes; and one deterministic three-source fixture bloom reviewed through Meadow and Cabinet. Do not add Supabase, authentication, real AI, notifications, attachments, or background-task correctness to this milestone.
+- Rationale: This proves the distinctive quiet-capture and delayed-return loop while isolating product learning from cloud privacy, provider quality, and iOS background scheduling risk.
+- Evidence: Native source and portable checks under `applications/ios`, plus the versioned fixture under `packages/contracts/v1`.
+- Revisit when: Full Xcode is installed and the simulator/device, protected-store, relaunch, UI-test, accessibility, and visual receipts are complete.

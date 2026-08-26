@@ -1,0 +1,120 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://slow.garden/contracts/v1/domain.schema.json",
+  "title": "Slow Garden v1 local vertical slice",
+  "type": "object",
+  "required": ["garden", "seeds", "pass", "blooms", "outbox"],
+  "properties": {
+    "garden": { "$ref": "#/$defs/garden" },
+    "seeds": { "type": "array", "items": { "$ref": "#/$defs/seed" } },
+    "pass": { "oneOf": [{ "$ref": "#/$defs/gardenPass" }, { "type": "null" }] },
+    "blooms": { "type": "array", "maxItems": 3, "items": { "$ref": "#/$defs/bloom" } },
+    "outbox": { "type": "array", "items": { "$ref": "#/$defs/outboxMutation" } }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "uuid": { "type": "string", "format": "uuid" },
+    "dateTime": { "type": "string", "format": "date-time" },
+    "garden": {
+      "type": "object",
+      "required": ["id", "name", "status", "created_at", "modified_at"],
+      "properties": {
+        "id": { "$ref": "#/$defs/uuid" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "status": { "enum": ["active", "archived"] },
+        "created_at": { "$ref": "#/$defs/dateTime" },
+        "modified_at": { "$ref": "#/$defs/dateTime" }
+      },
+      "additionalProperties": false
+    },
+    "seedRevision": {
+      "type": "object",
+      "required": ["id", "revision_number", "text", "created_at"],
+      "properties": {
+        "id": { "$ref": "#/$defs/uuid" },
+        "revision_number": { "type": "integer", "minimum": 1 },
+        "text": { "type": "string", "maxLength": 20000 },
+        "created_at": { "$ref": "#/$defs/dateTime" }
+      },
+      "additionalProperties": false
+    },
+    "seed": {
+      "type": "object",
+      "required": ["id", "garden_id", "current_revision", "created_at", "modified_at"],
+      "properties": {
+        "id": { "$ref": "#/$defs/uuid" },
+        "garden_id": { "$ref": "#/$defs/uuid" },
+        "current_revision": { "$ref": "#/$defs/seedRevision" },
+        "created_at": { "$ref": "#/$defs/dateTime" },
+        "modified_at": { "$ref": "#/$defs/dateTime" }
+      },
+      "additionalProperties": false
+    },
+    "snapshotItem": {
+      "type": "object",
+      "required": ["seed_id", "seed_revision_id", "ordinal"],
+      "properties": {
+        "seed_id": { "$ref": "#/$defs/uuid" },
+        "seed_revision_id": { "$ref": "#/$defs/uuid" },
+        "ordinal": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "gardenPass": {
+      "type": "object",
+      "required": ["id", "garden_id", "status", "requested_at", "due_at", "workflow_version", "snapshot_items"],
+      "properties": {
+        "id": { "$ref": "#/$defs/uuid" },
+        "garden_id": { "$ref": "#/$defs/uuid" },
+        "status": { "enum": ["queued", "processing", "complete", "failed", "cancelled"] },
+        "requested_at": { "$ref": "#/$defs/dateTime" },
+        "due_at": { "$ref": "#/$defs/dateTime" },
+        "workflow_version": { "const": "fixture-connect-v1" },
+        "snapshot_items": { "type": "array", "minItems": 3, "maxItems": 3, "items": { "$ref": "#/$defs/snapshotItem" } }
+      },
+      "additionalProperties": false
+    },
+    "evidenceLink": {
+      "type": "object",
+      "required": ["id", "seed_id", "seed_revision_id", "excerpt", "ordinal"],
+      "properties": {
+        "id": { "$ref": "#/$defs/uuid" },
+        "seed_id": { "$ref": "#/$defs/uuid" },
+        "seed_revision_id": { "$ref": "#/$defs/uuid" },
+        "excerpt": { "type": "string", "minLength": 1 },
+        "ordinal": { "type": "integer", "minimum": 0, "maximum": 2 }
+      },
+      "additionalProperties": false
+    },
+    "bloom": {
+      "type": "object",
+      "required": ["id", "pass_id", "garden_id", "title", "claim", "uncertainty", "status", "evidence"],
+      "properties": {
+        "id": { "$ref": "#/$defs/uuid" },
+        "pass_id": { "$ref": "#/$defs/uuid" },
+        "garden_id": { "$ref": "#/$defs/uuid" },
+        "title": { "type": "string", "minLength": 1 },
+        "claim": { "type": "string", "minLength": 1 },
+        "uncertainty": { "type": "string", "minLength": 1 },
+        "status": { "enum": ["new", "viewed", "kept", "corrected", "pruned"] },
+        "evidence": { "type": "array", "minItems": 3, "maxItems": 3, "items": { "$ref": "#/$defs/evidenceLink" } }
+      },
+      "additionalProperties": false
+    },
+    "outboxMutation": {
+      "type": "object",
+      "required": ["id", "idempotency_key", "entity_type", "entity_id", "operation", "state", "created_at"],
+      "properties": {
+        "id": { "$ref": "#/$defs/uuid" },
+        "idempotency_key": { "type": "string", "minLength": 1 },
+        "entity_type": { "enum": ["garden", "seed_revision", "garden_pass", "bloom", "bloom_response"] },
+        "entity_id": { "$ref": "#/$defs/uuid" },
+        "operation": { "type": "string", "minLength": 1 },
+        "base_revision_id": { "oneOf": [{ "$ref": "#/$defs/uuid" }, { "type": "null" }] },
+        "state": { "enum": ["local_pending", "acknowledged"] },
+        "created_at": { "$ref": "#/$defs/dateTime" }
+      },
+      "additionalProperties": false
+    }
+  }
+}

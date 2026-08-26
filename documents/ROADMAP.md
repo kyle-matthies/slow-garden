@@ -1,8 +1,15 @@
 # Multi-horizon planning roadmap
 
-Status: H1 build package decision-complete; implementation and validation gates open
+Status: H1 native local vertical slice implemented; full-Xcode and product validation gates open
 Planning model: Evidence-gated horizons, not date commitments
 Primary rule: Do not advance a horizon because code exists; advance when its exit evidence exists.
+
+## 2026-08-26 implementation receipt
+
+- Implemented the production-shaped native iPhone project, shared Swift domain, conditional SwiftData adapter, local outbox, immutable revisions and pass snapshots, five-minute foreground-reconciled fixture tending, Meadow/Cabinet views, multi-garden lifecycle, exact evidence, and append-only bloom responses.
+- Added a portable behavior runner, Xcode UI journey test, approved visual assets, and versioned contract fixture.
+- Portable Swift build, domain behavior checks, JSON syntax, project-file syntax, and existing web prototype verification can run now.
+- Full Xcode is not installed. Simulator/device build, SwiftData macro generation, protected-file inspection, force-quit relaunch, VoiceOver, Dynamic Type, reduced-motion, screenshot comparison, and XCUITest evidence remain open; H1 does not advance on source code alone.
 
 ## Horizon map
 

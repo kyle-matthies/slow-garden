@@ -1,5 +1,6 @@
 # Applications
 
-Reserved for user-facing clients after architecture selection.
+- `ios/`: primary native SwiftUI client, local domain package, Xcode project, and UI journey tests.
+- `web/`: reserved for the later React desktop companion.
 
-Expected candidates are a responsive web application and, after the private web loop validates, a native iOS application. Do not scaffold either client until the relevant roadmap gate and architecture decision are complete.
+The iOS local vertical slice is implemented. Its portable core builds with Command Line Tools; simulator, SwiftData macro, protected-file, accessibility, and UI-test receipts remain gated on installing full Xcode.

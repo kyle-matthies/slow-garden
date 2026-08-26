@@ -1,0 +1,62 @@
+{
+  "garden": {
+    "id": "00000000-0000-4000-8000-000000000001",
+    "name": "First Garden",
+    "status": "active",
+    "created_at": "2026-08-26T16:00:00Z",
+    "modified_at": "2026-08-26T16:05:00Z"
+  },
+  "seeds": [
+    {
+      "id": "00000000-0000-4000-8000-000000000010",
+      "garden_id": "00000000-0000-4000-8000-000000000001",
+      "current_revision": { "id": "00000000-0000-4000-8000-000000000011", "revision_number": 1, "text": "Leave room before naming the solution.", "created_at": "2026-08-26T16:00:00Z" },
+      "created_at": "2026-08-26T16:00:00Z",
+      "modified_at": "2026-08-26T16:00:00Z"
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000020",
+      "garden_id": "00000000-0000-4000-8000-000000000001",
+      "current_revision": { "id": "00000000-0000-4000-8000-000000000021", "revision_number": 1, "text": "What changes once this becomes a roadmap?", "created_at": "2026-08-26T16:01:00Z" },
+      "created_at": "2026-08-26T16:01:00Z",
+      "modified_at": "2026-08-26T16:01:00Z"
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000030",
+      "garden_id": "00000000-0000-4000-8000-000000000001",
+      "current_revision": { "id": "00000000-0000-4000-8000-000000000031", "revision_number": 1, "text": "The form should not interrupt the idea.", "created_at": "2026-08-26T16:02:00Z" },
+      "created_at": "2026-08-26T16:02:00Z",
+      "modified_at": "2026-08-26T16:02:00Z"
+    }
+  ],
+  "pass": {
+    "id": "00000000-0000-4000-8000-000000000040",
+    "garden_id": "00000000-0000-4000-8000-000000000001",
+    "status": "complete",
+    "requested_at": "2026-08-26T16:00:00Z",
+    "due_at": "2026-08-26T16:05:00Z",
+    "workflow_version": "fixture-connect-v1",
+    "snapshot_items": [
+      { "seed_id": "00000000-0000-4000-8000-000000000010", "seed_revision_id": "00000000-0000-4000-8000-000000000011", "ordinal": 0 },
+      { "seed_id": "00000000-0000-4000-8000-000000000020", "seed_revision_id": "00000000-0000-4000-8000-000000000021", "ordinal": 1 },
+      { "seed_id": "00000000-0000-4000-8000-000000000030", "seed_revision_id": "00000000-0000-4000-8000-000000000031", "ordinal": 2 }
+    ]
+  },
+  "blooms": [
+    {
+      "id": "00000000-0000-4000-8000-000000000050",
+      "pass_id": "00000000-0000-4000-8000-000000000040",
+      "garden_id": "00000000-0000-4000-8000-000000000001",
+      "title": "The work gets clearer when I leave it alone",
+      "claim": "This thought echoes across time.",
+      "uncertainty": "A pattern to consider, not a conclusion.",
+      "status": "new",
+      "evidence": [
+        { "id": "00000000-0000-4000-8000-000000000061", "seed_id": "00000000-0000-4000-8000-000000000010", "seed_revision_id": "00000000-0000-4000-8000-000000000011", "excerpt": "Leave room before naming the solution.", "ordinal": 0 },
+        { "id": "00000000-0000-4000-8000-000000000062", "seed_id": "00000000-0000-4000-8000-000000000020", "seed_revision_id": "00000000-0000-4000-8000-000000000021", "excerpt": "What changes once this becomes a roadmap?", "ordinal": 1 },
+        { "id": "00000000-0000-4000-8000-000000000063", "seed_id": "00000000-0000-4000-8000-000000000030", "seed_revision_id": "00000000-0000-4000-8000-000000000031", "excerpt": "The form should not interrupt the idea.", "ordinal": 2 }
+      ]
+    }
+  ],
+  "outbox": []
+}
