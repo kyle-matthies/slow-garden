@@ -15,8 +15,8 @@ Install the latest stable full Xcode, select it with `xcode-select`, and install
 Portable checks available without full Xcode:
 
 ```sh
-swift --package-path applications/ios/SlowGardenCore build
-swift --package-path applications/ios/SlowGardenCore run SlowGardenCoreChecks
+swift build --package-path applications/ios/SlowGardenCore
+swift run --package-path applications/ios/SlowGardenCore SlowGardenCoreChecks
 ```
 
 After Xcode is installed:

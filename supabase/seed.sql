@@ -1,0 +1,1 @@
+-- Intentionally empty. Automated tests create synthetic tenant data in transactions.

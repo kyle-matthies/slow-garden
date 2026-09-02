@@ -2,11 +2,13 @@
 
 ## D-001: Kyle-first private lab
 
-- Status: Accepted
+- Status: Superseded by D-017
 - Date: 2026-08-24
 - Decision: Design and validate the first experience for Kyle before generalizing to creators, teams, or employers.
 - Rationale: Real private workflows provide higher-quality evidence and avoid premature onboarding, collaboration, and market complexity.
 - Revisit when: The four-week dogfood passes or the Kyle-first loop fails to transfer in early concept tests.
+
+The local proof of concept remains valid evidence, but it is no longer the product boundary.
 
 ## D-002: Spatial garden as the primary surface
 
@@ -132,3 +134,12 @@
 - Rationale: This proves the distinctive quiet-capture and delayed-return loop while isolating product learning from cloud privacy, provider quality, and iOS background scheduling risk.
 - Evidence: Native source and portable checks under `applications/ios`, plus the versioned fixture under `packages/contracts/v1`.
 - Revisit when: Full Xcode is installed and the simulator/device, protected-store, relaunch, UI-test, accessibility, and visual receipts are complete.
+
+## D-017: Personal, secure multi-tenant product
+
+- Status: Accepted; supersedes the single-owner product boundary in D-001 and the allowlisted identity assumption in D-012
+- Date: 2026-09-02
+- Decision: Build Slow Garden as a personal product in which every authenticated account is an isolated tenant on shared Supabase infrastructure. Keep all garden material private by default. Do not add anonymous reads, public profiles, shared gardens, team memberships, or publication workflows to the initial multi-tenant slice. Use native SwiftUI as the primary mobile client and a Next.js companion on Vercel. This supersedes single-owner and allowlist assumptions throughout earlier decisions without invalidating their local proof-of-concept evidence.
+- Rationale: The local proof of concept validated the interaction model, not the intended reach. A personal multi-tenant service lets many people use the product without weakening the private character of their material or turning the product into a social network.
+- Evidence: [ADR-005](architecture/ADR-005_PERSONAL_MULTI_TENANT.md).
+- Revisit when: Research demonstrates a specific sharing or collaboration need with a separate consent, authorization, revocation, and audit model.

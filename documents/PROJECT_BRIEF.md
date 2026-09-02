@@ -1,7 +1,7 @@
 # Project brief
 
 Status: Accepted concept direction
-Audience: Kyle-first private lab
+Audience: Individuals who want a private, interruption-free thinking garden
 Initial platforms: Native iOS first, with a web companion
 Working category: Temporal co-thinking / contemplative AI
 
@@ -25,13 +25,13 @@ The first product must be useful as a thinking environment before any AI result 
 
 ## Initial experience
 
-1. Kyle creates or edits seeds: notes, fragments, questions, observations, links, or images.
+1. A person creates or edits seeds: notes, fragments, questions, observations, links, or images.
 2. Seeds can be arranged spatially into beds and loose clusters without requiring a taxonomy.
 3. Capture remains silent. The system does not interrupt, complete sentences, critique, or rearrange the garden.
 4. A scheduled or manual garden pass reads a revisioned snapshot.
 5. On return, the garden reveals no more than three blooms: a connection, tension, shift, or question.
 6. Each bloom distinguishes source evidence, system inference, and external research.
-7. Kyle may keep, correct, prune, annotate, or promote a bloom into a new user-owned seed.
+7. The person may keep, correct, prune, annotate, or promote a bloom into a new user-owned seed.
 
 The primary experience has two views of the same garden. Meadow is the open capture and exploration surface; Cabinet is the focused review surface where a selected living flower becomes a pressed specimen beside its exact source clippings. Switching views changes disclosure, not data or authority.
 
@@ -47,7 +47,9 @@ Cadence and processing depth are separate controls. Weekly is the provisional de
 
 In scope:
 
-- Private, single-user capture and spatial organization.
+- Private-by-default personal capture and spatial organization on secure multi-tenant infrastructure.
+- Account isolation enforced in the database, API, storage paths, background jobs, and tests.
+- Self-serve authentication, export, and deletion for each account.
 - Revision history and source-linked derived artifacts.
 - Asynchronous processing with visible status and failure recovery.
 - A designed return and review ritual.
@@ -57,9 +59,10 @@ In scope:
 
 Out of scope:
 
-- Team collaboration or shared gardens.
+- Team collaboration, shared tenant membership, or public garden feeds.
+- Automatic publication or anonymous access to personal material.
 - Mental-health diagnosis, treatment, or clinical claims.
-- Automatic publication, messaging, code changes, or external-system mutation.
+- Automatic messaging, code changes, or external-system mutation.
 - A general automation builder.
 - A chatbot as the primary interface.
 - Shared UI code at the expense of platform-appropriate interaction; clients share contracts and semantics instead.

@@ -2,7 +2,7 @@
 
 Status: H0 working baseline
 Date: 2026-08-25
-Audience: Kyle-first private lab
+Audience: Individuals who want private, interruption-free reflection
 
 ## The problem
 
@@ -38,7 +38,7 @@ This is a role inventory, not a replacement plan and not a review of private ent
 | Journals and daily notes | Chronological first-person record | Chronology can hide relationships across time | Original journal remains original evidence |
 | Kyle Knowledge | Curated, accepted durable meaning | Unfinished thought should not pollute accepted knowledge | Only an explicitly accepted bloom may later be promoted, with provenance |
 | Agent Ops | Transactional execution and portfolio truth | It is intentionally operational, not contemplative | Slow Garden must never report delivery state or become a second task system |
-| Personal OS | Command-center access to projects, tasks, and agent activity | Its density and operational purpose leave little quiet thinking space | Slow Garden is a separate private lab, not a dashboard module in V1 |
+| Personal OS | Command-center access to projects, tasks, and agent activity | Its density and operational purpose leave little quiet thinking space | Slow Garden remains a focused personal product, not a dashboard module in V1 |
 | ChatGPT and Codex | Immediate synthesis, research, and implementation | Conversational turn-taking can interrupt incubation | Slow Garden may prepare a workflow proposal; execution remains elsewhere and approval-gated |
 | Project notes and forms | Rough product and innovation inputs | Enrichment is periodic and separated from authoring | Later workbench experiments may reuse the temporal loop without adding automation to V1 |
 
@@ -105,6 +105,5 @@ Stop or reposition the concept if controlled studies show any of the following:
 ## H0 evidence still required
 
 - Complete the two-week diary study with concrete positive and negative-control moments.
-- Test category language with Kyle in use and later with 5 to 8 reflective knowledge workers.
+- Test category language through direct use and with 5 to 8 reflective knowledge workers.
 - Run the delayed-versus-immediate comparative study rather than treating this framing as validation.
-

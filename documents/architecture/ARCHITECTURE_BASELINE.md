@@ -1,8 +1,8 @@
 # Architecture baseline
 
-Status: Accepted for H1 implementation planning; provider choices remain reversible
-Date: 2026-08-25
-Scope: Kyle-first mobile prototype, native iOS private alpha, and web companion
+Status: Accepted for the H2 personal multi-tenant foundation; provider choices remain reversible
+Date: 2026-09-02
+Scope: Personal secure multi-tenant product, native iOS primary client, and web companion
 
 ## Decision summary
 
@@ -23,7 +23,7 @@ Current as of 2026-08-25; recheck before implementation.
 ## System context
 
 ```text
-Kyle on iPhone                         Kyle on desktop
+Person on iPhone                       Person on desktop
         |                                      |
         v                                      v
 SwiftUI app -- encrypted local outbox   React companion -- IndexedDB outbox
@@ -72,17 +72,17 @@ Never direct
 | Concern | H1/H2 choice | Why | Reversal seam |
 |---|---|---|---|
 | Primary client | Native SwiftUI iOS | One-handed capture, protected local data, dictation/share sheet, offline reliability, and platform-quality motion are core | Versioned HTTP contracts isolate the client from backend implementation |
-| Web companion | React + TypeScript + Vite | Desktop review, curation, search, and deeper evidence benefit from a larger surface | Domain and API schemas contain no React/Vite dependency |
+| Web companion | Next.js App Router on Vercel | Desktop review, curation, search, and secure server-rendered account surfaces benefit from a larger surface | Domain and API schemas contain no Next.js dependency |
 | Spatial rendering | SwiftUI views plus Canvas paths on iOS; accessible DOM nodes plus a non-semantic path layer on web; both use viewport culling | Source text remains selectable/reachable while paths stay decorative | Replace each platform's path/background renderer independently if the 1,000-node spike fails |
 | Offline | iOS encrypted local store/outbox; IndexedDB outbox for web | Fast capture survives connectivity loss on the primary device; companion uses the same conflict semantics | Sync protocol and idempotency contract are transport-neutral |
 | Authority store | Managed Supabase Postgres | Transactions, constraints, RLS, full-text search, queue proximity | SQL schema and export format remain ordinary Postgres/JSON |
-| Identity | Supabase [email one-time code](https://supabase.com/docs/guides/auth/auth-email-passwordless), allowlisted Kyle account | Avoids password storage and prefetch-sensitive magic-link consumption | OIDC/passkey provider can replace auth without changing owner IDs through identity mapping |
+| Identity | Supabase Auth with email one-time code initially; each Auth UUID is one personal tenant | Avoids password storage while giving every account an independent authorization root | Apple/passkey providers can be added without changing tenant IDs through identity linking |
 | Attachments | Private Supabase Storage with database manifests | Signed access and owner policies | Object interface hides provider paths |
 | Server logic | Supabase Edge Functions, TypeScript | Same language, short-lived APIs and orchestration | Functions use standard HTTP and Postgres contracts |
 | Schedule | Supabase Cron invokes eligibility and reconciliation functions | Cadence near the authoritative ledger | Manual endpoint or another scheduler can emit the same events |
 | Work queue | Logged Supabase Queue; server-only | Durable IDs-only work delivery and archival | Queue adapter maps to the job event contract |
 | Model API | OpenAI Batch over Responses, pinned snapshot | Delayed return fits 24-hour processing and structured output | Provider adapter and stored request manifest prevent domain coupling |
-| Observability | Structured metadata logs plus database operations views; no content | Small private alpha does not justify a log drain | OpenTelemetry-compatible event schema later |
+| Observability | Structured metadata logs plus database operations views; no content | Personal material must not leak through telemetry as account volume grows | OpenTelemetry-compatible event schema later |
 
 ## Storage comparison
 
@@ -117,7 +117,7 @@ Keep the Swift package/Xcode project and web workspace independently reproducibl
 
 ## Capacity envelope
 
-Design target for the private alpha, deliberately above expected Kyle use:
+Per-tenant design target for the personal beta:
 
 | Dimension | Expected | Test ceiling | Hard product limit before review |
 |---|---:|---:|---:|
@@ -143,9 +143,9 @@ Design target for the private alpha, deliberately above expected Kyle use:
 
 - **Local:** local Supabase stack, synthetic corpus only, fake provider adapter by default.
 - **Preview:** isolated Supabase branch/project with synthetic data; no production provider key.
-- **Private alpha:** one production Supabase Pro project, one allowlisted owner, spend cap enabled, pinned model configuration.
+- **Production:** one managed Supabase project with strict tenant RLS, self-serve accounts, spend controls, and a pinned model configuration. The web companion is a separately configured Vercel project.
 - Production data never refreshes preview. Migrations move forward local -> preview -> production after tests and backup receipt.
-- Web hosting is static and replaceable. No server-side app session or private content is cached by the web host.
+- Web hosting is replaceable. Vercel handles server rendering and encrypted auth cookies; private source content remains authoritative in Supabase and must not enter shared CDN caches.
 
 ## Architecture gates still requiring runtime evidence
 

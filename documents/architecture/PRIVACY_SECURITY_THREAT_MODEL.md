@@ -1,6 +1,6 @@
 # Privacy, security, and threat model
 
-Status: Accepted alpha controls; live verification pending
+Status: Accepted multi-tenant controls; live verification pending
 Date: 2026-08-25
 Data classification: Private, with source content and derived interpretation treated as highest-sensitivity application data
 
@@ -17,9 +17,10 @@ Research URLs may be public, but their association with a private garden is priv
 
 ## Actors and boundaries
 
-- Kyle as the sole authorized alpha owner.
+- Independent authenticated account holders, each authorized only for their own tenant.
+- Anonymous visitors, who receive no access to application data.
 - Browser/device and any person or software with local access.
-- Static web host, Supabase, and model provider as processors.
+- Vercel, Supabase, and the model provider as processors.
 - Slow Garden Edge Functions as privileged server code.
 - Future integrations as untrusted until separately approved.
 
@@ -60,8 +61,8 @@ Research URLs may be public, but their association with a private garden is priv
 
 ## Authentication and recovery
 
-- Alpha registration is closed. Only the predeclared Kyle owner identity can complete first sign-in.
-- Use a Supabase [email one-time code](https://supabase.com/docs/guides/auth/auth-email-passwordless) rather than a GET-consumed magic link. Configure a ten-minute expiry, `shouldCreateUser: false`, and rate limits; verify single-use behavior in A1.
+- Registration supports independent personal accounts. Email one-time code is the initial sign-in method; Apple or passkey identity can be added without changing tenant IDs.
+- Use a Supabase [email one-time code](https://supabase.com/docs/guides/auth/auth-email-passwordless) rather than a GET-consumed magic link. Configure a ten-minute expiry and rate limits; verify single-use behavior before beta.
 - Sensitive operations—full export, account deletion, key rotation, and future promotion—require a recent authenticated session.
 - Sign-out clears the local encryption key and offline cache. Account deletion first revokes sessions, then starts the deletion workflow.
 - Recovery depends on the secured email account during alpha. Before external beta, add passkey/MFA and a tested recovery-code process.
@@ -96,7 +97,7 @@ No content is used for model training, public examples, or product analytics wit
 2. Revoke exposed credentials and active sessions.
 3. Preserve content-free operational evidence without copying private content.
 4. Determine affected gardens, revisions, providers, and time range from IDs and receipts.
-5. Notify Kyle plainly with known impact, uncertainty, containment, and required action.
+5. Notify affected account holders plainly with known impact, uncertainty, containment, and required action.
 6. Restore only after negative authorization and canary-log tests pass.
 
 ## Alpha privacy gate

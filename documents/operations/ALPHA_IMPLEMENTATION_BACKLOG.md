@@ -60,7 +60,7 @@ Privacy/export/backup ---------------------------------+
 |---|---|---|---|---|
 | DB1 | P0 | Migrations for garden, seed, immutable revisions, layout, snapshot, pass, ledger | F1,S3 | Up/down or compensating migrations tested on synthetic DB; constraints and indexes reviewed; database advisors have no unresolved security finding |
 | DB2 | P0 | RLS, protected views/RPCs, and two-user negative suite | DB1 | Every table/API/storage path denies other owner; unauthenticated denied; update cannot change owner; service key absent from client bundle |
-| A1 | P0 | Closed alpha email-code auth and session lifecycle | DB2 | Only allowlisted owner signs in; code single-use/expiry tested; sign-out clears local data; revoked session denied on sensitive endpoint |
+| A1 | P0 | Personal email-code auth and session lifecycle | DB2 | Each account gets an isolated tenant; code single-use/expiry tested; sign-out clears local data; revoked session denied on sensitive endpoint |
 | C1 | P0 | Revisioned seed CRUD and recoverable deletion API | DB1,DB2,A1 | Create/edit/history/trash/restore work; edit creates revision; provider identity cannot mutate source; idempotent writes and `If-Match` conflict tests pass |
 | C2 | P0 | Offline sync and explicit text conflict UI | C1,S2 | 100 queued edits sync once after reconnect; divergent edit preserves both versions; no silent last-write-wins; recovery export offered on unrecoverable sync error |
 | C3 | P1 | Private attachments and extraction permission | C1,DB2,S5 | Owner-only signed access, checksum manifest, size/type limits, excluded-by-default processing, malware/type failure state, backup receipt |

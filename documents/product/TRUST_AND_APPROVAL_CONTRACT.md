@@ -69,7 +69,7 @@ The no-output return says what was processed, why no bloom was offered, and when
 
 ## Data-use promises to validate before alpha
 
-- Private by default and single-user in V1.
+- Private by default and personal multi-tenant in V1; no shared tenants or public source material.
 - Encryption in transit and at rest; credentials and content separated where practical.
 - No model training on private content unless Kyle explicitly opts into a named provider program.
 - Bounded provider retention and a documented zero-retention preference where available.
@@ -92,4 +92,3 @@ Slow Garden supports reflection; it does not assess mental health, infer diagnos
 - No certainty inflation, hidden confidence scores, or unsupported causal stories.
 - No invisible rearrangement of source material.
 - No autonomous promotion into Kyle Knowledge, Agent Ops, or project repositories.
-

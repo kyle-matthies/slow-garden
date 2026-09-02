@@ -17,9 +17,9 @@ Primary rule: Do not advance a horizon because code exists; advance when its exi
 |---|---|---|---|
 | H0: Frame | Concept and research program | Is delayed, visual synthesis meaningfully better than journaling plus a weekly summary? | No production features |
 | H1: Prove | Instrumented experience prototype | Can the seed-to-bloom loop create value without interrupting or overpowering the person? | Core loop only |
-| H2: Build | Native iOS private alpha + web companion foundation | Can the loop run safely and reliably on real private material? | Personal garden V1 |
+| H2: Build | Native iOS personal beta + web companion foundation | Can the loop run safely and reliably across isolated private tenants? | Personal garden V1 |
 | H3: Extend | Agent-connected and multi-surface product | Which adjacent workflows strengthen the core rather than turn it into an automation dashboard? | Web depth, Codex workbench, deeper research |
-| H4: Generalize | External or team product | Can the model serve other people and organizations with trustworthy boundaries? | Collaboration, innovation, platform APIs |
+| H4: Generalize | Team or institutional product | Can collaboration serve organizations without weakening personal tenant boundaries? | Collaboration, innovation, platform APIs |
 
 ## Dependency chain
 
@@ -223,7 +223,7 @@ Exit gate:
 
 ---
 
-## H2: Build and validate the native iOS private alpha
+## H2: Build and validate the native iOS personal beta
 
 ### Phase 2.1: Architecture selection and technical spikes
 
@@ -292,7 +292,7 @@ Feature group A, trusted source foundation:
 
 - Revisioned seed CRUD and deletion recovery.
 - Garden and bed organization.
-- Authentication and single-user authorization.
+- Authentication and tenant-isolated personal authorization.
 - Encrypted transport, private storage, export, and deletion.
 - Provenance-ready source identifiers.
 
