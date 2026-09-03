@@ -50,10 +50,10 @@ set local role authenticated;
 select set_config('request.jwt.claim.sub', '11111111-1111-4111-8111-111111111111', true);
 select set_config('request.jwt.claim.role', 'authenticated', true);
 
-select lives_ok(
-  $$insert into public.accounts (id, display_name)
-    values ('11111111-1111-4111-8111-111111111111', 'Alice')$$,
-  'Alice can create only her tenant account'
+select is(
+  (select count(*) from public.accounts),
+  1::bigint,
+  'Auth signup provisions Alice tenant account automatically'
 );
 
 select lives_ok(
@@ -119,10 +119,10 @@ select throws_ok(
   'Bob cannot insert rows into Alice tenant'
 );
 
-select lives_ok(
-  $$insert into public.accounts (id, display_name)
-    values ('22222222-2222-4222-8222-222222222222', 'Bob')$$,
-  'Bob can create his tenant account'
+select is(
+  (select count(*) from public.accounts),
+  1::bigint,
+  'Bob sees only his automatically provisioned tenant account'
 );
 
 select throws_ok(

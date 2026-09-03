@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "supabase-slow-garden": {
+      "type": "http",
+      "url": "https://mcp.supabase.com/mcp?project_ref=sskrghiigqimvxcileqb&features=database%2Cdebugging%2Cdevelopment%2Cdocs"
+    }
+  }
+}

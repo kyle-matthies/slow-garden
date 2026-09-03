@@ -24,7 +24,9 @@ The browser and Server Components use the authenticated user JWT. Supabase RLS e
 2. Run `supabase start` and `supabase test db --local supabase/tests`.
 3. Run both Supabase security and performance advisors.
 4. Run `supabase db push --linked --dry-run`, then `supabase db push --linked`.
-5. Regenerate `src/types/database.ts` from the hosted schema.
+5. Regenerate `src/types/database.ts` from the migration-replayed local schema;
+   CI verifies this deterministic output. Use hosted generation only as a
+   structural drift check because hosted and local PostgREST metadata can differ.
 6. Run `npm run lint` and `npm run build`.
 7. Deploy a Vercel preview against a synthetic-data Supabase environment; promote the verified artifact to production.
 

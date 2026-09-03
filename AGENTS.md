@@ -21,3 +21,6 @@ This repository is planning-first. Do not install a framework, create cloud reso
 - Put disposable work in `prototypes/`; do not quietly promote prototype code to production architecture.
 - Add implementation directories only after their owning architecture task is decided.
 - Use `/Users/kylematthies/Code/bin/workspace-guard` before repository changes and preserve any dirty work.
+- Treat committed files under `supabase/migrations/` as the only durable authority for hosted schema changes. Create migrations with `supabase migration new`, exercise them locally, and apply the reviewed file to the project; never leave direct experimental DDL only in hosted state.
+- The root `.mcp.json` deliberately scopes compatible coding agents to the Slow Garden project and to database, debugging, development, and documentation tools. It contains no credential; authenticate interactively and keep tool-call approval enabled.
+- Production MCP reads are catalog, policy, count, or synthetic-canary reads by default. Never retrieve private note bodies, bloom prose, email addresses, or other tenant content for agent context without explicit authorization for that exact diagnostic.

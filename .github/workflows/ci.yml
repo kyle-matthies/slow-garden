@@ -34,7 +34,14 @@ jobs:
           version: 2.109.1
       - name: Start database test services
         run: supabase start --exclude edge-runtime,gotrue,imgproxy,kong,logflare,mailpit,postgres-meta,postgrest,realtime,storage-api,studio,supavisor,vector
+      - name: Lint database functions
+        run: supabase db lint --local --schema public,private --level warning --fail-on error
       - run: supabase test db --local supabase/tests
+      - name: Verify generated database types
+        run: |
+          generated_types="$(mktemp)"
+          supabase gen types typescript --local --schema public > "$generated_types"
+          diff -u -B applications/web/src/types/database.ts "$generated_types"
       - name: Stop local Supabase
         if: always()
         run: supabase stop --no-backup
