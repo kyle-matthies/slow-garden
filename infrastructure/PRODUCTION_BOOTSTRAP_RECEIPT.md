@@ -3,7 +3,7 @@
 - Last verified: 2026-09-03
 - Supabase project: `slow-garden` (`sskrghiigqimvxcileqb`)
 - Region: `us-west-1`
-- Vercel production: `https://slow-garden.vercel.app`
+- Vercel production: `https://slowgarden.app`
 
 ## Applied state
 
@@ -36,6 +36,18 @@
   execution to anonymous and authenticated application roles.
 
 ## Open production gate
+
+The registered `slowgarden.app` domain is attached to the production project,
+Vercel reports ownership verified, its nameservers are correct, and the HTTPS
+health endpoint returns `{"status":"ok"}`. Supabase's canonical Auth Site URL
+has been pushed to `https://slowgarden.app`.
+
+Resend Marketplace terms have been accepted, but no email resource has been
+provisioned. The attempted free-plan creation returned "Billing plan is
+disabled: free"; current Marketplace plans start at Pro ($20/month). The
+paid Marketplace versus direct-account path remains a user choice. The planned
+sender domain is `auth.slowgarden.app`; its mail DNS and SMTP configuration are
+not yet applied. No authentication test email has been sent.
 
 Supabase's default email delivery is not the public launch mail service. Connect
 a production SMTP provider and verify delivery, expiry, single use, sign-out,

@@ -8,7 +8,7 @@ No production credentials, private source data, unredacted logs, or manually cop
 
 - Supabase project: `slow-garden` (`sskrghiigqimvxcileqb`, `us-west-1`)
 - Vercel project: `slow-garden` (`applications/web`)
-- Production URL: `https://slow-garden.vercel.app`
+- Production URL: `https://slowgarden.app`
 - Database authority: committed SQL under `supabase/migrations/`
 - Tenant boundary: Supabase Auth user UUID plus PostgreSQL RLS
 
