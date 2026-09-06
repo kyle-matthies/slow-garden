@@ -233,15 +233,18 @@ otp_length = 6
 # Number of seconds before the email OTP expires (defaults to 1 hour).
 otp_expiry = 600
 
-# Use a production-ready SMTP server
+# Hosted production uses custom SMTP configured in the Supabase dashboard.
+# Keep this block disabled for local development so Mailpit captures messages.
+# To reproduce the hosted configuration in another environment, provide the
+# provider values through environment variables rather than committing secrets.
 # [auth.email.smtp]
 # enabled = true
-# host = "smtp.sendgrid.net"
+# host = "env(SMTP_HOST)"
 # port = 587
-# user = "apikey"
-# pass = "env(SENDGRID_API_KEY)"
-# admin_email = "admin@email.com"
-# sender_name = "Admin"
+# user = "env(SMTP_USER)"
+# pass = "env(SMTP_PASSWORD)"
+# admin_email = "env(SMTP_ADMIN_EMAIL)"
+# sender_name = "Slow Garden"
 
 # Uncomment to customize email template
 # [auth.email.template.invite]

@@ -1,6 +1,6 @@
 # Production bootstrap receipt
 
-- Last verified: 2026-09-03
+- Last verified: 2026-09-05
 - Supabase project: `slow-garden` (`sskrghiigqimvxcileqb`)
 - Region: `us-west-1`
 - Vercel production: `https://slowgarden.app`
@@ -15,6 +15,10 @@
 - Auth Site URL points to the canonical Vercel origin.
 - Email OTP uses six digits, expires after ten minutes, and is rate-limited to one request per minute.
 - Email confirmation and TOTP enrollment/verification are enabled.
+- Supabase Auth uses Brevo custom SMTP over port 587 with the sender
+  `Slow Garden <no-reply@auth.slowgarden.app>`.
+- `auth.slowgarden.app` is authenticated in Brevo with its required ownership,
+  DKIM, and DMARC DNS records hosted by Vercel.
 - Vercel Production contains only the Supabase URL and publishable key. Preview and Development do not share Production credentials.
 
 ## Verification evidence
@@ -34,22 +38,29 @@
 - The project-scoped agent endpoint exposes database/debugging/development/docs
   features only, contains no credential in Git, and denies direct trigger
   execution to anonymous and authenticated application roles.
+- The initial one-time SMTP credential was revoked after its generation view
+  was captured by automation. A replacement credential was transferred directly
+  into Supabase, is masked after save, and is not stored in Git or local files.
+- The replacement key has an explicit September 5, 2027 expiry and Brevo also
+  expires SMTP keys after 90 days without use; rotate it before either condition
+  can interrupt authentication mail.
+- A production Auth request returned HTTP 200. Brevo recorded the message as
+  sent, delivered, first-opened, and opened from the authenticated sender to the
+  explicitly approved owner address.
+- Supabase recorded the associated `/auth/v1/otp` request and subsequent
+  `/auth/v1/verify` redirect. The resulting Auth user is email-confirmed and has
+  exactly one automatically provisioned tenant account.
 
-## Open production gate
+## Production email gate
 
 The registered `slowgarden.app` domain is attached to the production project,
 Vercel reports ownership verified, its nameservers are correct, and the HTTPS
 health endpoint returns `{"status":"ok"}`. Supabase's canonical Auth Site URL
 has been pushed to `https://slowgarden.app`.
 
-Resend Marketplace terms have been accepted, but no email resource has been
-provisioned. The attempted free-plan creation returned "Billing plan is
-disabled: free"; current Marketplace plans start at Pro ($20/month). The
-paid Marketplace versus direct-account path remains a user choice. The planned
-sender domain is `auth.slowgarden.app`; its mail DNS and SMTP configuration are
-not yet applied. No authentication test email has been sent.
-
-Supabase's default email delivery is not the public launch mail service. Connect
-a production SMTP provider and verify delivery, expiry, single use, sign-out,
-and session revocation with an explicitly approved test address before inviting
-external users or storing real journal material.
+The production email-provider gate is complete: Brevo is configured directly,
+without a Vercel Marketplace subscription, and Supabase no longer relies on its
+default development-only mail service. The test proved real delivery and account
+provisioning. OTP expiry and single-use behavior, sign-out, session revocation,
+account deletion, and data-export behavior remain separate private-alpha gates
+before inviting external users or storing real journal material.
