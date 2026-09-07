@@ -144,6 +144,19 @@ The local proof of concept remains valid evidence, but it is no longer the produ
 - Evidence: [ADR-005](architecture/ADR-005_PERSONAL_MULTI_TENANT.md).
 - Revisit when: Research demonstrates a specific sharing or collaboration need with a separate consent, authorization, revocation, and audit model.
 
+## D-018: Living thought ecology, with deliberate connection permissions
+
+- Status: Historical product direction; delivery sequencing, entry model, and permission design superseded by D-019 / ADR-006
+- Reconciliation (2026-09-07): Preserved from the earlier local concept work. The web-first decision below governs current delivery; seed-level overrides and native tending remain proposals, not active permission guarantees.
+- Date: 2026-09-06
+- Decision: Treat Slow Garden as a private, page-like place for uninterrupted human thought. An entry is a source revision; a **seed** is an evolving named thread; a **plot** is a user-defined living area containing related seeds; and the **garden** is the wider private ecology. A bloom signals a reviewable moment of coherence, connection, tension, change, or question—not that a thought is complete. A plot can grow richer over time after individual seeds bloom.
+- Decision: AI may quietly tend in the background: preserve and structure context, surface source-linked observations, and ask bounded follow-up questions on return. It does not author the user's thought, earn growth on the user's behalf, force a turn-based exchange, or use activity/streak metrics as a proxy for growth. Growth should reflect user stewardship and increasing clarity, including return, development, connection, revision, or deliberate rest.
+- Decision: Connection is permissioned. The user will be able to mark a plot or seed as isolated, available only within its plot, or eligible for wider garden cross-pollination. More specific seed settings override plot defaults. No automatic cross-garden synthesis is authorized by this decision.
+- Decision: The next implementation slice is a private, native-first `plant -> leave -> return` loop: named seeds in one or more plots, explicit connection scope, one real delayed manual pass, and a small source-linked question/connection or intentional no-result. It is a product-learning slice, not a habit-tracker feature, a four-week dogfood launch, or authorization to expand processing scope.
+- Rationale: The product's distinctive value is continuity of the person's own thinking: writing in a calm notebook-like foreground, returning later to a gently cared-for context, and deciding what to nurture next. The visual garden should make that continuity legible without implying completion, diagnosis, urgency, or engagement scoring.
+- Evidence: 2026-09-06 owner concept session; [Project brief](PROJECT_BRIEF.md); [Meadow and Cabinet visual system](design/MEADOW_AND_CABINET.md).
+- Revisit when: Native interaction testing shows that seed/plot/garden language or connection controls create cognitive burden, or the first real delayed pass fails to feel more useful than an ordinary private notebook.
+
 ## D-019: Web-first thinking garden
 
 - Status: Accepted; implementation in progress

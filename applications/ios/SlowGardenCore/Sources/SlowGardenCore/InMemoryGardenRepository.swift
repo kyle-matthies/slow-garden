@@ -63,11 +63,13 @@ public final class InMemoryGardenRepository: GardenRepository {
         outboxIDs.insert(mutationID)
     }
 
-    public func plantSeed(gardenID: UUID, seedID: UUID, revisionID: UUID, text: String, at date: Date, mutationID: UUID) throws -> SeedSnapshot {
+    public func plantSeed(gardenID: UUID, seedID: UUID, revisionID: UUID, title: String = "Untitled seed", connectionScope: ConnectionScope = .withinPlot, text: String, at date: Date, mutationID: UUID) throws -> SeedSnapshot {
         _ = try editableGarden(gardenID)
         let seed = SeedSnapshot(
             id: seedID,
             gardenID: gardenID,
+            title: cleanName(title),
+            connectionScope: connectionScope,
             revisionID: revisionID,
             revisionNumber: 1,
             text: cleanText(text),
@@ -86,6 +88,8 @@ public final class InMemoryGardenRepository: GardenRepository {
         let revision = SeedSnapshot(
             id: seedID,
             gardenID: state.current.gardenID,
+            title: state.current.title,
+            connectionScope: state.current.connectionScope,
             revisionID: revisionID,
             revisionNumber: state.revisions.count + 1,
             text: cleanText(text),
@@ -98,6 +102,18 @@ public final class InMemoryGardenRepository: GardenRepository {
         touchGarden(revision.gardenID, at: date)
         outboxIDs.insert(mutationID)
         return revision
+    }
+
+    public func setSeedConnectionScope(seedID: UUID, connectionScope: ConnectionScope, at date: Date, mutationID: UUID) throws -> SeedSnapshot {
+        guard var state = seedValues[seedID] else { throw SlowGardenError.seedNotFound }
+        _ = try editableGarden(state.current.gardenID)
+        let current = state.current
+        state.current = SeedSnapshot(id: current.id, gardenID: current.gardenID, title: current.title, connectionScope: connectionScope, revisionID: current.revisionID, revisionNumber: current.revisionNumber, text: current.text, createdAt: current.createdAt, modifiedAt: date)
+        state.revisions[state.revisions.count - 1] = state.current
+        seedValues[seedID] = state
+        touchGarden(current.gardenID, at: date)
+        outboxIDs.insert(mutationID)
+        return state.current
     }
 
     public func seeds(gardenID: UUID) throws -> [SeedSnapshot] {

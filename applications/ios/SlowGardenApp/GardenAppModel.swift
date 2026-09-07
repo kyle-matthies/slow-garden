@@ -136,7 +136,7 @@ final class GardenAppModel {
         isSeedSheetPresented = true
     }
 
-    func saveSeed(text: String) {
+    func saveSeed(title: String, connectionScope: ConnectionScope, text: String) {
         guard let gardenID = selectedGardenID else { return }
         perform {
             if let seedBeingEdited {
@@ -147,11 +147,19 @@ final class GardenAppModel {
                     at: clock.now,
                     mutationID: identifiers.next()
                 )
+                _ = try repository.setSeedConnectionScope(
+                    seedID: seedBeingEdited.id,
+                    connectionScope: connectionScope,
+                    at: clock.now,
+                    mutationID: identifiers.next()
+                )
             } else {
                 _ = try repository.plantSeed(
                     gardenID: gardenID,
                     seedID: identifiers.next(),
                     revisionID: identifiers.next(),
+                    title: title,
+                    connectionScope: connectionScope,
                     text: text,
                     at: clock.now,
                     mutationID: identifiers.next()

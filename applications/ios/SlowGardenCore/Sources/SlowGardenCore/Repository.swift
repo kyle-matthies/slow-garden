@@ -7,8 +7,9 @@ public protocol GardenRepository: AnyObject {
     func createGarden(id: UUID, name: String, at date: Date) throws -> GardenSummary
     func renameGarden(id: UUID, name: String, at date: Date, mutationID: UUID) throws
     func setGardenArchived(id: UUID, archived: Bool, at date: Date, mutationID: UUID) throws
-    func plantSeed(gardenID: UUID, seedID: UUID, revisionID: UUID, text: String, at date: Date, mutationID: UUID) throws -> SeedSnapshot
+    func plantSeed(gardenID: UUID, seedID: UUID, revisionID: UUID, title: String, connectionScope: ConnectionScope, text: String, at date: Date, mutationID: UUID) throws -> SeedSnapshot
     func reviseSeed(seedID: UUID, revisionID: UUID, text: String, at date: Date, mutationID: UUID) throws -> SeedSnapshot
+    func setSeedConnectionScope(seedID: UUID, connectionScope: ConnectionScope, at date: Date, mutationID: UUID) throws -> SeedSnapshot
     func seeds(gardenID: UUID) throws -> [SeedSnapshot]
     func requestPass(id: UUID, gardenID: UUID, requestedAt: Date, dueAt: Date, workflowVersion: String, snapshotItemIDs: [UUID], mutationID: UUID) throws -> GardenPassSnapshot
     func passes(gardenID: UUID) throws -> [GardenPassSnapshot]
@@ -21,4 +22,10 @@ public protocol GardenRepository: AnyObject {
     func bloomDetail(id: UUID) throws -> BloomDetail
     func appendResponse(id: UUID, bloomID: UUID, kind: BloomResponseKind, note: String?, at date: Date, mutationID: UUID) throws
     func pendingOutboxCount() throws -> Int
+}
+
+public extension GardenRepository {
+    func plantSeed(gardenID: UUID, seedID: UUID, revisionID: UUID, text: String, at date: Date, mutationID: UUID) throws -> SeedSnapshot {
+        try plantSeed(gardenID: gardenID, seedID: seedID, revisionID: revisionID, title: "Untitled seed", connectionScope: .withinPlot, text: text, at: date, mutationID: mutationID)
+    }
 }

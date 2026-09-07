@@ -19,6 +19,25 @@ struct SlowGardenCoreChecks {
         _ = try repository.plantSeed(gardenID: personal.id, seedID: uuid(3), revisionID: uuid(4), text: "Private boundary", at: start, mutationID: uuid(5))
         try require(try repository.seeds(gardenID: work.id).isEmpty, "garden boundary leaked a seed")
 
+        let named = try repository.plantSeed(
+            gardenID: personal.id, seedID: uuid(200), revisionID: uuid(201),
+            title: "An evolving question", connectionScope: .isolated,
+            text: "First source", at: start, mutationID: uuid(202)
+        )
+        let revised = try repository.reviseSeed(
+            seedID: named.id, revisionID: uuid(203), text: "Second source",
+            at: start.addingTimeInterval(1), mutationID: uuid(204)
+        )
+        try require(revised.title == named.title, "revision lost the seed name")
+        try require(revised.connectionScope == .isolated, "revision lost proposed scope metadata")
+        let scoped = try repository.setSeedConnectionScope(
+            seedID: named.id, connectionScope: .acrossGarden,
+            at: start.addingTimeInterval(2), mutationID: uuid(205)
+        )
+        try require(scoped.connectionScope == .acrossGarden, "scope metadata was not saved")
+        try require(scoped.revisionID == revised.revisionID && scoped.text == revised.text && scoped.revisionNumber == 2,
+                    "metadata edit changed authored source")
+
         let seedIDs = [uuid(10), uuid(13), uuid(16)]
         let revisionIDs = [uuid(11), uuid(14), uuid(17)]
         let texts = [
