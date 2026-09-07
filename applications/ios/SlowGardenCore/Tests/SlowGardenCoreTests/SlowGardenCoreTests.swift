@@ -27,6 +27,24 @@ final class SlowGardenCoreTests: XCTestCase {
         XCTAssertEqual(Set(try repository.gardens(includeArchived: false).map(\.id)), Set([first.id, second.id]))
     }
 
+    func testSeedKeepsItsNameAndExplicitConnectionScopeAcrossRevisions() throws {
+        let repository = InMemoryGardenRepository()
+        let garden = try repository.createGarden(id: uuid(14), name: "Work", at: start)
+        _ = try repository.plantSeed(
+            gardenID: garden.id, seedID: uuid(15), revisionID: uuid(16),
+            title: "Documentation dividend", connectionScope: .isolated,
+            text: "A thought that should start privately.", at: start, mutationID: uuid(17)
+        )
+        _ = try repository.reviseSeed(seedID: uuid(15), revisionID: uuid(18), text: "A revised thought.", at: start, mutationID: uuid(19))
+        _ = try repository.setSeedConnectionScope(seedID: uuid(15), connectionScope: .acrossGarden, at: start, mutationID: uuid(20))
+
+        let seed = try XCTUnwrap(repository.seeds(gardenID: garden.id).first)
+        XCTAssertEqual(seed.title, "Documentation dividend")
+        XCTAssertEqual(seed.connectionScope, .acrossGarden)
+        XCTAssertEqual(seed.revisionNumber, 2)
+        XCTAssertEqual(seed.text, "A revised thought.")
+    }
+
     func testPassFreezesRevisionsAndYieldsOneBloomAfterFiveMinutes() throws {
         let repository = InMemoryGardenRepository()
         let garden = try repository.createGarden(id: uuid(20), name: "Ideas", at: start)

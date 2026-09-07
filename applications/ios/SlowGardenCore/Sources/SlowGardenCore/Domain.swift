@@ -13,6 +13,14 @@ public enum SeedStatus: String, Codable, CaseIterable, Sendable {
     case archived
 }
 
+/// Controls which other user-authored material a seed may contribute to during a pass.
+/// It is a scope boundary, never a relevance score.
+public enum ConnectionScope: String, Codable, CaseIterable, Sendable {
+    case isolated
+    case withinPlot
+    case acrossGarden
+}
+
 public enum GardenPassStatus: String, Codable, CaseIterable, Sendable {
     case queued
     case processing
@@ -67,14 +75,18 @@ public final class GardenRecord {
 public final class SeedRecord {
     @Attribute(.unique) public var id: UUID
     public var gardenID: UUID
+    public var title: String
+    public var connectionScopeRaw: String
     public var statusRaw: String
     public var currentRevisionID: UUID
     public var createdAt: Date
     public var modifiedAt: Date
 
-    public init(id: UUID, gardenID: UUID, currentRevisionID: UUID, createdAt: Date) {
+    public init(id: UUID, gardenID: UUID, title: String, connectionScope: ConnectionScope, currentRevisionID: UUID, createdAt: Date) {
         self.id = id
         self.gardenID = gardenID
+        self.title = title
+        self.connectionScopeRaw = connectionScope.rawValue
         self.statusRaw = SeedStatus.active.rawValue
         self.currentRevisionID = currentRevisionID
         self.createdAt = createdAt
@@ -84,6 +96,11 @@ public final class SeedRecord {
     public var status: SeedStatus {
         get { SeedStatus(rawValue: statusRaw) ?? .active }
         set { statusRaw = newValue.rawValue }
+    }
+
+    public var connectionScope: ConnectionScope {
+        get { ConnectionScope(rawValue: connectionScopeRaw) ?? .withinPlot }
+        set { connectionScopeRaw = newValue.rawValue }
     }
 }
 
@@ -281,6 +298,8 @@ public struct GardenSummary: Identifiable, Equatable, Sendable {
 public struct SeedSnapshot: Identifiable, Equatable, Sendable {
     public let id: UUID
     public let gardenID: UUID
+    public let title: String
+    public let connectionScope: ConnectionScope
     public let revisionID: UUID
     public let revisionNumber: Int
     public let text: String

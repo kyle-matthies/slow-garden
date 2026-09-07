@@ -136,7 +136,7 @@ private struct SeedFlower: View {
                     Circle().fill(.yellow.opacity(0.88)).frame(width: 17, height: 17)
                 }
                 Rectangle().fill(GardenTheme.leaf.opacity(0.78)).frame(width: 2, height: 34)
-                Text(seed.text)
+                Text(seed.title)
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(GardenTheme.ink)
                     .lineLimit(2)
@@ -150,7 +150,7 @@ private struct SeedFlower: View {
         }
         .buttonStyle(.plain)
         .onAppear { drifting = true }
-        .accessibilityLabel("Seed, revision \(seed.revisionNumber): \(seed.text)")
+        .accessibilityLabel("Seed \(seed.title), \(seed.connectionScope.rawValue), revision \(seed.revisionNumber): \(seed.text)")
         .accessibilityHint("Opens this seed for editing")
         .accessibilityIdentifier("seed-\(seed.id.uuidString)")
     }

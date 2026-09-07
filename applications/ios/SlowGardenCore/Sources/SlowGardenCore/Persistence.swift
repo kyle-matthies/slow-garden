@@ -106,11 +106,11 @@ public final class SwiftDataGardenRepository: GardenRepository {
         try save()
     }
 
-    public func plantSeed(gardenID: UUID, seedID: UUID, revisionID: UUID, text: String, at date: Date, mutationID: UUID) throws -> SeedSnapshot {
+    public func plantSeed(gardenID: UUID, seedID: UUID, revisionID: UUID, title: String = "Untitled seed", connectionScope: ConnectionScope = .withinPlot, text: String, at date: Date, mutationID: UUID) throws -> SeedSnapshot {
         guard let garden = try garden(gardenID) else { throw SlowGardenError.gardenNotFound }
         guard garden.status == .active else { throw SlowGardenError.gardenArchived }
         let cleaned = cleanedText(text)
-        let seed = SeedRecord(id: seedID, gardenID: gardenID, currentRevisionID: revisionID, createdAt: date)
+        let seed = SeedRecord(id: seedID, gardenID: gardenID, title: cleanedName(title), connectionScope: connectionScope, currentRevisionID: revisionID, createdAt: date)
         let revision = SeedRevisionRecord(id: revisionID, gardenID: gardenID, seedID: seedID, revisionNumber: 1, text: cleaned, createdAt: date)
         context.insert(seed)
         context.insert(revision)
@@ -140,6 +140,18 @@ public final class SwiftDataGardenRepository: GardenRepository {
         garden.modifiedAt = date
         insertOutbox(id: mutationID, entityType: "seed_revision", entityID: revisionID, operation: "revise", baseRevisionID: previousRevisionID, at: date)
         try save()
+        return snapshot(seed: seed, revision: revision)
+    }
+
+    public func setSeedConnectionScope(seedID: UUID, connectionScope: ConnectionScope, at date: Date, mutationID: UUID) throws -> SeedSnapshot {
+        guard let seed = try seed(seedID) else { throw SlowGardenError.seedNotFound }
+        guard let garden = try garden(seed.gardenID), garden.status == .active else { throw SlowGardenError.gardenArchived }
+        seed.connectionScope = connectionScope
+        seed.modifiedAt = date
+        garden.modifiedAt = date
+        insertOutbox(id: mutationID, entityType: "seed", entityID: seedID, operation: "set_connection_scope", baseRevisionID: seed.currentRevisionID, at: date)
+        try save()
+        guard let revision = try revision(seed.currentRevisionID) else { throw SlowGardenError.seedNotFound }
         return snapshot(seed: seed, revision: revision)
     }
 
@@ -352,6 +364,8 @@ public final class SwiftDataGardenRepository: GardenRepository {
         SeedSnapshot(
             id: seed.id,
             gardenID: seed.gardenID,
+            title: seed.title,
+            connectionScope: seed.connectionScope,
             revisionID: revision.id,
             revisionNumber: revision.revisionNumber,
             text: revision.text,
@@ -366,6 +380,10 @@ public final class SwiftDataGardenRepository: GardenRepository {
 
     private func seed(_ id: UUID) throws -> SeedRecord? {
         try fetchAll(SeedRecord.self).first(where: { $0.id == id })
+    }
+
+    private func revision(_ id: UUID) throws -> SeedRevisionRecord? {
+        try fetchAll(SeedRevisionRecord.self).first(where: { $0.id == id })
     }
 
     private func pass(_ id: UUID) throws -> GardenPassRecord? {

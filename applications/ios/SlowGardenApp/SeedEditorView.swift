@@ -4,6 +4,8 @@ struct SeedEditorView: View {
     @Bindable var model: GardenAppModel
     @Environment(\.dismiss) private var dismiss
     @FocusState private var focused: Bool
+    @State private var title = ""
+    @State private var connectionScope: ConnectionScope = .withinPlot
     @State private var text = ""
 
     var body: some View {
@@ -12,6 +14,21 @@ struct SeedEditorView: View {
                 Text(model.seedBeingEdited == nil ? "Put down the unfinished version." : "A revision preserves what came before.")
                     .font(.system(.title3, design: .serif, weight: .semibold))
                     .foregroundStyle(GardenTheme.ink)
+                if model.seedBeingEdited == nil {
+                    TextField("Seed name", text: $title)
+                        .textInputAutocapitalization(.sentences)
+                        .padding(12)
+                        .background(.white.opacity(0.82), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                }
+                Picker("Connection scope", selection: $connectionScope) {
+                    Text("Isolated").tag(ConnectionScope.isolated)
+                    Text("This plot").tag(ConnectionScope.withinPlot)
+                    Text("Whole garden").tag(ConnectionScope.acrossGarden)
+                }
+                .pickerStyle(.segmented)
+                Text("This decides what other material a later pass may consider.")
+                    .font(.caption)
+                    .foregroundStyle(GardenTheme.secondaryInk)
                 TextEditor(text: $text)
                     .focused($focused)
                     .font(.body)
@@ -31,12 +48,14 @@ struct SeedEditorView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") { model.saveSeed(text: text) }
+                    Button("Save") { model.saveSeed(title: title, connectionScope: connectionScope, text: text) }
                         .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                         .accessibilityIdentifier("save-seed-button")
                 }
             }
             .onAppear {
+                title = model.seedBeingEdited?.title ?? ""
+                connectionScope = model.seedBeingEdited?.connectionScope ?? .withinPlot
                 text = model.seedBeingEdited?.text ?? ""
                 focused = true
             }
