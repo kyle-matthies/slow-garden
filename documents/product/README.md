@@ -9,4 +9,8 @@ This area will hold:
 - Alpha product requirements.
 - Pricing, positioning, onboarding, and external-beta work when those horizons become active.
 
+## Current records
+
+- [Business model review](BUSINESS_MODEL_REVIEW.md): independent CFO/seed-investor analysis, external pricing evidence, planning assumptions, and unresolved validation gates. It is a draft, not an accepted pricing or funding decision.
+
 Every feature brief must state the user problem, current baseline, value attributable to delay or accumulation, success measure, stop condition, dependencies, and explicit non-goals.

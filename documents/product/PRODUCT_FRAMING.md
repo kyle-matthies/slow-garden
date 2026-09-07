@@ -95,7 +95,7 @@ Removing any two of these collapses the concept into a well-served adjacent cate
 Stop or reposition the concept if controlled studies show any of the following:
 
 - Delayed cross-entry synthesis does not outperform a conventional weekly summary on useful surprise and actionability while maintaining faithfulness.
-- People primarily value the visuals or ritual, but cannot name a connection enabled by accumulation.
+- If people primarily value writing, visuals, or ritual, continue evaluating the no-AI garden independently. An inability to name accumulation-dependent value challenges the AI hypothesis, not the validity of the writing product.
 - Spatial capture creates enough friction that people move composition elsewhere and only import finished text.
 - Source and inference distinctions remain confusing in realistic use.
 - Corrections do not restore trust after a wrong or emotionally overreaching interpretation.

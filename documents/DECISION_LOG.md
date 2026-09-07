@@ -143,3 +143,16 @@ The local proof of concept remains valid evidence, but it is no longer the produ
 - Rationale: The local proof of concept validated the interaction model, not the intended reach. A personal multi-tenant service lets many people use the product without weakening the private character of their material or turning the product into a social network.
 - Evidence: [ADR-005](architecture/ADR-005_PERSONAL_MULTI_TENANT.md).
 - Revisit when: Research demonstrates a specific sharing or collaboration need with a separate consent, authorization, revocation, and audit model.
+
+## D-019: Web-first thinking garden
+
+- Status: Accepted; implementation in progress
+- Date: 2026-09-06
+- Decision: Deliver the first complete loop at slowgarden.app. Preserve native work.
+- Decision: Adopt garden → plot → named seed → dated entries and revisions. Plots have
+  independent AI tending and cross-pollination opt-ins; cross-off isolates both source
+  material and insights. Manual invitations precede scheduling; reveal when ready.
+- Decision: A desirable no-AI writing garden is a valid product outcome independently
+  of the asynchronous-AI hypothesis. Do not use frequency or streaks as growth scores.
+- Evidence: Kyle approved implementation of the web-first plan in this session;
+  [ADR-006](architecture/ADR-006_WEB_THINKING_GARDEN.md).
