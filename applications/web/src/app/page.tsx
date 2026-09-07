@@ -17,8 +17,8 @@ export default function Home() {
           <p className="eyebrow">A private place for unfinished thought</p>
           <h1>Let an idea stay quiet long enough to become itself.</h1>
           <p className="hero-lede">
-            Capture fragments without interruption. Return later to a small,
-            source-linked set of connections—never a feed, never a performance.
+            A peaceful place for ongoing questions and ideas. Write, leave, and
+            return in your own time. Optional AI reflections are being tested.
           </p>
           <div className="hero-actions">
             <Link className="primary-button" href="/login">
@@ -63,8 +63,8 @@ export default function Home() {
           <span className="principle-number">02</span>
           <h2>Your words stay yours</h2>
           <p>
-            Source revisions are append-only. System interpretations remain
-            visibly separate and traceable to the exact notes that support them.
+            Source revisions are append-only. You can revisit earlier versions and export your writing.
+            AI reflections, when enabled, stay separate from your words.
           </p>
         </article>
         <article>
@@ -72,7 +72,7 @@ export default function Home() {
           <h2>Nothing interrupts</h2>
           <p>
             No autocomplete, live critique, or automatic rearrangement. The
-            foreground belongs to you; background processing returns later.
+            foreground belongs to you. AI is off until you explicitly invite it.
           </p>
         </article>
       </section>

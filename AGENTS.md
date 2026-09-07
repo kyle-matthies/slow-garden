@@ -2,7 +2,7 @@
 
 ## Project state
 
-This repository is planning-first. Do not install a framework, create cloud resources, apply database migrations, or choose a production vendor unless the corresponding roadmap gate and architecture decision record are complete.
+Web-first implementation is authorized by ADR-006; model activation and external-pilot gates remain closed. Do not install a framework, create cloud resources, apply database migrations, or choose a production vendor unless the corresponding roadmap gate and architecture decision record are complete.
 
 ## Product invariants
 

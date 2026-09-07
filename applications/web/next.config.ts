@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Development Server Function tracing includes arguments (private writing).
+  logging: false,
   turbopack: {
     root: process.cwd(),
   },
