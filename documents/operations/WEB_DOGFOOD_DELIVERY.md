@@ -1,6 +1,6 @@
 # Web-first delivery and learning record
 
-Status: implementation and local verification in progress; no dogfood or pilot result claimed
+Status: writing release deployed; AI activation, dogfood study and pilot remain gated
 Owner: Kyle
 Decision: ADR-006; implementation authorized 2026-09-06
 
@@ -57,7 +57,27 @@ for forward fixes. Never discard real entries to restore an old schema.
 - HTTP canary: OTP single-use, tenant-scoped JSON/Markdown exports with exact UTF-8
   bodies, history, anonymous export denial, and global refresh-token revocation passed.
 - Disabled default Next development argument tracing to prevent note-body logging.
-- Local confirmation email template now matches the six-digit signup UI. Hosted
-  confirmation-template parity still requires readback; do not infer it from local config.
+- Local and hosted confirmation emails now provide the code requested by the signup UI.
+  Hosted subject and token template were saved and reloaded in the Supabase dashboard;
+  a fresh production inbox delivery was not sent in this implementation session.
 - No OpenAI API key was available in this execution environment. No real provider
   requests, quality scores, overnight scheduler, or private pilot were activated.
+
+## Hosted release receipt — 2026-09-06
+
+- PR #1 merged as `36a5e11841a80b77d59291afcccd2c4d06f8639a` after web and database CI passed.
+- Vercel production deployment `6300263055` reported success for that exact commit.
+  The custom domain returned the updated landing copy and health 200; anonymous source
+  export returned 401.
+- All three additive migrations were independently listed in hosted Supabase; a subsequent
+  dry run reported the remote database up to date.
+- Rollback-only hosted synthetic canary passed source revision/idempotency/export,
+  AI defaults, and cross-tenant read/write rejection. Zero canary identities remained.
+- Hosted AI runtime readback: disabled, no model, no approval timestamp. Worker and
+  scheduler are not deployed. Provider evaluations and lifecycle gates remain required.
+- Supabase security advisor reports only the existing leaked-password-protection warning.
+  This release uses email OTP. Review [password protection](https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection)
+  before adding password authentication.
+- Original checkout retains eight modified native files, its separate decision-log edits,
+  and the untracked living-ecology document. They were not reset or folded into this release.
+  The previously unpublished business-model commit is now included in remote main.
