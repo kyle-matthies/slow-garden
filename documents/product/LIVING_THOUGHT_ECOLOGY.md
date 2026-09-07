@@ -1,8 +1,15 @@
 # Living thought ecology
 
-Status: Accepted product direction; next-slice design brief
+Status: Historical concept brief; current delivery is governed by D-019 / ADR-006
 Date: 2026-09-06
 Decision: D-018
+
+Reconciled 2026-09-07: This earlier native concept is preserved for design context.
+[ADR-006](../architecture/ADR-006_WEB_THINKING_GARDEN.md) supersedes its delivery
+sequence, entry/revision definition, and permission proposal. Current web delivery
+uses dated entries with immutable revisions, independent plot AI/cross-pollination
+opt-ins, and manual returns when ready. Seed overrides and native scope enforcement
+are not implemented; no native prototype setting grants hosted processing permission.
 
 ## Product promise
 

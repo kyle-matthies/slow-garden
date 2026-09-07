@@ -20,13 +20,14 @@ struct SeedEditorView: View {
                         .padding(12)
                         .background(.white.opacity(0.82), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                 }
-                Picker("Connection scope", selection: $connectionScope) {
+                Picker("Proposed connection scope", selection: $connectionScope) {
                     Text("Isolated").tag(ConnectionScope.isolated)
                     Text("This plot").tag(ConnectionScope.withinPlot)
                     Text("Whole garden").tag(ConnectionScope.acrossGarden)
                 }
                 .pickerStyle(.segmented)
-                Text("This decides what other material a later pass may consider.")
+                .disabled(true)
+                Text("Connection controls are not active in this local prototype. Its sample return uses three seeds; no AI runs.")
                     .font(.caption)
                     .foregroundStyle(GardenTheme.secondaryInk)
                 TextEditor(text: $text)

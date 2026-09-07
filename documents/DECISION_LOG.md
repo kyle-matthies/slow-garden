@@ -146,7 +146,8 @@ The local proof of concept remains valid evidence, but it is no longer the produ
 
 ## D-018: Living thought ecology, with deliberate connection permissions
 
-- Status: Accepted product direction; implementation slice pending
+- Status: Historical product direction; delivery sequencing, entry model, and permission design superseded by D-019 / ADR-006
+- Reconciliation (2026-09-07): Preserved from the earlier local concept work. The web-first decision below governs current delivery; seed-level overrides and native tending remain proposals, not active permission guarantees.
 - Date: 2026-09-06
 - Decision: Treat Slow Garden as a private, page-like place for uninterrupted human thought. An entry is a source revision; a **seed** is an evolving named thread; a **plot** is a user-defined living area containing related seeds; and the **garden** is the wider private ecology. A bloom signals a reviewable moment of coherence, connection, tension, change, or question—not that a thought is complete. A plot can grow richer over time after individual seeds bloom.
 - Decision: AI may quietly tend in the background: preserve and structure context, surface source-linked observations, and ask bounded follow-up questions on return. It does not author the user's thought, earn growth on the user's behalf, force a turn-based exchange, or use activity/streak metrics as a proxy for growth. Growth should reflect user stewardship and increasing clarity, including return, development, connection, revision, or deliberate rest.
@@ -155,3 +156,16 @@ The local proof of concept remains valid evidence, but it is no longer the produ
 - Rationale: The product's distinctive value is continuity of the person's own thinking: writing in a calm notebook-like foreground, returning later to a gently cared-for context, and deciding what to nurture next. The visual garden should make that continuity legible without implying completion, diagnosis, urgency, or engagement scoring.
 - Evidence: 2026-09-06 owner concept session; [Project brief](PROJECT_BRIEF.md); [Meadow and Cabinet visual system](design/MEADOW_AND_CABINET.md).
 - Revisit when: Native interaction testing shows that seed/plot/garden language or connection controls create cognitive burden, or the first real delayed pass fails to feel more useful than an ordinary private notebook.
+
+## D-019: Web-first thinking garden
+
+- Status: Accepted; implementation in progress
+- Date: 2026-09-06
+- Decision: Deliver the first complete loop at slowgarden.app. Preserve native work.
+- Decision: Adopt garden → plot → named seed → dated entries and revisions. Plots have
+  independent AI tending and cross-pollination opt-ins; cross-off isolates both source
+  material and insights. Manual invitations precede scheduling; reveal when ready.
+- Decision: A desirable no-AI writing garden is a valid product outcome independently
+  of the asynchronous-AI hypothesis. Do not use frequency or streaks as growth scores.
+- Evidence: Kyle approved implementation of the web-first plan in this session;
+  [ADR-006](architecture/ADR-006_WEB_THINKING_GARDEN.md).

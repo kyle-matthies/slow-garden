@@ -1,6 +1,6 @@
 # Multi-horizon planning roadmap
 
-Status: H1 native local vertical slice implemented; full-Xcode and product validation gates open
+Status: Web-first delivery authorized by ADR-006; local implementation in progress. Historical native-first roadmap below is retained for provenance. See operations/WEB_DOGFOOD_DELIVERY.md for current gates.
 Planning model: Evidence-gated horizons, not date commitments
 Primary rule: Do not advance a horizon because code exists; advance when its exit evidence exists.
 

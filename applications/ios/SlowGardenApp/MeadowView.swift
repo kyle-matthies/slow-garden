@@ -150,7 +150,7 @@ private struct SeedFlower: View {
         }
         .buttonStyle(.plain)
         .onAppear { drifting = true }
-        .accessibilityLabel("Seed \(seed.title), \(seed.connectionScope.rawValue), revision \(seed.revisionNumber): \(seed.text)")
+        .accessibilityLabel("Seed \(seed.title), revision \(seed.revisionNumber): \(seed.text)")
         .accessibilityHint("Opens this seed for editing")
         .accessibilityIdentifier("seed-\(seed.id.uuidString)")
     }

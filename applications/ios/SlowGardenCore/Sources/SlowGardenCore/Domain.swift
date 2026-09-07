@@ -13,8 +13,8 @@ public enum SeedStatus: String, Codable, CaseIterable, Sendable {
     case archived
 }
 
-/// Controls which other user-authored material a seed may contribute to during a pass.
-/// It is a scope boundary, never a relevance score.
+/// Proposed connection metadata for the preserved native prototype.
+/// The deterministic v1 fixture does not enforce it; it grants no hosted AI permission.
 public enum ConnectionScope: String, Codable, CaseIterable, Sendable {
     case isolated
     case withinPlot
@@ -75,8 +75,8 @@ public final class GardenRecord {
 public final class SeedRecord {
     @Attribute(.unique) public var id: UUID
     public var gardenID: UUID
-    public var title: String
-    public var connectionScopeRaw: String
+    public var title: String = "Untitled seed"
+    public var connectionScopeRaw: String = "withinPlot"
     public var statusRaw: String
     public var currentRevisionID: UUID
     public var createdAt: Date

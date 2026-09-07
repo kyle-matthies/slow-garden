@@ -22,6 +22,7 @@ jobs:
           cache: npm
           cache-dependency-path: applications/web/package-lock.json
       - run: npm ci
+      - run: node --test ../../services/garden-worker/runtime.test.mjs
       - run: npm run lint
       - run: npm run build
 
