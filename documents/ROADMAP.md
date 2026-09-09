@@ -4,6 +4,19 @@ Status: Web-first delivery authorized by ADR-006; local implementation in progre
 Planning model: Evidence-gated horizons, not date commitments
 Primary rule: Do not advance a horizon because code exists; advance when its exit evidence exists.
 
+## Current web priority — 2026-09-09 functional feedback
+
+- [ ] Deliver session-aware logo/entry navigation and verified persistent browser login.
+- [ ] Present Garden → Topics → Thoughts → dated Entries; preserve location on reload.
+- [ ] Surface recent writing, entry counts and timestamps, and explicit Archive / Restore.
+- [ ] Distinguish AI availability from saved topic permissions without activating AI.
+- [ ] Verify synthetic browser journeys, local auth, tenant boundaries, and mobile clarity.
+- [ ] Future visual phase: [authentic botanical scrapbook](design/BOTANICAL_SCRAPBOOK_ROADMAP.md).
+
+The functional implementation and visual deferral belong to the same change. Mark
+these delivery items complete only with verified release evidence; a local commit
+alone does not close delivery. D-020 records the terminology and lifecycle decisions.
+
 ## 2026-08-26 implementation receipt
 
 - Implemented the production-shaped native iPhone project, shared Swift domain, conditional SwiftData adapter, local outbox, immutable revisions and pass snapshots, five-minute foreground-reconciled fixture tending, Meadow/Cabinet views, multi-garden lifecycle, exact evidence, and append-only bloom responses.

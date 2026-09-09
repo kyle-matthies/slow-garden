@@ -81,3 +81,30 @@ for forward fixes. Never discard real entries to restore an old schema.
 - Original checkout retains eight modified native files, its separate decision-log edits,
   and the untracked living-ecology document. They were not reset or folded into this release.
   The previously unpublished business-model commit is now included in remote main.
+
+## Functional feedback implementation — 2026-09-09
+
+Status: locally implemented and verified; production release not performed in this change.
+
+- Starting checkout was clean, with only local main and one worktree. Local main
+  and a direct GitHub main lookup both resolved to e5aff36; no cleanup was needed.
+- Corrected the session refresh proxy's location to `src/proxy.ts`, alongside
+  `src/app`. The prior root-level file was not included by Next. The production
+  build now explicitly includes Proxy, and an expired-token request refreshes
+  cookies through the authenticated login redirect.
+- D-020 delivers Garden → Topics → Thoughts → dated Entries, URL location,
+  one-step creation forms, visible recent writing/history, explicit archive/restore,
+  browser persistence, distinct sign-out scopes, and honest AI availability copy.
+- Preserved all schema and source contracts; no migration, hosted configuration
+  change, private-content diagnostic, model activation, or deployment was performed.
+- Local evidence: web lint, TypeScript and production build; 53 database assertions;
+  14 worker tests; HTTP token refresh/cache/export/history/isolation and sign-out
+  checks; synthetic Chromium OTP, browser restart, navigation, revisions, archive,
+  creation and availability/consent journeys; desktop/mobile screenshot inspection.
+- The new browser tests and reproduction requirements are in tests/README.md.
+  Local synthetic screenshots and profiles are ignored, not public evidence.
+- The [botanical scrapbook roadmap](../design/BOTANICAL_SCRAPBOOK_ROADMAP.md)
+  captures the future photographic flower/paper/tape aesthetic separately.
+- Remaining release gate: publish/review the implementation commit, merge, verify
+  the exact deployed revision, and perform a scoped live smoke check. Local Chromium
+  persistence does not establish Safari/iOS or hosted session-policy behavior.
