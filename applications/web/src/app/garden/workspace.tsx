@@ -1,7 +1,13 @@
 "use client";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import {
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type FormEvent,
+} from "react";
 import type { GardenData, Entry, ActionResult } from "@/lib/garden/types";
 import { GardenReturns } from "./returns";
 import {
@@ -12,7 +18,33 @@ import {
   signOut,
 } from "./actions";
 
-function Plant({ variant = 0 }: { variant?: number }) {
+const subscribeToClock = () => () => {};
+function EntryTime({ value }: { value: string }) {
+  const hydrated = useSyncExternalStore(
+    subscribeToClock,
+    () => true,
+    () => false,
+  );
+  return (
+    <time dateTime={value}>
+      {new Date(value).toLocaleString(undefined, {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+        timeZone: hydrated ? undefined : "UTC",
+        timeZoneName: "short",
+      })}
+    </time>
+  );
+}
+
+function Plant({ identity = "garden" }: { identity?: string }) {
+  const variant = Array.from(identity).reduce(
+    (hash, char) => (hash * 31 + char.charCodeAt(0)) >>> 0,
+    0,
+  );
   return (
     <svg className="plant-drawing" viewBox="0 0 120 130" aria-hidden="true">
       <path
@@ -27,7 +59,7 @@ function Plant({ variant = 0 }: { variant?: number }) {
         opacity=".65"
       />
       {variant % 2 === 0 ? (
-        <g fill="#c59272">
+        <g fill={`hsl(${variant % 360} 32% 58%)`}>
           <ellipse cx="66" cy="25" rx="8" ry="17" />
           <ellipse
             cx="66"
@@ -46,7 +78,10 @@ function Plant({ variant = 0 }: { variant?: number }) {
           <circle cx="66" cy="25" r="5" fill="#f1d990" />
         </g>
       ) : (
-        <path d="M65 32 Q41 17 59 6 Q84 10 65 32" fill="#759382" />
+        <path
+          d="M65 32 Q41 17 59 6 Q84 10 65 32"
+          fill={`hsl(${variant % 360} 32% 58%)`}
+        />
       )}
       <path
         d="M40 119 Q60 113 80 119"
@@ -94,14 +129,26 @@ function NewArea({
   if (!open)
     return (
       <button className="secondary-button" onClick={() => setOpen(true)}>
-        ＋ {kind === "seed" ? "Plant a thought" : `New ${kind}`}
+        ＋{" "}
+        {kind === "seed"
+          ? "New thought"
+          : `New ${kind === "plot" ? "topic" : kind}`}
       </button>
     );
   return (
     <form className="new-area" onSubmit={submit}>
       <label htmlFor={`new-${kind}`}>
-        {kind === "seed" ? "Name your thought" : `Name your ${kind}`}
+        {kind === "seed"
+          ? "Name your thought"
+          : `Name your ${kind === "plot" ? "topic" : kind}`}
       </label>
+      <p>
+        {kind === "plot"
+          ? "A topic groups related thoughts in this garden."
+          : kind === "seed"
+            ? "A thought is a named thread. Add dated entries whenever you return."
+            : "A garden is a separate space containing topics and thoughts."}
+      </p>
       <input
         id={`new-${kind}`}
         value={name}
@@ -146,7 +193,7 @@ function EntryEditor({
   tenantId: string;
   seedId: string;
   entry?: Entry;
-  onSaved: () => void;
+  onSaved: (entryId: string) => void;
 }) {
   const storageKey = `slow-garden:draft:v2:${tenantId}:${seedId}:${entry?.entry_id ?? "new"}`;
   const [draft, setDraft] = useState<Draft>({
@@ -228,7 +275,7 @@ function EntryEditor({
           revisionId: crypto.randomUUID(),
           expectedRevisionId: null,
         });
-      onSaved();
+      onSaved(draft.entryId);
     } catch {
       setStatus(
         "Connection interrupted. Your draft is still here. Retry when connected.",
@@ -243,7 +290,7 @@ function EntryEditor({
         className="panel-kicker"
         htmlFor={`writing-${entry?.entry_id ?? "new"}`}
       >
-        {entry ? "Revise this entry" : "A little more room to think"}
+        {entry ? "Revise this entry" : "New entry"}
       </label>
       <textarea
         id={`writing-${entry?.entry_id ?? "new"}`}
@@ -280,11 +327,13 @@ function EntryCard({
   tenantId,
   onRefresh,
   onArchive,
+  readOnly = false,
 }: {
   entry: Entry;
   tenantId: string;
   onRefresh: () => void;
   onArchive: () => void;
+  readOnly?: boolean;
 }) {
   const [editing, setEditing] = useState(false),
     [history, setHistory] = useState<
@@ -309,14 +358,18 @@ function EntryCard({
     }
   }
   return (
-    <article className="journal-entry">
-      <time dateTime={entry.created_at}>
-        {new Date(entry.created_at).toLocaleDateString(undefined, {
-          year: "numeric",
-          month: "long",
-          day: "numeric",
-        })}
-      </time>
+    <article
+      className="journal-entry"
+      id={`entry-${entry.entry_id}`}
+      tabIndex={-1}
+    >
+      <EntryTime value={entry.created_at} />
+      {Date.parse(entry.revised_at) > Date.parse(entry.created_at) && (
+        <p className="form-note">
+          Revised <EntryTime value={entry.revised_at} />
+        </p>
+      )}
+      {entry.archived_at && <p className="form-note">Archived entry</p>}
       {editing ? (
         <EntryEditor
           tenantId={tenantId}
@@ -332,7 +385,11 @@ function EntryCard({
         <p className="entry-body">{entry.body}</p>
       )}
       <div className="entry-actions">
-        <button onClick={() => setEditing(!editing)} className="plain-button">
+        <button
+          disabled={readOnly || !!entry.archived_at}
+          onClick={() => setEditing(!editing)}
+          className="plain-button"
+        >
           {editing ? "Close editor" : "Revise"}
         </button>
         <button
@@ -341,15 +398,19 @@ function EntryCard({
         >
           {history ? "Close history" : "Revision history"}
         </button>
-        <button className="plain-button" onClick={onArchive}>
-          {entry.archived_at ? "Restore" : "Archive"}
+        <button
+          disabled={readOnly}
+          className="plain-button"
+          onClick={onArchive}
+        >
+          {entry.archived_at ? "Restore entry" : "Archive entry"}
         </button>
       </div>
       {history && (
         <ol className="revision-list" aria-label="Revision history">
           {history.map((r) => (
             <li key={r.id}>
-              <time>{new Date(r.created_at).toLocaleString()}</time>
+              <EntryTime value={r.created_at} />
               <p className="entry-body">{r.body}</p>
             </li>
           ))}
@@ -361,16 +422,72 @@ function EntryCard({
 }
 export function GardenWorkspace({ data }: { data: GardenData }) {
   const router = useRouter();
-  const [plotId, setPlotId] = useState(""),
-    [seedId, setSeedId] = useState(""),
-    [search, setSearch] = useState(""),
-    [archived, setArchivedView] = useState(false),
+  const params = useSearchParams();
+  const [search, setSearch] = useState(""),
     [settings, setSettings] = useState(false),
-    [notice, setNotice] = useState("");
+    [notice, setNotice] = useState(""),
+    [savedEntry, setSavedEntry] = useState("");
   const garden = data.gardens.find((g) => g.id === data.gardenId);
+  const requestedTopic = params.get("topic") ?? "";
+  const requestedThought = params.get("thought") ?? "";
+  const plotId = data.plots.find((p) => p.id === requestedTopic)?.id ?? "";
+  const seedId =
+    data.seeds.find((s) => s.id === requestedThought && s.plot_id === plotId)
+      ?.id ?? "";
+  const archived = params.get("view") === "archive";
+  const invalidLocation =
+    (!!requestedTopic && !plotId) ||
+    (!!requestedThought && !seedId) ||
+    (!!params.get("garden") && params.get("garden") !== data.gardenId);
+  function navigate(topic = "", thought = "", archive = archived, entry = "") {
+    const query = new URLSearchParams();
+    if (data.gardenId) query.set("garden", data.gardenId);
+    if (topic) query.set("topic", topic);
+    if (thought) query.set("thought", thought);
+    if (archive) query.set("view", "archive");
+    window.history.pushState(
+      null,
+      "",
+      `/garden?${query}${entry ? `#entry-${entry}` : ""}`,
+    );
+    setSearch("");
+    setSavedEntry("");
+  }
+  const setPlotId = (id: string) => navigate(id);
+  const setSeedId = (id: string) =>
+    navigate(data.seeds.find((s) => s.id === id)?.plot_id ?? plotId, id);
+  useEffect(() => {
+    const anchor =
+      savedEntry && data.entries.some((e) => e.entry_id === savedEntry)
+        ? `entry-${savedEntry}`
+        : window.location.hash.slice(1);
+    if (anchor)
+      document.getElementById(anchor)?.scrollIntoView({ block: "center" });
+  }, [params, data.entries, savedEntry]);
+  useEffect(() => {
+    const protectDrafts = (event: BeforeUnloadEvent) => {
+      try {
+        for (let i = 0; i < sessionStorage.length; i++) {
+          const key = sessionStorage.key(i);
+          if (
+            key?.startsWith(`slow-garden:draft:v2:${data.tenantId}:`) &&
+            JSON.parse(sessionStorage.getItem(key) ?? "{}").body
+          ) {
+            event.preventDefault();
+            return;
+          }
+        }
+      } catch {
+        /* The editor separately warns if storage is unavailable. */
+      }
+    };
+    window.addEventListener("beforeunload", protectDrafts);
+    return () => window.removeEventListener("beforeunload", protectDrafts);
+  }, [data.tenantId]);
   const plots = data.plots.filter((p) =>
     archived
-      ? !!p.archived_at ||
+      ? garden?.status === "archived" ||
+        !!p.archived_at ||
         data.seeds.some(
           (s) =>
             s.plot_id === p.id &&
@@ -381,18 +498,28 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
   );
   const plot = data.plots.find((p) => p.id === plotId);
   const seed = data.seeds.find((s) => s.id === seedId);
-  const entries = data.entries.filter(
-    (e) =>
-      e.seed_id === seedId &&
-      (archived
-        ? !!e.archived_at || seed?.status === "archived" || !!plot?.archived_at
-        : !e.archived_at),
-  );
+  const entries = data.entries
+    .filter(
+      (e) =>
+        e.seed_id === seedId &&
+        (archived
+          ? garden?.status === "archived" ||
+            !!e.archived_at ||
+            seed?.status === "archived" ||
+            !!plot?.archived_at
+          : !e.archived_at),
+    )
+    .sort(
+      (a, b) =>
+        b.created_at.localeCompare(a.created_at) ||
+        b.entry_id.localeCompare(a.entry_id),
+    );
   const seeds = data.seeds.filter(
     (s) =>
       (!plot || s.plot_id === plot.id) &&
       (archived
-        ? s.status === "archived" ||
+        ? garden?.status === "archived" ||
+          s.status === "archived" ||
           !!data.plots.find((p) => p.id === s.plot_id)?.archived_at ||
           data.entries.some((e) => e.seed_id === s.id && e.archived_at)
         : s.status === "active" &&
@@ -407,22 +534,61 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
   function refresh() {
     router.refresh();
   }
-  async function mutation(action: () => Promise<ActionResult>) {
+  async function mutation(
+    action: () => Promise<ActionResult>,
+    success = "Permissions saved.",
+  ) {
     try {
       const result = await action();
-      setNotice(result.ok ? "Saved" : result.message);
+      setNotice(result.ok ? success : result.message);
       if (result.ok) refresh();
     } catch {
       setNotice("Could not save. Please retry.");
     }
   }
-  async function leave() {
+  async function archiveItem(
+    kind: "garden" | "plot" | "seed" | "entry",
+    id: string,
+    archive: boolean,
+  ) {
+    const label =
+      kind === "plot" ? "topic" : kind === "seed" ? "thought" : kind;
+    if (
+      archive &&
+      !window.confirm(
+        `Archive this ${label}? It will be hidden from active views, not deleted. Find it in Archive to restore it. Any unsaved draft stays in this tab.`,
+      )
+    )
+      return;
+    await mutation(
+      () => setArchived(kind, id, archive),
+      archive
+        ? `${label} archived. Find it in Archive; your writing was not deleted.`
+        : `${label} restored. It is available in active views.`,
+    );
+  }
+  async function leave(scope: "local" | "global" = "local") {
+    if (
+      !window.confirm(
+        "Sign out and clear this tab’s unsaved drafts? Save any writing you want to keep first.",
+      )
+    )
+      return;
+    try {
+      await signOut(scope);
+    } catch {
+      setNotice(
+        "Could not sign out. Your drafts are still here; please retry.",
+      );
+      return;
+    }
     for (let i = sessionStorage.length - 1; i >= 0; i--) {
       const key = sessionStorage.key(i);
       if (key?.startsWith(`slow-garden:draft:v2:${data.tenantId}:`))
         sessionStorage.removeItem(key);
     }
-    await signOut();
+    router.replace("/login");
+    router.refresh();
   }
   return (
     <main className="thinking-garden">
@@ -430,7 +596,7 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
         Skip to your thoughts
       </a>
       <header className="garden-top">
-        <Link href="/" className="wordmark">
+        <Link href={`/garden?garden=${data.gardenId}`} className="wordmark">
           Slow Garden<span className="wordmark-dot">✳</span>
         </Link>
         <nav aria-label="Garden tools">
@@ -443,12 +609,10 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
           <button
             className="plain-button"
             onClick={() => {
-              setPlotId("");
-              setSeedId("");
-              setArchivedView(!archived);
+              navigate("", "", !archived);
             }}
           >
-            {archived ? "Back to growing" : "Resting thoughts"}
+            {archived ? "Back to garden" : "Archive"}
           </button>
         </nav>
       </header>
@@ -457,7 +621,7 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
           <h2>Your space, your control</h2>
           <p>
             Your writing is stored in your private account. AI is optional and
-            each plot starts with it off.
+            each topic starts with it off.
           </p>
           <div className="action-row">
             <a className="secondary-button" href="/garden/export">
@@ -471,9 +635,18 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
             Exports include archived writing and every revision. Drafts remain
             in this browser tab until saved.
           </p>
-          <button className="plain-button" onClick={leave}>
-            Sign out on all devices and clear this tab’s drafts
-          </button>
+          <p>
+            You stay signed in on this browser between visits, until you sign
+            out or the session expires.
+          </p>
+          <div className="action-row">
+            <button className="plain-button" onClick={() => leave()}>
+              Sign out on this device
+            </button>
+            <button className="plain-button" onClick={() => leave("global")}>
+              Sign out on all devices
+            </button>
+          </div>
         </section>
       )}
       <div className="garden-frame">
@@ -486,15 +659,13 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
             aria-label="Your garden"
             value={data.gardenId}
             onChange={(e) => {
-              setSeedId("");
-              setPlotId("");
               router.push(`/garden?garden=${e.target.value}`);
             }}
           >
             {data.gardens.map((g) => (
               <option key={g.id} value={g.id}>
                 {g.name}
-                {g.status === "archived" ? " · resting" : ""}
+                {g.status === "archived" ? " · archived" : ""}
               </option>
             ))}
           </select>
@@ -502,13 +673,12 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
             className="rail-link"
             aria-current={!plotId && !seedId ? "page" : undefined}
             onClick={() => {
-              setPlotId("");
-              setSeedId("");
+              navigate();
             }}
           >
-            All thoughts
+            Garden overview
           </button>
-          <p className="panel-kicker">Your plots</p>
+          <p className="panel-kicker">Topics</p>
           {plots.map((p) => (
             <button
               className="rail-link"
@@ -516,7 +686,6 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
               key={p.id}
               onClick={() => {
                 setPlotId(p.id);
-                setSeedId("");
                 setSearch("");
               }}
             >
@@ -526,43 +695,91 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
                   ? "AI off"
                   : p.cross_pollinate
                     ? "Cross-pollination on"
-                    : "AI within this plot"}
+                    : "AI permission on"}
               </small>
             </button>
           ))}
-          {data.gardenId && (
+          {data.gardenId && garden?.status === "active" && !archived && (
             <NewArea
               kind="plot"
               parentId={data.gardenId}
               onCreated={(id) => {
                 setPlotId(id);
-                setSeedId("");
                 refresh();
               }}
             />
           )}
-          <details className="more-gardens">
-            <summary>Another garden</summary>
-            <NewArea
-              kind="garden"
-              parentId=""
-              onCreated={(id) => {
-                router.push(`/garden?garden=${id}`);
-                setPlotId("");
-                setSeedId("");
-                refresh();
-              }}
-            />
-          </details>
+          {garden && (
+            <div className="more-gardens">
+              <NewArea
+                kind="garden"
+                parentId=""
+                onCreated={(id) => {
+                  router.push(`/garden?garden=${id}`);
+                  refresh();
+                }}
+              />
+            </div>
+          )}
         </aside>
         <section
           id="garden-content"
           className={seed ? "thought-page" : "meadow-page"}
         >
-          <div className="garden-breadcrumb">
-            <span>YOUR PRIVATE THINKING GARDEN</span>
-            <span>No hurry to become anything.</span>
-          </div>
+          <nav className="garden-breadcrumb" aria-label="Breadcrumb">
+            <button onClick={() => navigate()}>
+              Garden: {garden?.name ?? "New garden"}
+            </button>
+            {plot && (
+              <>
+                <span aria-hidden="true">/</span>
+                <button onClick={() => navigate(plot.id)}>
+                  Topic: {plot.name}
+                </button>
+              </>
+            )}
+            {seed && (
+              <>
+                <span aria-hidden="true">/</span>
+                <span aria-current="page">Thought: {seed.title}</span>
+              </>
+            )}
+          </nav>
+          {invalidLocation && (
+            <p role="status">
+              That location is no longer available. Showing its nearest
+              available parent.
+            </p>
+          )}
+          {archived && (
+            <section className="archive-notice">
+              <h2>Archive</h2>
+              <p>
+                Archived writing is hidden from active views, not deleted.
+                Restore its garden or topic first, then the thought or entry.
+              </p>
+            </section>
+          )}
+          {garden?.status === "archived" && (
+            <p className="archive-notice">
+              This garden is archived.{" "}
+              <button onClick={() => archiveItem("garden", garden.id, false)}>
+                Restore garden
+              </button>
+            </p>
+          )}
+          {plot?.archived_at && (
+            <p className="archive-notice">
+              This topic is archived.{" "}
+              <button
+                disabled={garden?.status === "archived"}
+                onClick={() => archiveItem("plot", plot.id, false)}
+              >
+                Restore topic
+              </button>
+            </p>
+          )}
+
           {!garden ? (
             <div className="first-garden">
               <Plant />
@@ -589,10 +806,17 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
                 <div>
                   <p className="panel-kicker">An evolving thought</p>
                   <h1>{seed.title}</h1>
-                  <p>Leave a fragment. Come back when you’re ready.</p>
+                  <p>
+                    A named thread of thought. Add a dated entry whenever you
+                    return.
+                  </p>
                 </div>
-                <Plant />
+                <Plant identity={seed.id} />
               </div>
+              <a className="text-link" href="#saved-entries">
+                View {entries.length} saved{" "}
+                {entries.length === 1 ? "entry" : "entries"}
+              </a>
               {seed.status === "active" &&
                 garden.status === "active" &&
                 !data.plots.find((p) => p.id === seed.plot_id)?.archived_at && (
@@ -600,35 +824,53 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
                     key={`${data.gardenId}:${seed.id}`}
                     tenantId={data.tenantId}
                     seedId={seed.id}
-                    onSaved={refresh}
+                    onSaved={(id) => {
+                      setNotice("Entry saved to this thought.");
+                      setSavedEntry(id);
+                      refresh();
+                    }}
                   />
                 )}
-              <div className="journal-entries">
+              <div className="journal-entries" id="saved-entries">
+                <h2>Saved entries · {entries.length}</h2>
+                {entries.length === 0 && (
+                  <p>
+                    No saved entries in this view. Save your first entry above,
+                    or check Archive.
+                  </p>
+                )}
                 {entries.map((e) => (
                   <EntryCard
                     key={e.entry_id}
                     entry={e}
                     tenantId={data.tenantId}
                     onRefresh={refresh}
+                    readOnly={
+                      seed.status === "archived" ||
+                      garden.status === "archived" ||
+                      !!plot?.archived_at
+                    }
                     onArchive={() =>
-                      mutation(() =>
-                        setArchived("entry", e.entry_id, !e.archived_at),
-                      )
+                      archiveItem("entry", e.entry_id, !e.archived_at)
                     }
                   />
                 ))}
               </div>
+              <p className="form-note">
+                {seed.status === "archived"
+                  ? "This thought is archived. Restore it to add entries."
+                  : "Archiving hides this thought from active views without deleting its entries."}
+              </p>
               <button
                 className="plain-button"
+                disabled={garden.status === "archived" || !!plot?.archived_at}
                 onClick={() =>
-                  mutation(() =>
-                    setArchived("seed", seed.id, seed.status === "active"),
-                  )
+                  archiveItem("seed", seed.id, seed.status === "active")
                 }
               >
                 {seed.status === "archived"
                   ? "Restore this thought"
-                  : "Let this thought rest"}
+                  : "Archive thought"}
               </button>
             </>
           ) : (
@@ -636,16 +878,16 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
               <div className="meadow-heading">
                 <p className="panel-kicker">
                   {archived
-                    ? "Rest is part of thinking"
+                    ? "Archived writing"
                     : plot
-                      ? "A living area for related thoughts"
-                      : "A little space to be yourself"}
+                      ? "Topic · related thoughts"
+                      : "Garden overview"}
                 </p>
                 <h1>{plot?.name ?? garden.name}</h1>
                 <p>
                   {plot
-                    ? "Some thoughts take more than a single sitting."
-                    : "Your questions and ideas can stay unfinished here."}
+                    ? "Choose a thought to read its entries or add a new one."
+                    : "Topics group your thoughts. Each thought holds dated entries."}
                 </p>
               </div>
               <div className="meadow-tools">
@@ -658,26 +900,32 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
                     onChange={(e) => setSearch(e.target.value)}
                   />
                 </label>
-                {plot && !plot.archived_at && !archived && (
-                  <NewArea
-                    kind="seed"
-                    parentId={plot.id}
-                    onCreated={(id) => {
-                      setSeedId(id);
-                      refresh();
-                    }}
-                  />
-                )}
+                {plot &&
+                  garden.status === "active" &&
+                  !plot.archived_at &&
+                  !archived && (
+                    <NewArea
+                      kind="seed"
+                      parentId={plot.id}
+                      onCreated={(id) => {
+                        setSeedId(id);
+                        refresh();
+                      }}
+                    />
+                  )}
               </div>
               {!plot && !search && plots.length > 0 && (
                 <div className="plot-overview">
-                  {plots.map((p, i) => (
+                  {plots.map((p) => (
                     <button
                       className="plot-card"
                       key={p.id}
                       onClick={() => setPlotId(p.id)}
                     >
-                      <Plant variant={i} />
+                      <Plant identity={p.id} />
+                      <p className="panel-kicker">
+                        Topic{p.archived_at ? " · archived" : ""}
+                      </p>
                       <h2>{p.name}</h2>
                       <p>
                         {
@@ -691,20 +939,47 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
                   ))}
                 </div>
               )}
+              <h2>{plot ? "Thoughts in this topic" : "All thoughts"}</h2>
               <div className="plant-grid" aria-label="Thoughts">
-                {seeds.map((s, i) => (
+                {seeds.map((s) => (
                   <button
                     className="seed-plant"
                     key={s.id}
                     onClick={() => {
-                      setPlotId(s.plot_id);
-                      setSeedId(s.id);
+                      navigate(s.plot_id, s.id);
                     }}
                   >
-                    <Plant variant={i} />
+                    <Plant identity={s.id} />
+                    <small>
+                      Thought{s.status === "archived" ? " · archived" : ""}
+                    </small>
                     <span className="plant-label">{s.title}</span>
                     <small>
                       {data.plots.find((p) => p.id === s.plot_id)?.name}
+                    </small>
+                    <small>
+                      {
+                        data.entries.filter(
+                          (e) => e.seed_id === s.id && !e.archived_at,
+                        ).length
+                      }{" "}
+                      saved entries
+                    </small>
+                    <small>
+                      {(() => {
+                        const latest = data.entries
+                          .filter((e) => e.seed_id === s.id && !e.archived_at)
+                          .sort((a, b) =>
+                            b.created_at.localeCompare(a.created_at),
+                          )[0];
+                        return latest ? (
+                          <>
+                            Latest: <EntryTime value={latest.created_at} />
+                          </>
+                        ) : (
+                          "No entries yet"
+                        );
+                      })()}
                     </small>
                   </button>
                 ))}
@@ -714,9 +989,63 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
                   {search
                     ? "No thoughts match this search."
                     : plot
-                      ? "Plant a named thought here. Add to it whenever something comes to you."
-                      : "Start with a plot for a question, a project, or a corner of your life."}
+                      ? "Create a thought in this topic, then save your first dated entry."
+                      : "Create a topic for related thoughts, then add a thought and its first entry."}
                 </p>
+              )}
+              {!plot && !archived && !search && (
+                <section className="recent-entries">
+                  <h2>Recent entries</h2>
+                  <p>Your latest saved writing in this garden.</p>
+                  {data.entries
+                    .filter(
+                      (e) =>
+                        !e.archived_at && seeds.some((s) => s.id === e.seed_id),
+                    )
+                    .sort((a, b) => b.created_at.localeCompare(a.created_at))
+                    .slice(0, 10)
+                    .map((e) => {
+                      const thought = data.seeds.find(
+                        (s) => s.id === e.seed_id,
+                      )!;
+                      return (
+                        <button
+                          key={e.entry_id}
+                          className="recent-entry"
+                          onClick={() =>
+                            navigate(
+                              thought.plot_id,
+                              thought.id,
+                              false,
+                              e.entry_id,
+                            )
+                          }
+                        >
+                          <strong>{thought.title}</strong>
+                          <span>
+                            {
+                              data.plots.find((p) => p.id === thought.plot_id)
+                                ?.name
+                            }
+                          </span>
+                          <EntryTime value={e.created_at} />
+                          <span>
+                            {e.body.slice(0, 160)}
+                            {e.body.length > 160 ? "…" : ""}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  {!data.entries.some(
+                    (e) =>
+                      !e.archived_at && seeds.some((s) => s.id === e.seed_id),
+                  ) && (
+                    <p>
+                      No saved entries yet. Choose a topic to begin, or check
+                      Archive.
+                    </p>
+                  )}
+                </section>
               )}
               {plot && (
                 <GardenReturns
@@ -729,21 +1058,30 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
               {plot && (
                 <details className="plot-permissions">
                   <summary>
-                    Plot controls ·{" "}
+                    Topic settings ·{" "}
                     {!plot.ai_enabled
                       ? "AI off"
                       : plot.cross_pollinate
                         ? "Cross-pollination on"
-                        : "AI isolated to this plot"}
+                        : "AI permission on"}
                   </summary>
                   <p>
-                    AI tending is optional. Cross-pollination lets this plot
-                    exchange context with other participating plots in this
+                    AI tending is optional. Cross-pollination lets this topic
+                    exchange context with other participating topics in this
                     garden.
                   </p>
+                  {!data.aiAvailable && (
+                    <p>
+                      AI reflections are not available yet. These permissions
+                      are saved for when the service becomes available.
+                    </p>
+                  )}
                   <label>
                     <input
                       type="checkbox"
+                      disabled={
+                        !!plot.archived_at || garden.status === "archived"
+                      }
                       checked={plot.ai_enabled}
                       onChange={(e) =>
                         mutation(() =>
@@ -761,7 +1099,11 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
                     <input
                       type="checkbox"
                       checked={plot.cross_pollinate}
-                      disabled={!plot.ai_enabled}
+                      disabled={
+                        !plot.ai_enabled ||
+                        !!plot.archived_at ||
+                        garden.status === "archived"
+                      }
                       onChange={(e) =>
                         mutation(() =>
                           setPlotPermissions(
@@ -776,8 +1118,8 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
                   </label>
                   <p>
                     {plot.ai_enabled && !plot.cross_pollinate
-                      ? "This plot’s writing and insights stay isolated from other plots."
-                      : "Every participating plot must give its own permission."}
+                      ? "This topic’s writing and insights stay isolated from other topics."
+                      : "Every participating topic must give its own permission."}
                   </p>
                   <p>
                     Permissions never trigger processing by themselves. Invite
@@ -785,13 +1127,12 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
                   </p>
                   <button
                     className="plain-button"
+                    disabled={garden.status === "archived"}
                     onClick={() =>
-                      mutation(() =>
-                        setArchived("plot", plot.id, !plot.archived_at),
-                      )
+                      archiveItem("plot", plot.id, !plot.archived_at)
                     }
                   >
-                    {plot.archived_at ? "Restore plot" : "Let this plot rest"}
+                    {plot.archived_at ? "Restore topic" : "Archive topic"}
                   </button>
                 </details>
               )}

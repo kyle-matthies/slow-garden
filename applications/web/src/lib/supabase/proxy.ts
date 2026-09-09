@@ -33,5 +33,7 @@ export async function updateSession(request: NextRequest) {
   );
 
   await supabase.auth.getClaims();
+  // Auth refresh responses and personalized routes must never be shared by a cache.
+  response.headers.set("Cache-Control", "private, no-store");
   return response;
 }

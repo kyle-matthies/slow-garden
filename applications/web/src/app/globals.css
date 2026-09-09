@@ -1053,3 +1053,122 @@ a {
   min-height: 44px;
   padding: 8px 0;
 }
+
+/* Clear hierarchy and writing history, independent of the future botanical redesign. */
+.garden-breadcrumb {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  align-items: center;
+  font-size: 0.85rem;
+  letter-spacing: 0;
+  gap: 10px;
+}
+.garden-breadcrumb button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 8px 0;
+}
+.garden-breadcrumb span + span {
+  font-style: normal;
+}
+.plot-rail > .panel-kicker {
+  display: block;
+  margin: 16px 0 0;
+}
+.more-gardens {
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+}
+.meadow-heading {
+  margin-top: 36px;
+}
+.plant-grid {
+  margin: 20px 0 40px;
+}
+.seed-plant {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fffdf6;
+  gap: 6px;
+}
+.seed-plant small {
+  text-align: center;
+  line-height: 1.6;
+}
+.plot-card {
+  border-radius: 12px;
+}
+.journal-entries,
+.recent-entries {
+  border-top: 2px solid var(--line);
+  padding-top: 24px;
+  margin-top: 36px;
+}
+.journal-entry {
+  padding: 24px;
+  margin: 20px 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fffdf7;
+  scroll-margin-top: 24px;
+}
+.journal-entry:target {
+  outline: 2px solid var(--moss);
+}
+.journal-entry time {
+  font-size: 0.85rem;
+}
+.recent-entry {
+  display: grid;
+  width: 100%;
+  gap: 8px;
+  text-align: left;
+  padding: 20px;
+  margin: 14px 0;
+  color: inherit;
+  background: #fffdf7;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.recent-entry time,
+.recent-entry span {
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+.archive-notice {
+  border: 1px solid var(--line);
+  padding: 18px;
+  margin-top: 24px;
+  background: #f1eee3;
+  line-height: 1.6;
+}
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+@media (max-width: 760px) {
+  .garden-breadcrumb span + span {
+    display: inline;
+  }
+  .plot-rail {
+    align-items: stretch;
+  }
+  .plot-rail > .panel-kicker {
+    flex-basis: 100%;
+  }
+  .rail-link small {
+    display: block;
+  }
+  .more-gardens {
+    margin-top: 12px;
+    width: 100%;
+  }
+  .journal-entry {
+    padding: 18px;
+  }
+}

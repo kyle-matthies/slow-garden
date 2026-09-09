@@ -1,6 +1,15 @@
+import { redirect } from "next/navigation";
+import { createClient, isSupabaseConfigured } from "@/lib/supabase/server";
 import Link from "next/link";
 
-export default function Home() {
+export const dynamic = "force-dynamic";
+
+export default async function Home() {
+  if (isSupabaseConfigured()) {
+    const db = await createClient();
+    const { data, error } = await db.auth.getClaims();
+    if (!error && data?.claims?.sub) redirect("/garden");
+  }
   return (
     <main className="landing-shell">
       <nav className="site-nav" aria-label="Primary navigation">
@@ -40,8 +49,7 @@ export default function Home() {
             What keeps returning when the noise settles?
           </div>
           <div className="seed-card seed-card-two">
-            <span>Seed</span>
-            A question can remain open without being abandoned.
+            <span>Seed</span>A question can remain open without being abandoned.
           </div>
           <div className="bloom-card">
             <span>Bloom · later</span>
@@ -63,8 +71,9 @@ export default function Home() {
           <span className="principle-number">02</span>
           <h2>Your words stay yours</h2>
           <p>
-            Source revisions are append-only. You can revisit earlier versions and export your writing.
-            AI reflections, when enabled, stay separate from your words.
+            Source revisions are append-only. You can revisit earlier versions
+            and export your writing. AI reflections, when enabled, stay separate
+            from your words.
           </p>
         </article>
         <article>

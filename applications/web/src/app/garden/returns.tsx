@@ -84,27 +84,30 @@ export function GardenReturns({
           refresh();
         }}
       >
-        Reflections · a separate space
+        AI reflections
       </button>
     );
   return (
     <section className="return-cabinet" aria-label="AI reflections">
       <div className="action-row">
-        <h2>Something to return to</h2>
+        <h2>AI reflections</h2>
         <button className="plain-button" onClick={() => setOpen(false)}>
           Close
         </button>
         <button className="plain-button" onClick={refresh}>
-          Refresh returns
+          Check for reflections
         </button>
       </div>
       <p>
         AI interpretations are separate from your writing. There may be nothing
         new to offer, and that is fine.
       </p>
-      {data.aiAvailable && current?.ai_enabled ? (
+      {data.aiAvailable &&
+      current?.ai_enabled &&
+      !current.archived_at &&
+      data.gardens.find((g) => g.id === data.gardenId)?.status === "active" ? (
         <fieldset disabled={pending}>
-          <legend>Invite a reflection on these plots</legend>
+          <legend>Invite a reflection on these topics</legend>
           {eligible.map((p) => (
             <label key={p.id}>
               <input
@@ -123,7 +126,7 @@ export function GardenReturns({
             </label>
           ))}
           <p>
-            Only these plots’ saved entries will be sent to the configured AI
+            Only these topics’ saved entries will be sent to the configured AI
             provider. No other garden participates.
           </p>
           <button
@@ -136,8 +139,13 @@ export function GardenReturns({
         </fieldset>
       ) : (
         <p>
-          AI invitations are off. You can keep writing and review existing
-          returns.
+          {!data.aiAvailable
+            ? "AI reflections are not available yet. Your permissions are saved. You can keep writing and review existing reflections."
+            : current?.archived_at ||
+                data.gardens.find((g) => g.id === data.gardenId)?.status ===
+                  "archived"
+              ? "Restore this garden and topic before requesting a reflection."
+              : "AI permission is off for this topic. Enable Allow AI tending in Topic settings to request a reflection."}
         </p>
       )}
       <p role="status">{message}</p>
@@ -170,7 +178,9 @@ export function GardenReturns({
             </p>
           )}
           {pass.status === "withdrawn" && (
-            <p>This return was withdrawn after its plot permissions changed.</p>
+            <p>
+              This return was withdrawn after its topic permissions changed.
+            </p>
           )}
           {returns.blooms
             .filter((b) => b.pass_id === pass.id)

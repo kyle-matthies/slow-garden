@@ -1,6 +1,5 @@
 "use server";
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { ActionResult } from "@/lib/garden/types";
 
@@ -47,14 +46,12 @@ export async function createArea(
           .insert({ id, tenant_id: tenantId, name: name.trim() });
         if (error) throw error;
       } else if (kind === "plot") {
-        const { error } = await db
-          .from("plots")
-          .insert({
-            id,
-            tenant_id: tenantId,
-            garden_id: parentId,
-            name: name.trim(),
-          });
+        const { error } = await db.from("plots").insert({
+          id,
+          tenant_id: tenantId,
+          garden_id: parentId,
+          name: name.trim(),
+        });
         if (error) throw error;
       } else {
         const { data: plot, error: pe } = await db
@@ -63,15 +60,13 @@ export async function createArea(
           .eq("id", parentId)
           .single();
         if (pe || plot.archived_at) throw pe ?? new Error("Archived");
-        const { error } = await db
-          .from("seeds")
-          .insert({
-            id,
-            tenant_id: tenantId,
-            garden_id: plot.garden_id,
-            plot_id: parentId,
-            title: name.trim(),
-          });
+        const { error } = await db.from("seeds").insert({
+          id,
+          tenant_id: tenantId,
+          garden_id: plot.garden_id,
+          plot_id: parentId,
+          title: name.trim(),
+        });
         if (error) throw error;
       }
     }
@@ -156,11 +151,13 @@ export async function setPlotPermissions(
     return message(error);
   }
 }
-export async function signOut() {
+export async function signOut(scope: "local" | "global" = "local") {
+  if (scope !== "local" && scope !== "global")
+    throw new Error("Invalid sign-out scope");
   const db = await createClient();
-  const { error } = await db.auth.signOut({ scope: "global" });
+  const { error } = await db.auth.signOut({ scope });
   if (error) throw new Error("Sign-out failed. Please retry.");
-  redirect("/login");
+  return { ok: true };
 }
 
 export async function inviteReflection(
@@ -183,21 +180,19 @@ export async function inviteReflection(
       .maybeSingle();
     if (readError) throw readError;
     if (existing) return { ok: true, id };
-    const { error } = await db
-      .from("garden_passes")
-      .insert({
-        id,
-        tenant_id: tenantId,
-        garden_id: gardenId,
-        plot_ids: plotIds,
-      });
+    const { error } = await db.from("garden_passes").insert({
+      id,
+      tenant_id: tenantId,
+      garden_id: gardenId,
+      plot_ids: plotIds,
+    });
     if (error)
       return {
         ok: false,
         message:
           error.code === "55000"
             ? "A reflection is already pending, the AI budget is reached, or the quality gate is not active. Try again later."
-            : "Check the selected plots and their AI permissions before retrying.",
+            : "Check the selected topics and their AI permissions before retrying.",
       };
     revalidatePath("/garden");
     return { ok: true, id };
@@ -242,15 +237,13 @@ export async function respondToBloom(
       .eq("id", id)
       .maybeSingle();
     if (!existing) {
-      const { error } = await db
-        .from("bloom_responses")
-        .insert({
-          id,
-          tenant_id: tenantId,
-          bloom_id: bloomId,
-          response,
-          correction: response === "correct" ? correction : null,
-        });
+      const { error } = await db.from("bloom_responses").insert({
+        id,
+        tenant_id: tenantId,
+        bloom_id: bloomId,
+        response,
+        correction: response === "correct" ? correction : null,
+      });
       if (error) throw error;
     }
     return { ok: true };

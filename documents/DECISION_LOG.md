@@ -169,3 +169,23 @@ The local proof of concept remains valid evidence, but it is no longer the produ
   of the asynchronous-AI hypothesis. Do not use frequency or streaks as growth scores.
 - Evidence: Kyle approved implementation of the web-first plan in this session;
   [ADR-006](architecture/ADR-006_WEB_THINKING_GARDEN.md).
+
+## D-020: Clear web hierarchy and persistent navigation
+
+- Status: Accepted; functional implementation authorized 2026-09-09.
+- Decision: Present Garden → Topics → Thoughts → Entries. Topic is the web label for
+  the existing plot; thought is the existing seed. Preserve IDs, permissions,
+  immutable revisions, source exports, and existing content placement.
+- Decision: Use Archive / Restore instead of Rest for hiding and recovering writing.
+  Saving an entry is a separate action. Show dated/timed entries, recent writing,
+  parent breadcrumbs, and URL-backed topic/thought selection.
+- Decision: Stay signed in on this browser by default using Supabase's persistent
+  session/refresh mechanism. Do not fingerprint hardware or promise a fixed lifetime.
+  Ordinary sign-out affects this device; all-device sign-out is a distinct action.
+- Decision: Distinguish AI service availability from stored topic consent. Permission
+  controls do not activate providers or schedule processing.
+- Decision: Defer the realistic botanical scrapbook aesthetic to the
+  [visual roadmap](design/BOTANICAL_SCRAPBOOK_ROADMAP.md). Functional spacing and
+  stable decorative identity may improve now; photographic asset replacement waits.
+- Evidence: Owner testing feedback, three explicit planning choices, and approval to
+  implement the proposed functional plan. Personal example names are omitted.
