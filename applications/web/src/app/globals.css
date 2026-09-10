@@ -23,8 +23,8 @@
   --garden-ink: #24483b;
   --rail-bg: #f0f2e8;
   --rail-active: #e0e8d9;
-  --garden-line: var(--garden-line);
-  --garden-muted: var(--garden-muted);
+  --garden-line: #dbe2d5;
+  --garden-muted: #526752;
   --placeholder: #66755f;
   --thought-bg: #faf9f1;
   --plant: #507257;
@@ -608,13 +608,15 @@ a {
   }
   .garden-preview {
     min-height: 430px;
+    padding: 14px;
     border-radius: 36px;
   }
-  .seed-card-one {
-    top: 58px;
-  }
-  .seed-card-two {
-    bottom: 62px;
+  .seed-card,
+  .bloom-card {
+    position: static;
+    width: auto;
+    margin: 10px;
+    transform: none;
   }
   .seed-grid {
     grid-template-columns: 1fr;

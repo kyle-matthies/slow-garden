@@ -129,27 +129,27 @@
     "state": "garden-thought",
     "scheme": "light",
     "selector": ".rail-link small",
-    "fg": "rgb(36, 72, 59)",
+    "fg": "rgb(82, 103, 82)",
     "bg": "rgb(224,232,217)",
-    "ratio": 8.09,
+    "ratio": 4.89,
     "passesAA": true
   },
   {
     "state": "garden-thought",
     "scheme": "light",
     "selector": ".garden-breadcrumb button",
-    "fg": "rgb(36, 72, 59)",
+    "fg": "rgb(82, 103, 82)",
     "bg": "rgb(250,249,241)",
-    "ratio": 9.63,
+    "ratio": 5.81,
     "passesAA": true
   },
   {
     "state": "garden-thought",
     "scheme": "light",
     "selector": ".journal-entry time",
-    "fg": "rgb(36, 72, 59)",
+    "fg": "rgb(82, 103, 82)",
     "bg": "rgb(255,253,247)",
-    "ratio": 10,
+    "ratio": 6.04,
     "passesAA": true
   },
   {
@@ -174,9 +174,9 @@
     "state": "garden-thought",
     "scheme": "light",
     "selector": ".garden-foot",
-    "fg": "rgb(36, 72, 59)",
+    "fg": "rgb(82, 103, 82)",
     "bg": "rgb(247,247,238)",
-    "ratio": 9.44,
+    "ratio": 5.7,
     "passesAA": true
   },
   {
@@ -192,9 +192,9 @@
     "state": "garden-overview",
     "scheme": "light",
     "selector": ".seed-plant small",
-    "fg": "rgb(36, 72, 59)",
+    "fg": "rgb(82, 103, 82)",
     "bg": "rgb(255,253,247)",
-    "ratio": 10,
+    "ratio": 6.04,
     "passesAA": true
   },
   {

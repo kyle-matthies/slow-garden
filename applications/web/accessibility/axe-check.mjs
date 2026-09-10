@@ -152,9 +152,18 @@ try {
   for (const [state, url] of STATES) {
     for (const scheme of SCHEMES) {
       for (const vp of VIEWPORTS) {
-        const ctx = await browser.newContext({ colorScheme: scheme, ...vp });
+        const ctx = await browser.newContext({
+          colorScheme: scheme,
+          viewport: { width: vp.width, height: vp.height },
+          isMobile: vp.isMobile,
+          deviceScaleFactor: vp.deviceScaleFactor,
+        });
         const page = await ctx.newPage();
         await page.goto(`${BASE}${url}`, { waitUntil: "networkidle" });
+        // Hide the Next.js dev-tools badge so receipts show only the app.
+        await page.addStyleTag({
+          content: "nextjs-portal{display:none!important}",
+        });
         const res = await new AxeBuilder({ page })
           .withTags(["wcag2a", "wcag2aa", "wcag21aa", "best-practice"])
           .analyze();
@@ -221,6 +230,9 @@ try {
     });
     const page = await ctx.newPage();
     await page.goto(`${BASE}${url}`, { waitUntil: "networkidle" });
+    await page.addStyleTag({
+      content: "nextjs-portal{display:none!important}",
+    });
     await overflowCheck(page, `${state}/zoom200`);
     const h1 = page.locator("h1").first();
     const btn = page.locator(".primary-button").first();
