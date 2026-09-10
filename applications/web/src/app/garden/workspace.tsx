@@ -10,6 +10,7 @@ import {
 } from "react";
 import type { GardenData, Entry, ActionResult } from "@/lib/garden/types";
 import { GardenReturns } from "./returns";
+import { ChronologyLens, GardenSearch, type LensView } from "./chronology";
 import {
   createArea,
   saveEntry,
@@ -435,16 +436,23 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
     data.seeds.find((s) => s.id === requestedThought && s.plot_id === plotId)
       ?.id ?? "";
   const archived = params.get("view") === "archive";
+  const timeline = params.get("view") === "timeline";
+  const view: LensView = archived ? "archive" : timeline ? "timeline" : "";
   const invalidLocation =
     (!!requestedTopic && !plotId) ||
     (!!requestedThought && !seedId) ||
     (!!params.get("garden") && params.get("garden") !== data.gardenId);
-  function navigate(topic = "", thought = "", archive = archived, entry = "") {
+  function navigate(
+    topic = "",
+    thought = "",
+    nextView: LensView = view,
+    entry = "",
+  ) {
     const query = new URLSearchParams();
     if (data.gardenId) query.set("garden", data.gardenId);
     if (topic) query.set("topic", topic);
     if (thought) query.set("thought", thought);
-    if (archive) query.set("view", "archive");
+    if (nextView) query.set("view", nextView);
     window.history.pushState(
       null,
       "",
@@ -609,7 +617,7 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
           <button
             className="plain-button"
             onClick={() => {
-              navigate("", "", !archived);
+              navigate("", "", archived ? "" : "archive");
             }}
           >
             {archived ? "Back to garden" : "Archive"}
@@ -794,6 +802,14 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
                 }}
               />
             </div>
+          ) : timeline && !seed ? (
+            <ChronologyLens
+              key={`${data.gardenId}:${plotId}`}
+              data={data}
+              plotId={plotId}
+              archived={archived}
+              onNavigate={navigate}
+            />
           ) : seed ? (
             <>
               <button
@@ -891,15 +907,15 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
                 </p>
               </div>
               <div className="meadow-tools">
-                <label className="search-field">
-                  <span className="sr-only">Find a thought</span>
-                  <input
-                    type="search"
-                    placeholder="Find a thought…"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                  />
-                </label>
+                <GardenSearch
+                  key={`${data.gardenId}:${plotId}:${view}`}
+                  data={data}
+                  plotId={plotId}
+                  archived={archived}
+                  query={search}
+                  onQueryChange={setSearch}
+                  onNavigate={navigate}
+                />
                 {plot &&
                   garden.status === "active" &&
                   !plot.archived_at &&
@@ -939,9 +955,11 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
                   ))}
                 </div>
               )}
-              <h2>{plot ? "Thoughts in this topic" : "All thoughts"}</h2>
+              {!search && (
+                <h2>{plot ? "Thoughts in this topic" : "All thoughts"}</h2>
+              )}
               <div className="plant-grid" aria-label="Thoughts">
-                {seeds.map((s) => (
+                {(search ? [] : seeds).map((s) => (
                   <button
                     className="seed-plant"
                     key={s.id}
@@ -984,13 +1002,11 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
                   </button>
                 ))}
               </div>
-              {seeds.length === 0 && (
+              {seeds.length === 0 && !search && (
                 <p className="empty-garden-note">
-                  {search
-                    ? "No thoughts match this search."
-                    : plot
-                      ? "Create a thought in this topic, then save your first dated entry."
-                      : "Create a topic for related thoughts, then add a thought and its first entry."}
+                  {plot
+                    ? "Create a thought in this topic, then save your first dated entry."
+                    : "Create a topic for related thoughts, then add a thought and its first entry."}
                 </p>
               )}
               {!plot && !archived && !search && (
@@ -1016,7 +1032,7 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
                             navigate(
                               thought.plot_id,
                               thought.id,
-                              false,
+                              "",
                               e.entry_id,
                             )
                           }

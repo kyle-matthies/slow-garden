@@ -1,0 +1,91 @@
+/* Chronology lens and bounded search. Imported by chronology.tsx only. */
+.lens-search {
+  flex: 1 1 320px;
+  min-width: 0;
+}
+.lens-search-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.lens-search .search-field input {
+  width: 100%;
+  min-width: 200px;
+}
+.lens-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+.lens-link {
+  font-size: 0.85rem;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.lens-results {
+  margin: 12px 0 24px;
+}
+.lens-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.lens-item {
+  display: grid;
+  width: 100%;
+  gap: 6px;
+  text-align: left;
+  padding: 16px 18px;
+  margin: 10px 0;
+  color: inherit;
+  background: #fffdf7;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+  font: inherit;
+}
+.lens-item:focus-visible {
+  outline: 2px solid var(--moss);
+  outline-offset: 2px;
+}
+.lens-meta {
+  font-size: 0.8rem;
+  color: var(--ink-muted);
+}
+.lens-excerpt {
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+.lens-excerpt mark {
+  background: #f1d990;
+  color: inherit;
+  padding: 0 1px;
+  border-radius: 2px;
+}
+.lens-timeline .back-link {
+  margin-bottom: 8px;
+}
+.lens-day {
+  border-top: 1px solid var(--line);
+  padding-top: 18px;
+  margin-top: 28px;
+}
+.lens-day h2 {
+  font-family: var(--font-editorial), serif;
+  font-weight: 500;
+  font-size: 1.3rem;
+  margin: 0 0 8px;
+}
+.lens-timeline .secondary-button {
+  margin-top: 24px;
+}
+@media (max-width: 760px) {
+  .lens-search .search-field input {
+    min-width: 0;
+  }
+}

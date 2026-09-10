@@ -14,6 +14,21 @@ and template changes with `supabase config push --project-ref <project-ref>`.
 
 Only the Supabase publishable key belongs in this application. Never add a secret or service-role key to a `NEXT_PUBLIC_` variable.
 
+## Garden lenses
+
+The garden overview is the primary surface. Two secondary, URL-backed lenses live in
+`src/app/garden/chronology.tsx` with pure helpers in `src/lib/garden/search.ts`:
+
+- `?view=timeline` (optionally with `topic=`) lists saved entries by calendar day.
+- The search field ranks thought titles above entry bodies, shows a bounded excerpt
+  with highlighted terms, caps results at 30, and hides archived writing unless
+  "Include archived" is checked (or the Archive view is open).
+
+Both read only the already-loaded page data; nothing is fetched or stored. Test the
+helpers with Node 22 type stripping:
+
+    node --test src/lib/garden/search.test.mjs
+
 ## Authorization boundary
 
 The browser and Server Components use the authenticated user JWT. Supabase RLS enforces `tenant_id = auth.uid()` for every personal application row. Next.js redirects improve navigation but are not the authorization boundary.
