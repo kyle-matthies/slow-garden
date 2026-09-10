@@ -5,11 +5,11 @@ import {
   useEffect,
   useRef,
   useState,
-  useSyncExternalStore,
   type FormEvent,
 } from "react";
 import type { GardenData, Entry, ActionResult } from "@/lib/garden/types";
 import { GardenReturns } from "./returns";
+import { EntryTime } from "./entry-time";
 import {
   createArea,
   saveEntry,
@@ -17,28 +17,6 @@ import {
   setPlotPermissions,
   signOut,
 } from "./actions";
-
-const subscribeToClock = () => () => {};
-function EntryTime({ value }: { value: string }) {
-  const hydrated = useSyncExternalStore(
-    subscribeToClock,
-    () => true,
-    () => false,
-  );
-  return (
-    <time dateTime={value}>
-      {new Date(value).toLocaleString(undefined, {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-        hour: "numeric",
-        minute: "2-digit",
-        timeZone: hydrated ? undefined : "UTC",
-        timeZoneName: "short",
-      })}
-    </time>
-  );
-}
 
 function Plant({ identity = "garden" }: { identity?: string }) {
   const variant = Array.from(identity).reduce(

@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import type { Database } from "@/types/database";
+import { applyPrivateCacheHeaders } from "@/lib/garden/cache-headers";
 
 export async function updateSession(request: NextRequest) {
   if (
@@ -34,6 +35,5 @@ export async function updateSession(request: NextRequest) {
 
   await supabase.auth.getClaims();
   // Auth refresh responses and personalized routes must never be shared by a cache.
-  response.headers.set("Cache-Control", "private, no-store");
-  return response;
+  return applyPrivateCacheHeaders(response);
 }
