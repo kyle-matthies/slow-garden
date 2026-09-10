@@ -8,7 +8,10 @@ Next.js App Router companion for secure desktop capture and review. The native S
 2. Set `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`. Never use the production project for local or preview development.
 3. Run `npm install` and `npm run dev`.
 
-The login UI expects a six-digit email OTP. The repository includes the local
+The login UI expects a six-digit email OTP, explains the code flow, and offers
+"Resend code" with a 30-second cooldown. An account with no gardens lands on the
+four-step first run in `src/app/garden/first-run.tsx` (garden → topic → thought →
+write) instead of the workspace. The repository includes the local
 template at `supabase/templates/magic_link.html`. Deploy Auth URL, expiry, MFA,
 and template changes with `supabase config push --project-ref <project-ref>`.
 
