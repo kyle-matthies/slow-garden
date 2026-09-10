@@ -13,3 +13,5 @@ This area will hold:
 Local tests, merge state, deployment state, live behavior, and external receipt are separate gates. Do not collapse them into “shipped.”
 
 Current plan: [Private-alpha implementation backlog](ALPHA_IMPLEMENTATION_BACKLOG.md).
+
+Runbooks: [AI activation runbook](AI_ACTIVATION_RUNBOOK.md) (go/no-go checks; the runtime stays disabled until every check has a receipt).
