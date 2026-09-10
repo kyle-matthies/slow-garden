@@ -198,3 +198,47 @@ Evidence: synthetic account reaches a saved entry in under five interactions.
 
 Scheduled tending, provider activation, native iOS work, the botanical scrapbook visual
 phase, Explore mode, team features, and any hosted configuration change.
+
+## Roll-up — 2026-09-10
+
+All ten initiatives opened pull requests the same day. Every agent reported lint,
+`tsc --noEmit`, build, and worker runtime tests passing; none had a Supabase stack, so no
+initiative has live-data, browser, or hosted evidence. Statuses stay **In progress** until
+the receipts in each record's follow-ups exist.
+
+| # | PR | Notes from the agent's receipt |
+|---|---|---|
+| 1 | [#14](https://github.com/kyle-matthies/slow-garden/pull/14) | Vitest harness, `npm test` in CI; pure logic extracted to `export-format.ts`, `validation.ts`, `cache-headers.ts`, `entry-time.tsx`. Initiative 6 must fold `export-format.ts` into `export.ts`. |
+| 2 | [#13](https://github.com/kyle-matthies/slow-garden/pull/13) | IndexedDB draft store with recovery notice, Ctrl/⌘+Enter, auto-grow, quiet page. Editor not exercised live; K-015 closes only after a browser receipt. |
+| 3 | [#15](https://github.com/kyle-matthies/slow-garden/pull/15) | Cabinet panel, exact clipping anchors, continuation with `[Clipping chosen by AI · <kind> …]` marker, `/garden/returns-preview` fixtures (soft 404 in production). |
+| 4 | [#8](https://github.com/kyle-matthies/slow-garden/pull/8) | 48 distinct cases, supersession/exclusion/correction/injection fixtures, byte-stable `report.json`, `tests/evaluation/corpus.test.mjs` (not yet in CI). |
+| 5 | [#10](https://github.com/kyle-matthies/slow-garden/pull/10) | Expired-job, duplicate-result, lease-loss handling; 25 runtime tests; `scripts/canary-dry-run.mjs`; `AI_ACTIVATION_RUNBOOK.md`. Proposes a `private.provider_orphans` migration for deletion with pending work. |
+| 6 | [#9](https://github.com/kyle-matthies/slow-garden/pull/9) | `/garden/import` preview-then-confirm, content-hash idempotent ids via `save_entry`; export v2 with `source`/`derived` sections and `?garden=` filter. |
+| 7 | [#12](https://github.com/kyle-matthies/slow-garden/pull/12) | `view=timeline` lens, tokenized ranked search with excerpts, archived excluded by default, 30-result cap. |
+| 8 | [#16](https://github.com/kyle-matthies/slow-garden/pull/16) | Colour tokens with dark scheme, reduced motion, skip links, Playwright+axe harness with receipts under `documents/initiatives/receipts/08/`. One serious finding (`.plant-grid` aria) left for `workspace.tsx`. |
+| 9 | [#11](https://github.com/kyle-matthies/slow-garden/pull/11) | Enforced CSP (still `'unsafe-inline'`), COOP/CORP, `npm audit` in CI, `SECURITY_REVIEW_2026-09.md` with T-01..T-13 receipts and follow-ups F-1..F-10. |
+| 10 | [#7](https://github.com/kyle-matthies/slow-garden/pull/7) | `FirstRun` four-step flow replacing the first-garden branch; starter topics opt-in; login explains the code and adds resend. |
+
+### Suggested merge order
+
+Non-`workspace.tsx` PRs first, then the five that add hook points to `workspace.tsx`,
+rebasing each after the previous merge: **#14 → #11 → #8 → #10 → #16**, then
+**#13 → #15 → #12 → #9 → #7**. Expect small conflicts in `workspace.tsx` imports and in
+`applications/web/README.md`, where several initiatives appended sections.
+
+### Cross-initiative follow-ups for the wave owner
+
+- CI: add `node --test tests/evaluation/corpus.test.mjs` and the axe harness (needs a
+  Chromium install step) once #8 and #16 merge.
+- `workspace.tsx`: fix `.plant-grid` aria (serious axe finding) and restore focus to a
+  heading after `navigate()`; remove the harness allowlist entry afterwards.
+- Hard 404 for `/garden/returns-preview` in production via `proxy.ts` (initiatives 3 and 9).
+- Decision candidates for `DECISION_LOG.md`: continuation attribution marker as a stable
+  format (3, 6, 4); system-only dark mode vs manual toggle (8); back-dating imported
+  entries vs an explicit `source_date` column (6); nonce-based strict CSP (9 F-1);
+  WebCrypto requirement for IndexedDB drafts (9 F-7 / 2).
+- Proposed migrations, none applied: `private.provider_orphans` + deletion trigger (5);
+  `source_date`/`imported_at` (6); `entry_drafts` for cross-device drafts (2).
+- Live-stack receipts: run the `.local-runtime` journeys for import, first run, drafts,
+  timeline/search, and Cabinet states before any of these close; then close K-015.
+- Port the `node:test` files from initiatives 2 and 6 onto the Vitest runner from #14.

@@ -13,15 +13,17 @@ initiative is complete only when its acceptance evidence exists.
 
 ## September 2026 wave
 
-| # | Record | Status |
-|---|---|---|
-| 1 | `01-test-foundation.md` | Proposed |
-| 2 | `02-durable-writing.md` | Proposed |
-| 3 | `03-return-cabinet.md` | Proposed |
-| 4 | `04-evaluation-corpus.md` | Proposed |
-| 5 | `05-activation-readiness.md` | Proposed |
-| 6 | `06-import-portability.md` | Proposed |
-| 7 | `07-chronology-search.md` | Proposed |
-| 8 | `08-accessibility-mobile.md` | Proposed |
-| 9 | `09-security-hardening.md` | Proposed |
-| 10 | `10-first-run-onboarding.md` | Proposed |
+| # | Record | PR | Status |
+|---|---|---|---|
+| 1 | [`01-test-foundation.md`](01-test-foundation.md) | [#14](https://github.com/kyle-matthies/slow-garden/pull/14) | In progress — PR open, local verification only |
+| 2 | [`02-durable-writing.md`](02-durable-writing.md) | [#13](https://github.com/kyle-matthies/slow-garden/pull/13) | In progress — PR open, local verification only |
+| 3 | [`03-return-cabinet.md`](03-return-cabinet.md) | [#15](https://github.com/kyle-matthies/slow-garden/pull/15) | In progress — PR open, local verification only |
+| 4 | [`04-evaluation-corpus.md`](04-evaluation-corpus.md) | [#8](https://github.com/kyle-matthies/slow-garden/pull/8) | In progress — PR open, local verification only |
+| 5 | [`05-activation-readiness.md`](05-activation-readiness.md) | [#10](https://github.com/kyle-matthies/slow-garden/pull/10) | In progress — PR open, local verification only |
+| 6 | [`06-import-portability.md`](06-import-portability.md) | [#9](https://github.com/kyle-matthies/slow-garden/pull/9) | In progress — PR open, local verification only |
+| 7 | [`07-chronology-search.md`](07-chronology-search.md) | [#12](https://github.com/kyle-matthies/slow-garden/pull/12) | In progress — PR open, local verification only |
+| 8 | [`08-accessibility-mobile.md`](08-accessibility-mobile.md) | [#16](https://github.com/kyle-matthies/slow-garden/pull/16) | In progress — PR open, local verification only |
+| 9 | [`09-security-hardening.md`](09-security-hardening.md) | [#11](https://github.com/kyle-matthies/slow-garden/pull/11) | In progress — PR open, local verification only |
+| 10 | [`10-first-run-onboarding.md`](10-first-run-onboarding.md) | [#7](https://github.com/kyle-matthies/slow-garden/pull/7) | In progress — PR open, local verification only |
+
+Record files are added by each initiative's PR; links resolve once those PRs merge.

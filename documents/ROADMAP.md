@@ -10,16 +10,18 @@ The September wave ([plan](operations/INITIATIVE_WAVE_2026-09.md), D-021) drives
 no-AI garden toward a voluntary return and prepares honest activation gates. Each item
 is one reviewable pull request with a record under [documents/initiatives](initiatives/README.md).
 
-- [ ] 1 · P0 Test foundation: Vitest harness in CI for web logic and components.
-- [ ] 2 · P0 Durable writing: IndexedDB drafts with recovery, Ctrl/Cmd+Enter save, quiet page.
-- [ ] 3 · P1 Return Cabinet: 0–3 bloom reveal, exact clipping links, fixture preview.
-- [ ] 4 · P1 Evaluation corpus: 48 distinct cases, supersession/exclusion/correction fixtures, deterministic report.
-- [ ] 5 · P1 Activation readiness: expired-job and duplicate handling, canary dry run, runbook.
-- [ ] 6 · P1 Import and portability: Markdown import with preview; export v2 with separated derived material.
-- [ ] 7 · P1 Chronology and search: timeline lens and bounded search with excerpts.
-- [ ] 8 · P1 Accessibility and mobile: axe pass, dark mode, reduced motion, 390px receipts.
-- [ ] 9 · P1 Security hardening: CSP and security headers, CI audit, threat-model receipts.
-- [ ] 10 · P2 First-run onboarding: sign-in to first saved entry in one quiet flow.
+- [ ] 1 · P0 Test foundation ([#14](https://github.com/kyle-matthies/slow-garden/pull/14), PR open): Vitest harness in CI for web logic and components.
+- [ ] 2 · P0 Durable writing ([#13](https://github.com/kyle-matthies/slow-garden/pull/13), PR open): IndexedDB drafts with recovery, Ctrl/Cmd+Enter save, quiet page.
+- [ ] 3 · P1 Return Cabinet ([#15](https://github.com/kyle-matthies/slow-garden/pull/15), PR open): 0–3 bloom reveal, exact clipping links, fixture preview.
+- [ ] 4 · P1 Evaluation corpus ([#8](https://github.com/kyle-matthies/slow-garden/pull/8), PR open): 48 distinct cases, supersession/exclusion/correction fixtures, deterministic report.
+- [ ] 5 · P1 Activation readiness ([#10](https://github.com/kyle-matthies/slow-garden/pull/10), PR open): expired-job and duplicate handling, canary dry run, runbook.
+- [ ] 6 · P1 Import and portability ([#9](https://github.com/kyle-matthies/slow-garden/pull/9), PR open): Markdown import with preview; export v2 with separated derived material.
+- [ ] 7 · P1 Chronology and search ([#12](https://github.com/kyle-matthies/slow-garden/pull/12), PR open): timeline lens and bounded search with excerpts.
+- [ ] 8 · P1 Accessibility and mobile ([#16](https://github.com/kyle-matthies/slow-garden/pull/16), PR open): axe pass, dark mode, reduced motion, 390px receipts.
+- [ ] 9 · P1 Security hardening ([#11](https://github.com/kyle-matthies/slow-garden/pull/11), PR open): CSP and security headers, CI audit, threat-model receipts.
+- [ ] 10 · P2 First-run onboarding ([#7](https://github.com/kyle-matthies/slow-garden/pull/7), PR open): sign-in to first saved entry in one quiet flow.
+
+All ten PRs opened 2026-09-10 with lint/type/build/worker tests passing; none is merged and none has live-stack evidence. Merge order and cross-initiative follow-ups are in the wave plan roll-up.
 
 Out of this wave: scheduled tending, provider activation, native iOS, botanical scrapbook,
 Explore mode, team features, hosted configuration changes.
