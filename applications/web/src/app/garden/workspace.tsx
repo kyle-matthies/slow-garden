@@ -9,10 +9,14 @@ import {
   type FormEvent,
 } from "react";
 import type { GardenData, Entry, ActionResult } from "@/lib/garden/types";
+import {
+  clearLegacySessionDrafts,
+  openDraftStore,
+} from "@/lib/garden/drafts";
 import { GardenReturns } from "./returns";
+import { EntryEditor } from "./entry-editor";
 import {
   createArea,
-  saveEntry,
   setArchived,
   setPlotPermissions,
   signOut,
@@ -178,150 +182,6 @@ function NewArea({
   );
 }
 
-type Draft = {
-  body: string;
-  entryId: string;
-  revisionId: string;
-  expectedRevisionId: string | null;
-};
-function EntryEditor({
-  tenantId,
-  seedId,
-  entry,
-  onSaved,
-}: {
-  tenantId: string;
-  seedId: string;
-  entry?: Entry;
-  onSaved: (entryId: string) => void;
-}) {
-  const storageKey = `slow-garden:draft:v2:${tenantId}:${seedId}:${entry?.entry_id ?? "new"}`;
-  const [draft, setDraft] = useState<Draft>({
-    body: entry?.body ?? "",
-    entryId: entry?.entry_id ?? "",
-    revisionId: "",
-    expectedRevisionId: entry?.revision_id ?? null,
-  });
-  const [ready, setReady] = useState(false),
-    [pending, setPending] = useState(false),
-    [status, setStatus] = useState(""),
-    [storageWorks, setStorageWorks] = useState(true);
-  // Browser draft hydration is intentionally a one-time external-store synchronization.
-  /* eslint-disable react-hooks/set-state-in-effect */
-  useEffect(() => {
-    let initial: Draft = {
-      body: entry?.body ?? "",
-      entryId: entry?.entry_id ?? crypto.randomUUID(),
-      revisionId: crypto.randomUUID(),
-      expectedRevisionId: entry?.revision_id ?? null,
-    };
-    try {
-      const saved = sessionStorage.getItem(storageKey);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (
-          typeof parsed.body === "string" &&
-          typeof parsed.entryId === "string" &&
-          typeof parsed.revisionId === "string"
-        )
-          initial = parsed;
-      }
-    } catch {
-      setStorageWorks(false);
-    }
-    // Hydrate the tab-local draft only after mounting; never read browser storage on the server.
-    setDraft(initial);
-    setReady(true);
-  }, [storageKey, entry?.body, entry?.entry_id, entry?.revision_id]);
-  /* eslint-enable react-hooks/set-state-in-effect */
-  useEffect(() => {
-    if (!ready) return;
-    const protect = (event: BeforeUnloadEvent) => {
-      if (draft.body !== (entry?.body ?? "")) {
-        event.preventDefault();
-      }
-    };
-    window.addEventListener("beforeunload", protect);
-    return () => window.removeEventListener("beforeunload", protect);
-  }, [draft.body, ready, entry?.body]);
-  function change(body: string) {
-    const next = { ...draft, body, revisionId: crypto.randomUUID() };
-    setDraft(next);
-    setStatus("Not saved yet");
-    try {
-      sessionStorage.setItem(storageKey, JSON.stringify(next));
-    } catch {
-      setStorageWorks(false);
-    }
-  }
-  async function submit(e: FormEvent) {
-    e.preventDefault();
-    setPending(true);
-    setStatus("Saving…");
-    try {
-      const result = await saveEntry({ seedId, ...draft });
-      if (!result.ok) {
-        setStatus(result.message);
-        return;
-      }
-      try {
-        sessionStorage.removeItem(storageKey);
-      } catch {}
-      setStatus("Saved");
-      if (!entry)
-        setDraft({
-          body: "",
-          entryId: crypto.randomUUID(),
-          revisionId: crypto.randomUUID(),
-          expectedRevisionId: null,
-        });
-      onSaved(draft.entryId);
-    } catch {
-      setStatus(
-        "Connection interrupted. Your draft is still here. Retry when connected.",
-      );
-    } finally {
-      setPending(false);
-    }
-  }
-  return (
-    <form className="writing-form" onSubmit={submit}>
-      <label
-        className="panel-kicker"
-        htmlFor={`writing-${entry?.entry_id ?? "new"}`}
-      >
-        {entry ? "Revise this entry" : "New entry"}
-      </label>
-      <textarea
-        id={`writing-${entry?.entry_id ?? "new"}`}
-        aria-label={entry ? "Revise entry" : "New entry"}
-        placeholder="A thought, a question, something you’re not ready to name…"
-        value={draft.body}
-        onChange={(e) => change(e.target.value)}
-        disabled={!ready || pending}
-        maxLength={20000}
-        required
-      />
-      <div className="writing-footer">
-        <button
-          className="primary-button"
-          disabled={!ready || pending || !draft.body.trim()}
-        >
-          {pending ? "Saving…" : entry ? "Save revision" : "Save entry"}
-        </button>
-        <span role="status" aria-live="polite">
-          {status}
-        </span>
-      </div>
-      <p className="form-note">
-        {storageWorks
-          ? "Unsaved writing stays in this tab when you revisit. Save before closing the tab."
-          : "This browser cannot retain drafts. Keep this page open until saved."}{" "}
-        AI stays outside your writing.
-      </p>
-    </form>
-  );
-}
 function EntryCard({
   entry,
   tenantId,
@@ -426,7 +286,8 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
   const [search, setSearch] = useState(""),
     [settings, setSettings] = useState(false),
     [notice, setNotice] = useState(""),
-    [savedEntry, setSavedEntry] = useState("");
+    [savedEntry, setSavedEntry] = useState(""),
+    [quietPage, setQuietPage] = useState(false);
   const garden = data.gardens.find((g) => g.id === data.gardenId);
   const requestedTopic = params.get("topic") ?? "";
   const requestedThought = params.get("thought") ?? "";
@@ -452,6 +313,7 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
     );
     setSearch("");
     setSavedEntry("");
+    setQuietPage(false);
   }
   const setPlotId = (id: string) => navigate(id);
   const setSeedId = (id: string) =>
@@ -464,26 +326,6 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
     if (anchor)
       document.getElementById(anchor)?.scrollIntoView({ block: "center" });
   }, [params, data.entries, savedEntry]);
-  useEffect(() => {
-    const protectDrafts = (event: BeforeUnloadEvent) => {
-      try {
-        for (let i = 0; i < sessionStorage.length; i++) {
-          const key = sessionStorage.key(i);
-          if (
-            key?.startsWith(`slow-garden:draft:v2:${data.tenantId}:`) &&
-            JSON.parse(sessionStorage.getItem(key) ?? "{}").body
-          ) {
-            event.preventDefault();
-            return;
-          }
-        }
-      } catch {
-        /* The editor separately warns if storage is unavailable. */
-      }
-    };
-    window.addEventListener("beforeunload", protectDrafts);
-    return () => window.removeEventListener("beforeunload", protectDrafts);
-  }, [data.tenantId]);
   const plots = data.plots.filter((p) =>
     archived
       ? garden?.status === "archived" ||
@@ -556,7 +398,7 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
     if (
       archive &&
       !window.confirm(
-        `Archive this ${label}? It will be hidden from active views, not deleted. Find it in Archive to restore it. Any unsaved draft stays in this tab.`,
+        `Archive this ${label}? It will be hidden from active views, not deleted. Find it in Archive to restore it. Any unsaved draft stays in this browser.`,
       )
     )
       return;
@@ -570,7 +412,7 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
   async function leave(scope: "local" | "global" = "local") {
     if (
       !window.confirm(
-        "Sign out and clear this tab’s unsaved drafts? Save any writing you want to keep first.",
+        "Sign out and clear this browser’s unsaved drafts? Save any writing you want to keep first.",
       )
     )
       return;
@@ -582,10 +424,12 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
       );
       return;
     }
-    for (let i = sessionStorage.length - 1; i >= 0; i--) {
-      const key = sessionStorage.key(i);
-      if (key?.startsWith(`slow-garden:draft:v2:${data.tenantId}:`))
-        sessionStorage.removeItem(key);
+    try {
+      const store = await openDraftStore();
+      await store?.clear(data.tenantId);
+      clearLegacySessionDrafts(sessionStorage, data.tenantId);
+    } catch {
+      // Sign out still succeeds if browser storage is unavailable.
     }
     router.replace("/login");
     router.refresh();
@@ -632,8 +476,8 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
             </a>
           </div>
           <p>
-            Exports include archived writing and every revision. Drafts remain
-            in this browser tab until saved.
+            Exports include archived writing and every revision. Unsaved drafts
+            stay privately in this browser until saved or discarded.
           </p>
           <p>
             You stay signed in on this browser between visits, until you sign
@@ -649,7 +493,7 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
           </div>
         </section>
       )}
-      <div className="garden-frame">
+      <div className={`garden-frame${quietPage ? " quiet-page" : ""}`}>
         <aside className="plot-rail">
           <label className="panel-kicker" htmlFor="garden-choice">
             Your garden
@@ -829,6 +673,8 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
                       setSavedEntry(id);
                       refresh();
                     }}
+                    quietPage={quietPage}
+                    onQuietPageChange={setQuietPage}
                   />
                 )}
               <div className="journal-entries" id="saved-entries">
