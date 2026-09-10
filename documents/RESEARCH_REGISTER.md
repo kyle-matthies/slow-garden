@@ -56,3 +56,11 @@
 - Kyle selected Meadow for exploration and Cabinet for evidence-rich review; the [paired visual-system contract](design/MEADOW_AND_CABINET.md) and matched frames record the decision. Comprehension and reduced-motion evidence remain open.
 - Architecture and evaluation decisions: [Architecture baseline](architecture/ARCHITECTURE_BASELINE.md) and [evaluation architecture](architecture/EVALUATION_ARCHITECTURE.md).
 - Desk research narrows the wedge but does not complete R-001 through R-008; observed and comparative evidence remains required.
+
+## Creator-workflow evidence receipt: 2026-09-09
+
+- [Discovery workflow case study](product/DISCOVERY_WORKFLOW_CASE_STUDY.md) analyzes the user-supplied transcript of [this YouTube workflow](https://www.youtube.com/watch?v=nuN7gdfAEBo), spanning 00:00–36:31. Video metadata and audiovisual content were not independently verified.
+- Evidence type: creator workflow and immediate self-report. The case traces personal notes → pattern recognition → alternative framings → cross-domain association → reconnection with older notes → reframing a real decision → preserving a reusable lens.
+- Contribution to R-001/R-002: concrete examples of recognition and decision reframing, plus a general-agent conversational baseline. There is no comparison establishing the value of delay or a longitudinal outcome showing improved judgment.
+- Contribution to R-004/R-005/R-008: a bounded illustrative return and evaluation questions for cognitive load, source/interpretation distinctions, correction, and user-owned continuation. These are proposed research uses, not completed tests.
+- Existing research statuses, product decisions, model activation, and external-pilot gates remain unchanged.
