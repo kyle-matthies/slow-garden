@@ -1,0 +1,56 @@
+.first-run {
+  max-width: 580px;
+  margin: 60px auto;
+}
+
+.first-run h1 {
+  font-family: var(--font-editorial), serif;
+  font-weight: 450;
+  font-size: clamp(2.5rem, 5vw, 4.8rem);
+  letter-spacing: -0.045em;
+  line-height: 1.08;
+  margin: 12px 0 20px;
+  overflow-wrap: anywhere;
+}
+
+.first-run p {
+  color: #526752;
+  line-height: 1.6;
+}
+
+.first-run-step {
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.first-run-form {
+  display: grid;
+  gap: 14px;
+  margin-top: 28px;
+}
+
+.first-run-form .field > p {
+  font-size: 0.8rem;
+  margin: 0;
+}
+
+.first-run-starters {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 12px 14px;
+  display: grid;
+  gap: 8px;
+}
+
+.first-run-starters label {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.first-run-writing {
+  min-height: 220px;
+  resize: vertical;
+  line-height: 1.55;
+}

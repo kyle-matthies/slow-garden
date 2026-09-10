@@ -10,6 +10,7 @@ import {
 } from "react";
 import type { GardenData, Entry, ActionResult } from "@/lib/garden/types";
 import { GardenReturns } from "./returns";
+import { FirstRun } from "./first-run";
 import {
   createArea,
   saveEntry,
@@ -426,7 +427,8 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
   const [search, setSearch] = useState(""),
     [settings, setSettings] = useState(false),
     [notice, setNotice] = useState(""),
-    [savedEntry, setSavedEntry] = useState("");
+    [savedEntry, setSavedEntry] = useState(""),
+    [firstRun, setFirstRun] = useState(() => data.gardens.length === 0);
   const garden = data.gardens.find((g) => g.id === data.gardenId);
   const requestedTopic = params.get("topic") ?? "";
   const requestedThought = params.get("thought") ?? "";
@@ -780,20 +782,22 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
             </p>
           )}
 
-          {!garden ? (
-            <div className="first-garden">
-              <Plant />
-              <h1>A place for what’s on your mind.</h1>
-              <p>Name a garden. Leave room for the thoughts that follow.</p>
-              <NewArea
-                kind="garden"
-                parentId=""
-                onCreated={(id) => {
-                  router.push(`/garden?garden=${id}`);
-                  refresh();
-                }}
-              />
-            </div>
+          {firstRun || !garden ? (
+            <FirstRun
+              tenantId={data.tenantId}
+              onDone={({ gardenId, topicId, thoughtId, entryId }) => {
+                setFirstRun(false);
+                const query = new URLSearchParams({
+                  garden: gardenId,
+                  topic: topicId,
+                  thought: thoughtId,
+                });
+                router.push(
+                  `/garden?${query}${entryId ? `#entry-${entryId}` : ""}`,
+                );
+                refresh();
+              }}
+            />
           ) : seed ? (
             <>
               <button
