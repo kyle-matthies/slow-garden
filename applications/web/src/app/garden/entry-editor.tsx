@@ -182,22 +182,12 @@ export function EntryEditor({
             // A successful migration should not prevent the editor loading.
           }
         }
-        if (saved && isDirtyDraft(saved)) {
-          if (saved.tabId === tabIdRef.current) {
-            setDraft({
-              body: saved.body,
-              entryId: saved.entryId,
-              revisionId: saved.revisionId,
-              expectedRevisionId: saved.expectedRevisionId,
-            });
-          } else {
-            setRecovered(saved);
-          }
-        } else if (saved && backend) {
-          await backend.remove(key);
-        }
+        const dirty = !!saved && isDirtyDraft(saved);
+        if (saved && !dirty && backend) await backend.remove(key);
+        if (saved && dirty && saved.tabId !== tabIdRef.current)
+          setRecovered(saved);
         setDraft(
-          saved && isDirtyDraft(saved) && saved.tabId === tabIdRef.current
+          saved && dirty && saved.tabId === tabIdRef.current
             ? {
                 body: saved.body,
                 entryId: saved.entryId,
@@ -304,6 +294,7 @@ export function EntryEditor({
       expectedRevisionId: recovered.expectedRevisionId,
     });
     setRecovered(null);
+    void persist({ ...recovered, tabId: tabIdRef.current });
   }
 
   async function discard(): Promise<void> {
