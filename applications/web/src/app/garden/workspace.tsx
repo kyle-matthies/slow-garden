@@ -426,7 +426,8 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
   const [search, setSearch] = useState(""),
     [settings, setSettings] = useState(false),
     [notice, setNotice] = useState(""),
-    [savedEntry, setSavedEntry] = useState("");
+    [savedEntry, setSavedEntry] = useState(""),
+    [editorGeneration, setEditorGeneration] = useState(0);
   const garden = data.gardens.find((g) => g.id === data.gardenId);
   const requestedTopic = params.get("topic") ?? "";
   const requestedThought = params.get("thought") ?? "";
@@ -821,7 +822,7 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
                 garden.status === "active" &&
                 !data.plots.find((p) => p.id === seed.plot_id)?.archived_at && (
                   <EntryEditor
-                    key={`${data.gardenId}:${seed.id}`}
+                    key={`${data.gardenId}:${seed.id}:${editorGeneration}`}
                     tenantId={data.tenantId}
                     seedId={seed.id}
                     onSaved={(id) => {
@@ -1052,7 +1053,10 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
                   key={plot.id}
                   data={data}
                   plotId={plot.id}
-                  onContinue={setSeedId}
+                  onContinue={(id) => {
+                    setSeedId(id);
+                    setEditorGeneration((n) => n + 1);
+                  }}
                 />
               )}
               {plot && (

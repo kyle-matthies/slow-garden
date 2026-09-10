@@ -1,0 +1,282 @@
+/* Cabinet: the deliberate, evidence-rich posture for inspecting a return (D-015). */
+.return-cabinet {
+  --cabinet-ivory: #fffaf0;
+  --cabinet-edge: #d2d8c7;
+  --cabinet-evidence: #4b6fb5; /* cornflower: source/evidence cues */
+  --cabinet-derived: #b9563f; /* restrained coral: derived attention */
+  --cabinet-stale: #8a6d2f;
+  --cabinet-muted: #5f6f68;
+  padding: 28px;
+  margin-top: 28px;
+  background: var(--cabinet-ivory);
+  border: 1px solid var(--cabinet-edge);
+  border-radius: 12px;
+  line-height: 1.6;
+}
+.return-cabinet h2,
+.return-cabinet h3 {
+  font-family: var(--font-editorial), serif;
+  font-weight: 500;
+}
+.return-cabinet h2:focus-visible,
+.return-cabinet [tabindex="-1"]:focus-visible {
+  outline: 2px solid var(--moss);
+  outline-offset: 4px;
+}
+.cabinet-header {
+  margin-bottom: 8px;
+}
+.cabinet-kicker,
+.cabinet-subheading,
+.cabinet-bloom-kind,
+.cabinet-clipping-caption,
+.cabinet-pass-heading {
+  font-family: var(--font-geist-sans), sans-serif;
+  font-size: 0.82rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--moss);
+}
+.cabinet-header h2 {
+  margin: 4px 0 8px;
+  font-size: 1.8rem;
+}
+.cabinet-lede,
+.cabinet-note,
+.cabinet-empty {
+  color: var(--cabinet-muted);
+  max-width: 60ch;
+}
+.return-cabinet fieldset {
+  border: 1px solid var(--cabinet-edge);
+  padding: 18px;
+  margin: 18px 0;
+}
+.return-cabinet fieldset label {
+  display: block;
+  margin: 12px 0;
+}
+.return-cabinet fieldset input {
+  margin-right: 10px;
+}
+.cabinet-passes,
+.cabinet-blooms,
+.cabinet-clipping-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.cabinet-pass {
+  border-top: 1px solid var(--cabinet-edge);
+  margin-top: 24px;
+  padding-top: 18px;
+}
+.cabinet-pass-heading {
+  margin: 0 0 8px;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 1.05rem;
+}
+.cabinet-pass-status {
+  font-weight: 700;
+}
+.cabinet-pass-date,
+.cabinet-pass-count {
+  color: var(--cabinet-muted);
+  font-weight: 400;
+}
+.cabinet-pass[data-status="withdrawn"] .cabinet-pass-status,
+.cabinet-pass[data-status="cancelled"] .cabinet-pass-status,
+.cabinet-pass[data-status="failed"] .cabinet-pass-status {
+  color: var(--cabinet-muted);
+}
+
+/* One pressed specimen per bloom: interpretation adjacent to its derived label. */
+.cabinet-bloom {
+  position: relative;
+  margin: 18px 0;
+  padding: 20px 22px 18px;
+  background: #fffdf7;
+  border: 1px solid var(--cabinet-edge);
+  border-left: 4px solid var(--cabinet-derived);
+  border-radius: 6px;
+}
+.cabinet-bloom-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  align-items: baseline;
+  justify-content: space-between;
+}
+.cabinet-bloom-header p {
+  margin: 0;
+}
+.cabinet-bloom-kind {
+  color: var(--cabinet-derived);
+  font-weight: 700;
+}
+.cabinet-derived-mark {
+  font-size: 1rem;
+}
+.cabinet-interpretation {
+  margin: 12px 0 18px;
+  font-family: var(--font-editorial), serif;
+  font-style: italic;
+  font-size: 1.15rem;
+  line-height: 1.7;
+  color: var(--ink);
+}
+.cabinet-badge {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-family: var(--font-geist-sans), sans-serif;
+  color: var(--cabinet-muted);
+}
+.cabinet-badge[data-tone="current"] {
+  color: var(--moss);
+}
+.cabinet-badge[data-tone="stale"] {
+  color: var(--cabinet-stale);
+  border-style: dashed;
+}
+.cabinet-badge[data-tone="withdrawn"] {
+  text-decoration: line-through;
+}
+.cabinet-subheading {
+  margin: 14px 0 8px;
+}
+
+/* Clippings are the person's own words: paper material, evidence-blue rule, upright serif. */
+.cabinet-clipping {
+  margin: 0 0 12px;
+  padding: 12px 16px;
+  background: #fffef9;
+  border: 1px solid #e3e6da;
+  border-left: 3px solid var(--cabinet-evidence);
+  box-shadow: 0 1px 0 rgba(36, 79, 66, 0.08);
+}
+.cabinet-clipping[data-state="superseded"],
+.cabinet-clipping[data-state="archived"] {
+  border-left-style: dashed;
+}
+.cabinet-clipping[data-state="unknown"] {
+  border-left-color: var(--cabinet-muted);
+}
+.cabinet-clipping-body {
+  margin: 0 0 8px;
+  font-size: 1.05rem;
+  font-style: normal;
+}
+.cabinet-clipping-caption {
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--cabinet-muted);
+  overflow-wrap: anywhere;
+}
+.cabinet-user-mark {
+  color: var(--cabinet-evidence);
+  font-weight: 700;
+}
+.cabinet-continue {
+  padding: 0;
+  min-height: 0;
+}
+.cabinet-continue:focus-visible,
+.cabinet-actions button:focus-visible,
+.return-cabinet .text-link:focus-visible {
+  outline: 2px solid var(--moss);
+  outline-offset: 2px;
+}
+
+/* Review actions stay quiet until the specimen is in view. */
+.cabinet-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 10px 0 0;
+}
+.cabinet-actions .secondary-button {
+  min-height: 40px;
+  padding: 0 16px;
+}
+.cabinet-actions .secondary-button[aria-pressed="true"] {
+  background: var(--moss-deep);
+  color: #fffef7;
+  border-color: var(--moss-deep);
+}
+.cabinet-prior p {
+  margin: 0 0 6px;
+}
+.cabinet-correction {
+  margin: 6px 0 10px;
+  padding: 8px 14px;
+  border-left: 3px solid var(--cabinet-evidence);
+  font-size: 1.02rem;
+}
+.cabinet-correct-form {
+  margin-top: 12px;
+}
+.cabinet-correct-form label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 0.9rem;
+}
+.cabinet-correct-form textarea {
+  display: block;
+  width: 100%;
+  min-height: 90px;
+  background: #fffef9;
+  border: 1px solid #ccd6c4;
+  padding: 12px;
+  font: inherit;
+}
+.cabinet-status {
+  min-height: 1.4em;
+  margin: 8px 0 0;
+  font-size: 0.9rem;
+  color: var(--cabinet-muted);
+}
+.cabinet-toolbar {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.return-cabinet details summary {
+  cursor: pointer;
+  min-height: 44px;
+  padding: 8px 0;
+}
+
+@media (max-width: 760px) {
+  .return-cabinet {
+    padding: 18px;
+  }
+  .cabinet-bloom {
+    padding: 16px 14px;
+  }
+  .cabinet-actions .secondary-button {
+    flex: 1 1 30%;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .cabinet-bloom {
+    animation: cabinet-settle 320ms ease-out both;
+  }
+  @keyframes cabinet-settle {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+}
