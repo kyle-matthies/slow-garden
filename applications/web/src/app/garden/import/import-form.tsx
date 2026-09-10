@@ -188,8 +188,8 @@ export function ImportForm({
                 {w}
               </p>
             ))}
-            {f.thought.entries.map((e) => (
-              <div key={e.hash} className="import-entry">
+            {f.thought.entries.map((e, i) => (
+              <div key={i + e.hash} className="import-entry">
                 <p className="form-note">
                   {e.date ?? "Undated · uses today"}
                 </p>

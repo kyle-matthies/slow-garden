@@ -27,7 +27,7 @@ export async function sha256Hex(text: string): Promise<string> {
 }
 
 export async function deterministicId(...parts: string[]): Promise<string> {
-  const hex = await sha256Hex(parts.join(""));
+  const hex = await sha256Hex(parts.join("\u0000"));
   return (
     hex.slice(0, 8) +
     "-" +
