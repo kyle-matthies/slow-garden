@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Cormorant_Garamond, Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -16,6 +16,14 @@ const editorial = Cormorant_Garamond({
   variable: "--font-editorial",
   subsets: ["latin"],
 });
+
+export const viewport: Viewport = {
+  colorScheme: "light dark",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#fbf8ef" },
+    { media: "(prefers-color-scheme: dark)", color: "#121a16" },
+  ],
+};
 
 export const metadata: Metadata = {
   title: {

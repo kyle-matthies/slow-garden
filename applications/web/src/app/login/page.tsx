@@ -16,7 +16,10 @@ export default async function LoginPage() {
   }
   return (
     <main className="auth-page">
-      <div className="auth-shell">
+      <a className="skip-link" href="#main-content">
+        Skip to main content
+      </a>
+      <div className="auth-shell" id="main-content">
         <section className="auth-copy">
           <Link className="wordmark" href="/">
             Slow Garden

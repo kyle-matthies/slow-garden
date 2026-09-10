@@ -4,7 +4,7 @@ export default function ErrorPage({ reset }: { reset: () => void }) {
   return (
     <main className="auth-page">
       <section className="auth-shell">
-        <div className="auth-copy">
+        <div className="auth-copy" role="alert">
           <p className="panel-kicker">The garden paused safely</p>
           <h1>Nothing was silently lost.</h1>
           <p>Slow Garden could not complete that request. Try again when the connection is stable.</p>

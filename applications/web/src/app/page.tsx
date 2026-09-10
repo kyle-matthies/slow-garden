@@ -12,6 +12,9 @@ export default async function Home() {
   }
   return (
     <main className="landing-shell">
+      <a className="skip-link" href="#main-content">
+        Skip to main content
+      </a>
       <nav className="site-nav" aria-label="Primary navigation">
         <Link className="wordmark" href="/">
           Slow Garden
@@ -21,7 +24,7 @@ export default async function Home() {
         </Link>
       </nav>
 
-      <section className="hero">
+      <section className="hero" id="main-content">
         <div className="hero-copy">
           <p className="eyebrow">A private place for unfinished thought</p>
           <h1>Let an idea stay quiet long enough to become itself.</h1>
