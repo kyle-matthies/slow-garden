@@ -38,6 +38,8 @@ This directory is the canonical product-planning corpus for Slow Garden.
 - [Cost and capacity model](architecture/COST_AND_CAPACITY.md)
 - [Evaluation architecture](architecture/EVALUATION_ARCHITECTURE.md)
 - [Private-alpha implementation backlog](operations/ALPHA_IMPLEMENTATION_BACKLOG.md)
+- [Web-first delivery record](operations/WEB_DOGFOOD_DELIVERY.md)
+- [September 2026 initiative wave](operations/INITIATIVE_WAVE_2026-09.md) and [initiative records](initiatives/README.md)
 
 ## Status language
 

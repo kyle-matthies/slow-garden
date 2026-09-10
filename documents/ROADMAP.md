@@ -4,7 +4,27 @@ Status: Web-first delivery authorized by ADR-006; local implementation in progre
 Planning model: Evidence-gated horizons, not date commitments
 Primary rule: Do not advance a horizon because code exists; advance when its exit evidence exists.
 
-## Current web priority — 2026-09-09 functional feedback
+## Current web priority — 2026-09-10 initiative wave
+
+The September wave ([plan](operations/INITIATIVE_WAVE_2026-09.md), D-021) drives the
+no-AI garden toward a voluntary return and prepares honest activation gates. Each item
+is one reviewable pull request with a record under [documents/initiatives](initiatives/README.md).
+
+- [ ] 1 · P0 Test foundation: Vitest harness in CI for web logic and components.
+- [ ] 2 · P0 Durable writing: IndexedDB drafts with recovery, Ctrl/Cmd+Enter save, quiet page.
+- [ ] 3 · P1 Return Cabinet: 0–3 bloom reveal, exact clipping links, fixture preview.
+- [ ] 4 · P1 Evaluation corpus: 48 distinct cases, supersession/exclusion/correction fixtures, deterministic report.
+- [ ] 5 · P1 Activation readiness: expired-job and duplicate handling, canary dry run, runbook.
+- [ ] 6 · P1 Import and portability: Markdown import with preview; export v2 with separated derived material.
+- [ ] 7 · P1 Chronology and search: timeline lens and bounded search with excerpts.
+- [ ] 8 · P1 Accessibility and mobile: axe pass, dark mode, reduced motion, 390px receipts.
+- [ ] 9 · P1 Security hardening: CSP and security headers, CI audit, threat-model receipts.
+- [ ] 10 · P2 First-run onboarding: sign-in to first saved entry in one quiet flow.
+
+Out of this wave: scheduled tending, provider activation, native iOS, botanical scrapbook,
+Explore mode, team features, hosted configuration changes.
+
+## Previous web priority — 2026-09-09 functional feedback
 
 - [ ] Deliver session-aware logo/entry navigation and verified persistent browser login.
 - [ ] Present Garden → Topics → Thoughts → dated Entries; preserve location on reload.
