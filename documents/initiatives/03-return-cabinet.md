@@ -73,6 +73,7 @@ Rebuild the returns surface as a Cabinet panel:
 | Clipping superseded | "Source revised since" badge; link still targets the entry |
 | Clipping archived | "Source archived" badge; link carries `view=archive` so it lands in the archive view |
 | Clipping unlinked | "Source unavailable"; no dead link rendered |
+| Owning thought, topic, or garden archived | Continue is replaced by "Restore the thought to continue it" (`lib/garden/writable.ts`), because the workspace opens no editor for an archived thought. An archived entry inside an active thought still offers Continue |
 | Prior responses | Latest shown as pressed; history collapsible |
 | Provider unavailable / AI disabled | Unchanged: invitation action reports the gate |
 

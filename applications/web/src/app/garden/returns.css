@@ -299,3 +299,7 @@
     --cabinet-input-edge: #4a5c50;
   }
 }
+.cabinet-source-note {
+  color: var(--cabinet-muted);
+  font-style: italic;
+}
