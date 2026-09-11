@@ -14,6 +14,16 @@ and template changes with `supabase config push --project-ref <project-ref>`.
 
 Only the Supabase publishable key belongs in this application. Never add a secret or service-role key to a `NEXT_PUBLIC_` variable.
 
+## Accessibility checks
+
+`accessibility/` holds a self-contained axe harness. It boots `next dev` without
+Supabase env, renders synthetic garden fixtures through `/dev/axe-fixtures`
+(only when `GARDEN_AXE_FIXTURES=1`; the route 404s otherwise), and checks
+light/dark, 390px and 1280px, overflow, a 200% zoom proxy, and contrast. See
+`accessibility/README.md`; receipts live in `documents/initiatives/receipts/08/`.
+Colours are tokens in `src/app/globals.css` with dark values under
+`prefers-color-scheme: dark`; add new colours as tokens in both blocks.
+
 ## Authorization boundary
 
 The browser and Server Components use the authenticated user JWT. Supabase RLS enforces `tenant_id = auth.uid()` for every personal application row. Next.js redirects improve navigation but are not the authorization boundary.

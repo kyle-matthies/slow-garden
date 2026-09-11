@@ -123,7 +123,9 @@ export function parseBatchLine(text, job) {
   const lines = text
     .trim()
     .split("\n")
+    .filter((line) => line.trim())
     .map((line) => JSON.parse(line));
+  if (lines.length > 1) throw Error("duplicate_provider_result");
   if (
     lines.length !== 1 ||
     lines[0].custom_id !== job.id ||
@@ -152,8 +154,23 @@ export function parseBatchLine(text, job) {
   };
 }
 
+// A pass that has waited longer than this is failed and its provider work cancelled.
+export const passDeadlineMs = 30 * 60 * 60 * 1000;
+const terminalBatchStatuses = ["completed", "failed", "expired", "cancelled"];
+
 // Dependency injection keeps real notes and provider credentials out of CI.
-export async function runOne({ rpc, provider }) {
+export async function runOne({ rpc: ledger, provider, now = Date.now }) {
+  // Ledger failures (including a lost lease) are tagged so the failure path
+  // never writes on behalf of a job another worker may now own.
+  const rpc = async (name, args) => {
+    try {
+      return await ledger(name, args);
+    } catch (error) {
+      const tagged = error instanceof Error ? error : new Error("ledger_failed");
+      tagged.ledger = true;
+      throw tagged;
+    }
+  };
   const job = await rpc("claim_garden_pass", {});
   if (!job) return { state: "idle" };
   const args = { p_id: job.id, p_token: job.token };
@@ -168,12 +185,9 @@ export async function runOne({ rpc, provider }) {
     if (["complete", "failed", "cancelled", "withdrawn"].includes(job.status)) {
       if (job.provider_id) {
         const batch = await provider.getBatch(job.provider_id);
-        if (
-          !["completed", "failed", "expired", "cancelled"].includes(
-            batch.status,
-          )
-        ) {
-          await provider.cancelBatch(job.provider_id);
+        if (!terminalBatchStatuses.includes(batch.status)) {
+          if (batch.status !== "cancelling")
+            await provider.cancelBatch(job.provider_id);
           await update({ p_release: true });
           return { state: "cancelling" };
         }
@@ -195,9 +209,17 @@ export async function runOne({ rpc, provider }) {
       await finish({ p_failed: true });
       return { state: "cancelled" };
     }
-    if (Date.now() - Date.parse(job.created_at) > 30 * 60 * 60 * 1000) {
+    if (now() - Date.parse(job.created_at) > passDeadlineMs) {
+      if (job.provider_id) {
+        const batch = await provider.getBatch(job.provider_id);
+        if (
+          !terminalBatchStatuses.includes(batch.status) &&
+          batch.status !== "cancelling"
+        )
+          await provider.cancelBatch(job.provider_id);
+      }
       await finish({ p_failed: true });
-      return { state: "expired" };
+      return { state: "expired", reason: "deadline" };
     }
     if (!job.provider_id) {
       let fileId = job.input_file_id;
@@ -231,7 +253,11 @@ export async function runOne({ rpc, provider }) {
       });
       return { state: "complete" };
     }
-    if (["expired", "failed", "cancelled"].includes(batch.status)) {
+    if (batch.status === "expired") {
+      await finish({ p_failed: true });
+      return { state: "expired", reason: "provider" };
+    }
+    if (["failed", "cancelled"].includes(batch.status)) {
       await finish({ p_failed: true });
       return { state: "failed" };
     }
@@ -239,10 +265,15 @@ export async function runOne({ rpc, provider }) {
     return { state: "waiting" };
   } catch (error) {
     // Never log provider error bodies: they may echo private source text.
-    const retryable = error?.retryable === true;
-    if (retryable && job.attempts < 5) await update({ p_release: true });
-    else await finish({ p_failed: true });
-    return { state: retryable ? "retry_scheduled" : "failed" };
+    if (error?.ledger === true) return { state: "lease_lost" };
+    const retry = error?.retryable === true && job.attempts < 5;
+    try {
+      if (retry) await update({ p_release: true });
+      else await finish({ p_failed: true });
+    } catch {
+      return { state: "lease_lost" };
+    }
+    return { state: retry ? "retry_scheduled" : "failed" };
   }
 }
 export function httpProvider(apiKey, fetcher = fetch) {

@@ -7,7 +7,27 @@ append-only review responses, and provider-file cleanup. No provider has been ac
 Run deterministic worker checks from the repository root:
 
     node --test services/garden-worker/runtime.test.mjs
+    node scripts/canary-dry-run.mjs --out artifacts/generated/canary-dry-run.json
     node services/garden-worker/evaluation/prepare.mjs artifacts/generated/garden-evaluation
+
+The canary dry run drives `runOne` against an in-memory ledger and a fake provider using
+synthetic text only. It exercises submit, cancel in flight, deadline and provider expiry,
+budget stop, duplicate provider results, and a lost lease, then prints a content-free JSON
+report (states and counts, never text). It proves control flow offline; it is not a
+hosted receipt.
+
+## Job lifecycle rules
+
+- A pass older than 30 hours (`passDeadlineMs`) is failed on the next tick. If a provider
+  batch exists and is not terminal, cancellation is requested first; the result of an
+  expired pass is never downloaded. A provider batch that reports `expired` fails the pass.
+- Terminal passes are cleaned on later ticks: input, output and error files are deleted only
+  after the batch reports a terminal status. A batch already `cancelling` is not re-cancelled.
+- Provider output must be exactly one line for this pass; more than one line is rejected as
+  `duplicate_provider_result` and the pass fails without storing anything.
+- A ledger error (including a lost lease) ends the tick with `lease_lost` and no further
+  writes; the ledger's `finish_garden_pass` is idempotent, so a pass is settled at most once.
+- Retryable provider errors release the lease up to five attempts; other errors fail the pass.
 
 The generated review packet has 48 synthetic cases and five comparison variants.
 It does not constitute model generation, a blinded study, or a passing quality receipt.
@@ -38,7 +58,11 @@ be cleaned. Do not delete accounts while their provider cleanup remains outstand
 
 ## Known release gates
 
-The runtime is not approved for real notes. Exact provider retry/idempotency behavior,
-expired provider jobs, account deletion with pending provider work, and a hosted restore
-exercise require receipts. Automatic nightly/weekly eligibility is deliberately deferred
+The runtime is not approved for real notes. The
+[activation runbook](../../documents/operations/AI_ACTIVATION_RUNBOOK.md) lists every
+go/no-go check. Expired jobs and duplicate results now have runtime tests and an offline
+canary; hosted receipts for provider retry/idempotency, account deletion with pending
+provider work (needs a proposed migration, see
+[initiative 05](../../documents/initiatives/05-activation-readiness.md)), and a hosted
+restore exercise are still outstanding. Automatic nightly/weekly eligibility is deliberately deferred
 until manual returns earn value. The worker is executable scaffolding behind these gates.
