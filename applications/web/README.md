@@ -18,6 +18,14 @@ Only the Supabase publishable key belongs in this application. Never add a secre
 
 The browser and Server Components use the authenticated user JWT. Supabase RLS enforces `tenant_id = auth.uid()` for every personal application row. Next.js redirects improve navigation but are not the authorization boundary.
 
+## Tests
+
+Run `npm test` for a single Vitest run using jsdom and React Testing Library. Vitest only
+collects `src/**/*.test.{ts,tsx}`; plain `node:test` suites (`src/**/*.test.mjs` and
+`tests/**/*.test.mjs`) run with `npm run test:node`, and CI runs both.
+Tests are colocated under `src/**/*.test.ts(x)`. Use `npm run test:watch` for
+watch mode; CI runs the single-run test suite.
+
 ## Production promotion
 
 1. Create a migration with `supabase migration new <name>` and review it.
@@ -27,7 +35,7 @@ The browser and Server Components use the authenticated user JWT. Supabase RLS e
 5. Regenerate `src/types/database.ts` from the migration-replayed local schema;
    CI verifies this deterministic output. Use hosted generation only as a
    structural drift check because hosted and local PostgREST metadata can differ.
-6. Run `npm run lint` and `npm run build`.
+6. Run `npm run lint`, `npm test`, and `npm run build`.
 7. Deploy a Vercel preview against a synthetic-data Supabase environment; promote the verified artifact to production.
 
 Production and preview must not share Supabase credentials. The production

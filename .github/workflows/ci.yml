@@ -24,6 +24,8 @@ jobs:
       - run: npm ci
       - run: node --test ../../services/garden-worker/runtime.test.mjs
       - run: npm run lint
+      - run: npm test
+      - run: npm run test:node
       - run: npm run build
 
   database:

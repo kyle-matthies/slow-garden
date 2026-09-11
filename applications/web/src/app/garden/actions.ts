@@ -2,6 +2,12 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import type { ActionResult } from "@/lib/garden/types";
+import {
+  saveErrorMessage,
+  validateAreaName,
+  validateBloomResponse,
+  validateEntryBody,
+} from "@/lib/garden/validation";
 
 async function authenticated() {
   const db = await createClient();
@@ -11,14 +17,7 @@ async function authenticated() {
   return { db, tenantId: data.claims.sub };
 }
 function message(error: unknown): ActionResult {
-  const e = error as { code?: string; message?: string };
-  return {
-    ok: false,
-    message:
-      e.code === "40001"
-        ? "This entry changed elsewhere. Reload to review it; your draft is still here."
-        : "Could not save. Your writing is still here; please retry.",
-  };
+  return { ok: false, message: saveErrorMessage(error) };
 }
 export async function createArea(
   kind: "garden" | "plot" | "seed",
@@ -26,8 +25,8 @@ export async function createArea(
   parentId: string,
   id: string,
 ): Promise<ActionResult> {
-  if (!name.trim() || name.length > (kind === "seed" ? 160 : 120))
-    return { ok: false, message: "Please choose a short name." };
+  const invalid = validateAreaName(kind, name);
+  if (invalid) return { ok: false, message: invalid };
   try {
     const { db, tenantId } = await authenticated();
     // Ignore an exact replay; never upsert fields over a later edit.
@@ -83,8 +82,8 @@ export async function saveEntry(input: {
   body: string;
   expectedRevisionId: string | null;
 }): Promise<ActionResult> {
-  if (!input.body.trim() || input.body.length > 20000)
-    return { ok: false, message: "Write between 1 and 20,000 characters." };
+  const invalid = validateEntryBody(input.body);
+  if (invalid) return { ok: false, message: invalid };
   try {
     const { db } = await authenticated();
     const { data, error } = await db.rpc("save_entry", {
@@ -227,8 +226,8 @@ export async function respondToBloom(
   response: "keep" | "correct" | "prune",
   correction: string,
 ): Promise<ActionResult> {
-  if (response === "correct" && !correction.trim())
-    return { ok: false, message: "Add your correction in your own words." };
+  const invalid = validateBloomResponse(response, correction);
+  if (invalid) return { ok: false, message: invalid };
   try {
     const { db, tenantId } = await authenticated();
     const { data: existing } = await db

@@ -1,13 +1,9 @@
 import { createClient } from "@/lib/supabase/server";
-import type { Tables } from "@/types/database";
-type SourceExport = {
-  gardens: Tables<"gardens">[];
-  plots: Tables<"plots">[];
-  seeds: Tables<"seeds">[];
-  entries: Tables<"entries">[];
-  revisions: Tables<"seed_revisions">[];
-  exported_at: string;
-};
+import {
+  exportHeaders,
+  formatSourceExport,
+  type SourceExport,
+} from "@/lib/garden/export-format";
 export async function GET(request: Request) {
   const db = await createClient();
   const { data, error } = await db.auth.getClaims();
@@ -19,69 +15,15 @@ export async function GET(request: Request) {
     );
     if (exportError || !snapshot)
       throw exportError ?? new Error("Export unavailable");
-    const { gardens, plots, seeds, entries, revisions, exported_at } =
-      snapshot as unknown as SourceExport;
-    const markdown = new URL(request.url).searchParams.get("format") === "md";
-    const text = markdown
-      ? [
-          "# Slow Garden — source export",
-          "",
-          ...gardens.flatMap((g) => [
-            "## " + g.name,
-            "",
-            ...plots
-              .filter((p) => p.garden_id === g.id)
-              .flatMap((p) => [
-                "### " + p.name,
-                "",
-                ...seeds
-                  .filter((s) => s.plot_id === p.id)
-                  .flatMap((s) => [
-                    "#### " + s.title,
-                    "",
-                    ...entries
-                      .filter((e) => e.seed_id === s.id)
-                      .flatMap((e) => [
-                        "##### Entry " + e.id + " · " + e.created_at,
-                        ...revisions
-                          .filter((r) => r.entry_id === e.id)
-                          .map(
-                            (r) =>
-                              "\nRevision " +
-                              r.revision_number +
-                              " · " +
-                              r.created_at +
-                              "\n\n" +
-                              r.body +
-                              "\n",
-                          ),
-                      ]),
-                  ]),
-              ]),
-          ]),
-        ].join("\n")
-      : JSON.stringify(
-          {
-            schema: "slow-garden-source-v2",
-            exported_at,
-            gardens,
-            plots,
-            seeds,
-            entries,
-            revisions,
-          },
-          null,
-          2,
-        );
+    const format = new URL(request.url).searchParams.get("format") === "md"
+      ? "md"
+      : "json";
+    const text = formatSourceExport(
+      snapshot as unknown as SourceExport,
+      format,
+    );
     return new Response(text, {
-      headers: {
-        "Content-Type": markdown
-          ? "text/markdown; charset=utf-8"
-          : "application/json",
-        "Content-Disposition": `attachment; filename="slow-garden-sources.${markdown ? "md" : "json"}"`,
-        "Cache-Control": "private, no-store",
-        "X-Content-Type-Options": "nosniff",
-      },
+      headers: exportHeaders(format),
     });
   } catch {
     return new Response("Export failed; no partial export was produced.", {
