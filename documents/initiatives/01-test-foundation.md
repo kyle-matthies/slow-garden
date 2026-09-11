@@ -93,6 +93,11 @@ Not verified:
 
 ## Follow-ups
 
+- `npm run test:node` (`node --test 'src/**/*.test.mjs' '../../tests/**/*.test.mjs'`) is
+  wired into the web CI job alongside `npm test`, so the `node:test` suites that Vitest
+  deliberately excludes (import/export, drafts, continuation, evaluation corpus) run in
+  integrated CI. An empty glob passes, so branches without such suites are unaffected.
+
 - Initiative 6 owns `src/lib/garden/export.ts` and `app/garden/export/route.ts`; the
   export formatter here lives in `export-format.ts` to avoid a filename collision, and
   the route edit is limited to importing it. Initiative 6 should fold or rename as it

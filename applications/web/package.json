@@ -11,6 +11,7 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
+    "test:node": "node --test 'src/**/*.test.mjs' '../../tests/**/*.test.mjs'",
     "test:watch": "vitest"
   },
   "dependencies": {

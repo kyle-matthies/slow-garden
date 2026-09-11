@@ -20,7 +20,9 @@ The browser and Server Components use the authenticated user JWT. Supabase RLS e
 
 ## Tests
 
-Run `npm test` for a single Vitest run using jsdom and React Testing Library.
+Run `npm test` for a single Vitest run using jsdom and React Testing Library. Vitest only
+collects `src/**/*.test.{ts,tsx}`; plain `node:test` suites (`src/**/*.test.mjs` and
+`tests/**/*.test.mjs`) run with `npm run test:node`, and CI runs both.
 Tests are colocated under `src/**/*.test.ts(x)`. Use `npm run test:watch` for
 watch mode; CI runs the single-run test suite.
 
