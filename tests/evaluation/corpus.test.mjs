@@ -141,6 +141,28 @@ test("evaluator reports structurally malformed cases instead of throwing", () =>
     assert.ok(r.problems.some((p) => p.includes(marker)), marker);
 });
 
+test("evaluator reports null cases and null sources instead of throwing", () => {
+  const nullCase = evaluateCorpus([null]);
+  assert.equal(nullCase.status, "packet-invalid");
+  assert.ok(nullCase.problems.some((p) => p.includes("malformed_case")));
+
+  const withNullSource = structuredClone(corpus[6]);
+  withNullSource.sources = [null, ...withNullSource.sources];
+  withNullSource.superseded_revisions = [null];
+  withNullSource.excluded_sources = [null];
+  const r = evaluateCorpus([withNullSource]);
+  assert.equal(r.status, "packet-invalid");
+  for (const marker of [
+    "malformed_source",
+    "malformed_superseded_revision",
+    "malformed_excluded_source",
+  ])
+    assert.ok(r.problems.some((p) => p.includes(marker)), marker);
+  assert.equal(r.results[0].reference_valid, true);
+
+  assert.equal(evaluateCorpus(null).status, "packet-invalid");
+});
+
 test("prepare.mjs output is byte-stable across two separate runs", async () => {
   const run = promisify(execFile);
   const dirs = [];
