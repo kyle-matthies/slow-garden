@@ -940,7 +940,7 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
                 </div>
               )}
               <h2>{plot ? "Thoughts in this topic" : "All thoughts"}</h2>
-              <div className="plant-grid" aria-label="Thoughts">
+              <section className="plant-grid" aria-label="Thoughts">
                 {seeds.map((s) => (
                   <button
                     className="seed-plant"
@@ -983,7 +983,7 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
                     </small>
                   </button>
                 ))}
-              </div>
+              </section>
               {seeds.length === 0 && (
                 <p className="empty-garden-note">
                   {search

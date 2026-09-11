@@ -173,11 +173,10 @@ Not verified:
 
 ## Follow-ups
 
-- **workspace.tsx (initiative 2/7 owners):** `aria-prohibited-attr` (serious)
-  on `<div class="plant-grid" aria-label="Thoughts">` in the archive view —
-  change the `div` to a `ul`/`role="list"` with list items, or drop the
-  `aria-label`. The harness currently allowlists exactly this finding and
-  prints it as a warning; remove it from `KNOWN_ISSUES` once fixed.
+- Resolved: `aria-prohibited-attr` on `.plant-grid` — the container is now a
+  labelled `<section>` (region role), and the `KNOWN_ISSUES` allowlist in the
+  axe harness is empty again. Needs a rerun of `npm run axe` against the
+  integrated branch for the receipt.
 - **workspace.tsx:** move focus to the `#garden-content` heading (or the
   breadcrumb) after `navigate()` so keyboard and screen-reader users land in
   the new view.

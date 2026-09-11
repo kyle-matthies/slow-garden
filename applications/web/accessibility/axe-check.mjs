@@ -27,9 +27,9 @@ const STATES = [
   ["garden-thought", `/dev/axe-fixtures?topic=${PLOT}&thought=${SEED}`],
   ["garden-archive", "/dev/axe-fixtures?view=archive"],
 ];
-// Findings that live in files outside this change's scope (garden/workspace.tsx).
-// Reported as warnings instead of failures until the owning file can be fixed.
-const KNOWN_ISSUES = new Set(["aria-prohibited-attr:.plant-grid"]);
+// Findings reported as warnings instead of failures. Keep empty unless a finding is
+// tracked in an initiative record with an owner.
+const KNOWN_ISSUES = new Set();
 
 const SHOT_STATES = new Set([
   "landing",
