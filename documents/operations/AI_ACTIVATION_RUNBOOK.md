@@ -61,12 +61,20 @@ No cloud resource is created in this phase beyond the two secrets.
 | 2.4 | Missing provider key returns 503 `Worker not configured` (test by temporarily unsetting in a **branch/preview** function, never production) | observed or explicitly skipped with reason | worker starts work without provider key |
 | 2.5 | Function logs contain no request or provider bodies | inspect logs for the canary invocations | any body text |
 
-## Phase 3 — Synthetic deployed canaries (runtime enabled for one synthetic tenant only)
+## Phase 3 — Synthetic deployed canaries (only the synthetic tenant creates passes)
+
+`private.ai_runtime` is a **global singleton**: `enabled=true` opens pass creation and
+claiming for every tenant in the project at once; there is no per-tenant switch. Tenant
+scoping in this phase comes from the surrounding controls, not from the flag: keep
+`GARDEN_AI_ENABLED=false` in the web app so no real person sees a request control, give
+only the synthetic tenant's plots `ai_enabled=true`, and create passes only by direct insert
+as that tenant. Verify before enabling that no other plot has `ai_enabled=true`
+(`select count(*) from public.plots where ai_enabled and tenant_id <> '<synthetic>'`
+must be 0).
 
 Enable `private.ai_runtime.enabled=true` **only** after pinning `model`, `workflow`,
 `input_rate`, `output_rate`, `soft_cap_cents=1000`, `hard_cap_cents=1500`, and
-`approved_at`. Keep `GARDEN_AI_ENABLED=false` in the web app so no real person can request
-a pass. Only the synthetic tenant creates passes, by direct insert as that tenant.
+`approved_at`.
 
 | # | Canary | Go | No-go |
 |---|---|---|---|
@@ -81,8 +89,8 @@ a pass. Only the synthetic tenant creates passes, by direct insert as that tenan
 | 3.9 | Account deletion with pending work: **known gap** — deleting the synthetic account while `cleanup_pending=true` cascades `pass_inputs` and loses the provider ids | not executable until the proposed orphan-cleanup migration lands | — |
 | 3.10 | Hosted restore: a point-in-time restore or backup restore of the project to a **branch** preserves passes, blooms, and `ai_months` | restore receipt recorded | never exercised |
 
-Record each canary as a receipt. Disable the runtime (`enabled=false`) at the end of the
-phase and confirm the cleanup queue drains to zero before continuing.
+Record each canary as a receipt. At the end of the phase follow [Rollback](#rollback) in
+order (cancel, drain to zero, then `enabled=false`) before continuing.
 
 ## Phase 4 — Activation for the dogfood account
 
@@ -113,16 +121,31 @@ accepted as residual risk in the decision log.
 
 ## Rollback
 
-Rollback is always allowed and never requires a migration.
+Rollback is always allowed and never requires a migration. Order matters:
+`private.ai_runtime.enabled` gates **claiming** as well as requesting. `claim_garden_pass`
+only hands out `queued`/`processing` passes while `enabled=true`, so switching it off
+while a batch is in flight strands that pass: it is never polled, never cancelled at the
+provider, its budget reservation is never released, and its input file is never deleted.
+Drain first, disable last.
 
-1. Set `GARDEN_AI_ENABLED=false` in the web application (hides the request control).
-2. Set `private.ai_runtime.enabled=false`. Active passes stop being claimed;
-   cleanup of terminal passes continues.
-3. Keep the scheduler running until `select count(*) from private.pass_inputs where
-   cleanup_pending` is zero, then stop the scheduler.
-4. Confirm the provider console shows no remaining files, then optionally revoke
+1. Set `GARDEN_AI_ENABLED=false` in the web application (hides the request control; no
+   new passes can be requested from the product).
+2. Cancel every active pass while the runtime is still enabled:
+   `update public.garden_passes set status='cancelled' where status in ('queued','processing')`
+   (as the operator; the owner can do the same from the garden). The `passes_cleanup`
+   trigger marks each pass `cleanup_pending`; on its next claim the worker cancels the
+   provider batch, releases the reservation, and deletes the files.
+3. Keep the scheduler and `enabled=true` until both are zero:
+   `select count(*) from public.garden_passes where status in ('queued','processing')` and
+   `select count(*) from private.pass_inputs where cleanup_pending`.
+4. Only then set `private.ai_runtime.enabled=false`. Cleanup of already-terminal passes
+   still runs with the runtime disabled, so a late `cleanup_pending` row is not stranded.
+5. Stop the scheduler once step 3's counts stay at zero.
+6. Confirm the provider console shows no remaining files, then optionally revoke
    `OPENAI_API_KEY`.
-5. Do not delete accounts while their cleanup is outstanding (see 3.9).
+7. Do not delete accounts while their cleanup is outstanding (see 3.9).
+
+If the runtime was disabled first by mistake, re-enable it, then run steps 2–5.
 
 ## Known gaps carried by this runbook
 

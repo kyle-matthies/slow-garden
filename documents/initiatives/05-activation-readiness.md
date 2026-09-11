@@ -88,7 +88,12 @@ Built:
   reservations, cleanup queue, hard cap) and a fake provider; scenarios for submit and
   complete, cancel in flight, deadline expiry, provider expiry, budget stop and disabled
   runtime, duplicate result, and lost lease; content-free JSON report with a leak self-check.
-- `documents/operations/AI_ACTIVATION_RUNBOOK.md`: phased go/no-go checks and rollback.
+- `documents/operations/AI_ACTIVATION_RUNBOOK.md`: phased go/no-go checks and rollback. The
+  rollback drains before disabling: `claim_garden_pass` only claims active passes while
+  `ai_runtime.enabled`, so the runbook cancels active passes, waits for active and
+  `cleanup_pending` counts to reach zero, and only then flips the flag. It also states that
+  `ai_runtime` is a global singleton, not a per-tenant switch; Phase 3 scoping comes from
+  the web flag and plot permissions.
 - `services/garden-worker/README.md`: lifecycle rules and canary instructions.
 
 Verified locally on Node 22 (2026-09-10):
