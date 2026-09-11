@@ -1,5 +1,5 @@
 "use client";
-import { useState, useRef } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { GardenData } from "@/lib/garden/types";
 import {
   inviteReflection,
@@ -7,7 +7,21 @@ import {
   cancelReflection,
   respondToBloom,
 } from "./actions";
+import { locateRevisions } from "./returns-lookup";
+import {
+  ReturnCabinet,
+  makeClippingResolver,
+  parseEvidence,
+  type BloomResponseKind,
+  type CabinetBloom,
+  type ResolvedClipping,
+  type RevisionLocation,
+} from "./returns-cabinet";
+import { queueContinuation } from "@/lib/garden/continuation";
+import { buildContinuation } from "./returns-continue";
+
 type Returns = Awaited<ReturnType<typeof readReturns>>;
+
 export function GardenReturns({
   data,
   plotId,
@@ -19,33 +33,56 @@ export function GardenReturns({
 }) {
   const [open, setOpen] = useState(false),
     [returns, setReturns] = useState<Returns | null>(null),
+    [located, setLocated] = useState<Record<string, RevisionLocation>>({}),
+    [loading, setLoading] = useState(false),
     [selected, setSelected] = useState<string[]>([plotId]),
     [message, setMessage] = useState(""),
     [pending, setPending] = useState(false);
-  const [corrections, setCorrections] = useState<Record<string, string>>({});
-  const id = useRef<string | null>(null);
+  const inviteId = useRef<string | null>(null);
+  const openButton = useRef<HTMLButtonElement | null>(null);
+  const heading = useRef<HTMLHeadingElement | null>(null);
+  const headingId = useId();
   const current = data.plots.find((p) => p.id === plotId);
+  const garden = data.gardens.find((g) => g.id === data.gardenId);
   const eligible = data.plots.filter(
     (p) =>
       p.ai_enabled &&
       !p.archived_at &&
       (p.id === plotId || (current?.cross_pollinate && p.cross_pollinate)),
   );
+  const resolveClipping = useMemo(
+    () => makeClippingResolver(data, located),
+    [data, located],
+  );
+  useEffect(() => {
+    if (open) heading.current?.focus();
+  }, [open]);
+
   async function refresh() {
+    setLoading(true);
     try {
-      setReturns(await readReturns(data.gardenId));
+      const next = await readReturns(data.gardenId);
+      setReturns(next);
+      const currentRevisions = new Set(data.entries.map((e) => e.revision_id));
+      const missing = next.blooms
+        .flatMap((b) => parseEvidence(b.evidence))
+        .map((c) => c.revision_id)
+        .filter((id) => !currentRevisions.has(id));
+      if (missing.length) setLocated(await locateRevisions(missing));
     } catch {
       setMessage("Returns could not be loaded. Please retry.");
+    } finally {
+      setLoading(false);
     }
   }
   async function invite() {
     setPending(true);
-    id.current ??= crypto.randomUUID();
+    inviteId.current ??= crypto.randomUUID();
     try {
       const result = await inviteReflection(
         data.gardenId,
         selected,
-        id.current,
+        inviteId.current,
       );
       setMessage(
         result.ok
@@ -53,7 +90,7 @@ export function GardenReturns({
           : result.message,
       );
       if (result.ok) {
-        id.current = null;
+        inviteId.current = null;
         await refresh();
       }
     } catch {
@@ -64,224 +101,148 @@ export function GardenReturns({
   }
   async function respond(
     bloomId: string,
-    response: "keep" | "correct" | "prune",
+    response: BloomResponseKind,
+    correction: string,
   ) {
     const result = await respondToBloom(
       crypto.randomUUID(),
       bloomId,
       response,
-      corrections[bloomId] ?? "",
+      correction,
     );
-    setMessage(result.ok ? "Your response is saved." : result.message);
-    if (result.ok) await refresh();
+    if (!result.ok) throw new Error(result.message);
+    await refresh();
   }
+  async function cancel(passId: string) {
+    const result = await cancelReflection(passId);
+    setMessage(
+      result.ok
+        ? "Cancellation requested. Already-dispatched processing may take time to stop."
+        : result.message,
+    );
+    await refresh();
+  }
+  function continueThought(bloom: CabinetBloom, clipping: ResolvedClipping) {
+    if (!clipping.source.seed_id) return;
+    let storage: Storage | null = null;
+    try {
+      storage = sessionStorage;
+    } catch {
+      storage = null;
+    }
+    const stored = queueContinuation(
+      storage,
+      data.tenantId,
+      clipping.source.seed_id,
+      buildContinuation(bloom, clipping),
+    );
+    setMessage(
+      stored
+        ? "A new entry is waiting with the clipping quoted. The rest is yours."
+        : "This browser cannot hold a draft; copy the clipping by hand.",
+    );
+    if (!stored) return;
+    onContinue(clipping.source.seed_id);
+    requestAnimationFrame(() =>
+      document.getElementById("writing-new")?.focus(),
+    );
+  }
+  function close() {
+    setOpen(false);
+    requestAnimationFrame(() => openButton.current?.focus());
+  }
+
   if (!open)
     return (
       <button
+        ref={openButton}
+        type="button"
         className="secondary-button"
+        aria-expanded={false}
         onClick={() => {
           setOpen(true);
           refresh();
         }}
       >
-        AI reflections
+        Open the Cabinet · AI returns
       </button>
     );
   return (
-    <section className="return-cabinet" aria-label="AI reflections">
-      <div className="action-row">
-        <h2>AI reflections</h2>
-        <button className="plain-button" onClick={() => setOpen(false)}>
-          Close
+    <section className="return-cabinet" aria-labelledby={headingId}>
+      <div className="cabinet-toolbar">
+        <button type="button" className="plain-button" onClick={close}>
+          Return to writing
         </button>
-        <button className="plain-button" onClick={refresh}>
-          Check for reflections
+        <button
+          type="button"
+          className="plain-button"
+          onClick={refresh}
+          disabled={loading}
+        >
+          {loading ? "Checking…" : "Check for returns"}
         </button>
       </div>
-      <p>
-        AI interpretations are separate from your writing. There may be nothing
-        new to offer, and that is fine.
-      </p>
-      {data.aiAvailable &&
-      current?.ai_enabled &&
-      !current.archived_at &&
-      data.gardens.find((g) => g.id === data.gardenId)?.status === "active" ? (
-        <fieldset disabled={pending}>
-          <legend>Invite a reflection on these topics</legend>
-          {eligible.map((p) => (
-            <label key={p.id}>
-              <input
-                type="checkbox"
-                checked={selected.includes(p.id)}
-                onChange={(e) => {
-                  id.current = null;
-                  setSelected(
-                    e.target.checked
-                      ? [...selected, p.id]
-                      : selected.filter((x) => x !== p.id),
-                  );
-                }}
-              />
-              {p.name}
-            </label>
-          ))}
-          <p>
-            Only these topics’ saved entries will be sent to the configured AI
-            provider. No other garden participates.
-          </p>
-          <button
-            className="primary-button"
-            disabled={pending || selected.length === 0}
-            onClick={invite}
-          >
-            {pending ? "Inviting…" : "Invite a reflection"}
-          </button>
-        </fieldset>
-      ) : (
-        <p>
-          {!data.aiAvailable
-            ? "AI reflections are not available yet. Your permissions are saved. You can keep writing and review existing reflections."
-            : current?.archived_at ||
-                data.gardens.find((g) => g.id === data.gardenId)?.status ===
-                  "archived"
-              ? "Restore this garden and topic before requesting a reflection."
-              : "AI permission is off for this topic. Enable Allow AI tending in Topic settings to request a reflection."}
-        </p>
-      )}
-      <p role="status">{message}</p>
-      {returns?.passes.map((pass) => (
-        <article className="pass-return" key={pass.id}>
-          <p className="panel-kicker">
-            {pass.status} · {new Date(pass.created_at).toLocaleDateString()}
-          </p>
-          {["queued", "processing"].includes(pass.status) && (
+      <ReturnCabinet
+        headingId={headingId}
+        headingRef={heading}
+        passes={returns?.passes ?? []}
+        blooms={returns?.blooms ?? []}
+        responses={returns?.responses ?? []}
+        resolveClipping={resolveClipping}
+        onRespond={respond}
+        onCancel={cancel}
+        onContinue={continueThought}
+        disabled={pending}
+      >
+        {data.aiAvailable &&
+        current?.ai_enabled &&
+        !current.archived_at &&
+        garden?.status === "active" ? (
+          <fieldset disabled={pending}>
+            <legend>Invite a reflection on these topics</legend>
+            {eligible.map((p) => (
+              <label key={p.id}>
+                <input
+                  type="checkbox"
+                  checked={selected.includes(p.id)}
+                  onChange={(e) => {
+                    inviteId.current = null;
+                    setSelected(
+                      e.target.checked
+                        ? [...selected, p.id]
+                        : selected.filter((x) => x !== p.id),
+                    );
+                  }}
+                />
+                {p.name}
+              </label>
+            ))}
+            <p className="cabinet-note">
+              Only these topics’ saved entries will be sent to the configured AI
+              provider. No other garden participates.
+            </p>
             <button
-              className="plain-button"
-              onClick={async () => {
-                const result = await cancelReflection(pass.id);
-                setMessage(
-                  result.ok
-                    ? "Cancellation requested. Already-dispatched processing may take time to stop."
-                    : result.message,
-                );
-                await refresh();
-              }}
+              type="button"
+              className="primary-button"
+              disabled={pending || selected.length === 0}
+              onClick={invite}
             >
-              Cancel reflection
+              {pending ? "Inviting…" : "Invite a reflection"}
             </button>
-          )}
-          {pass.no_output_reason && <p>{pass.no_output_reason}</p>}
-          {pass.status === "failed" && (
-            <p>
-              No reflection was published. Your writing is safe; you can invite
-              a new pass.
-            </p>
-          )}
-          {pass.status === "withdrawn" && (
-            <p>
-              This return was withdrawn after its topic permissions changed.
-            </p>
-          )}
-          {returns.blooms
-            .filter((b) => b.pass_id === pass.id)
-            .map((b) => {
-              const evidence = b.evidence as {
-                revision_id: string;
-                excerpt: string;
-              }[];
-              const stale = evidence.some(
-                (e) =>
-                  !data.entries.some(
-                    (r) => r.revision_id === e.revision_id && !r.archived_at,
-                  ),
-              );
-              const response = returns.responses.find(
-                (r) => r.bloom_id === b.id,
-              );
-              return (
-                <div className="bloom-review" key={b.id}>
-                  <p className="panel-kicker">AI interpretation · {b.kind}</p>
-                  {stale && (
-                    <p>
-                      Historical reflection: a source has changed or is no
-                      longer active.
-                    </p>
-                  )}
-                  <p className="entry-body">{b.interpretation}</p>
-                  <details>
-                    <summary>
-                      Why this appeared · exact source clippings
-                    </summary>
-                    {evidence.map((e, i) => (
-                      <blockquote key={i}>
-                        <p className="entry-body">{e.excerpt}</p>
-                        <small>Source revision {e.revision_id}</small>
-                      </blockquote>
-                    ))}
-                  </details>
-                  {response && (
-                    <p>
-                      Your response: {response.response}
-                      {response.correction ? ` — ${response.correction}` : ""}
-                    </p>
-                  )}
-                  <div className="action-row">
-                    <button
-                      className="plain-button"
-                      onClick={() => respond(b.id, "keep")}
-                    >
-                      Keep
-                    </button>
-                    <button
-                      className="plain-button"
-                      onClick={() => respond(b.id, "prune")}
-                    >
-                      Prune
-                    </button>
-                    {data.entries.find(
-                      (r) => r.revision_id === evidence[0]?.revision_id,
-                    ) && (
-                      <button
-                        className="plain-button"
-                        onClick={() =>
-                          onContinue(
-                            data.entries.find(
-                              (r) => r.revision_id === evidence[0].revision_id,
-                            )!.seed_id,
-                          )
-                        }
-                      >
-                        Continue this thought
-                      </button>
-                    )}
-                  </div>
-                  <details>
-                    <summary>Correct this interpretation</summary>
-                    <label>
-                      Your correction
-                      <textarea
-                        maxLength={2000}
-                        value={corrections[b.id] ?? ""}
-                        onChange={(e) =>
-                          setCorrections({
-                            ...corrections,
-                            [b.id]: e.target.value,
-                          })
-                        }
-                      />
-                    </label>
-                    <button
-                      className="secondary-button"
-                      onClick={() => respond(b.id, "correct")}
-                    >
-                      Save correction
-                    </button>
-                  </details>
-                </div>
-              );
-            })}
-        </article>
-      ))}
+          </fieldset>
+        ) : (
+          <p className="cabinet-note">
+            {!data.aiAvailable
+              ? "AI reflections are not available yet. Your permissions are saved. You can keep writing and review existing returns."
+              : current?.archived_at || garden?.status === "archived"
+                ? "Restore this garden and topic before requesting a reflection."
+                : "AI permission is off for this topic. Enable Allow AI tending in Topic settings to request a reflection."}
+          </p>
+        )}
+        <p role="status" aria-live="polite" className="cabinet-status">
+          {message || (loading && !returns ? "Opening the Cabinet…" : "")}
+        </p>
+      </ReturnCabinet>
     </section>
   );
 }
