@@ -25,6 +25,14 @@ collects `src/**/*.test.{ts,tsx}`; plain `node:test` suites (`src/**/*.test.mjs`
 `tests/**/*.test.mjs`) run with `npm run test:node`, and CI runs both.
 Tests are colocated under `src/**/*.test.ts(x)`. Use `npm run test:watch` for
 watch mode; CI runs the single-run test suite.
+## Response headers and dependency audit
+
+`next.config.ts` sends an enforced Content Security Policy, HSTS, frame, referrer,
+permissions, and cross-origin isolation headers on every route. `connect-src`
+allows only the origin in `NEXT_PUBLIC_SUPABASE_URL` at build time, so build with
+the same Supabase environment the deployment will use. CI fails on
+`npm audit --audit-level=high`. Rationale, receipts, and open gaps are in
+[`documents/operations/SECURITY_REVIEW_2026-09.md`](../../documents/operations/SECURITY_REVIEW_2026-09.md).
 
 ## Production promotion
 
