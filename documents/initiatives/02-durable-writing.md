@@ -55,8 +55,15 @@ inference, proposal, or automatic action occurs.
   footer says drafts cannot be retained.
 - Write failure mid-session: footer switches to the cannot-retain note; typing continues.
 - Offline save: "Connection interrupted. Your draft is still here." unchanged.
-- Duplicate tabs writing the same thought: last write wins; the other tab sees a notice on
-  its next load.
+- Duplicate tabs writing the same thought: each tab writes its own record
+  (`tenant:seed:entry:tabId`), so neither tab's autosave or post-save cleanup can
+  overwrite or delete the other's draft. On load a tab restores its own record and, if
+  another tab's dirty record is newer, shows the restore/discard notice for it.
+- Save while a debounced draft write is still pending: the editor is disabled before the
+  flush, so the submitted snapshot is the text the person last saw.
+- Sign out with a pending draft write: the workspace dispatches `DRAFTS_CLEARED_EVENT`
+  before clearing storage; editors drop their timer and pending record so the tenant's
+  drafts cannot be repopulated after cleanup.
 
 ## Acceptance evidence
 
@@ -109,6 +116,9 @@ Not verified:
 
 ## Follow-ups
 
+- Browser regression coverage for two tabs editing the same thought, typing during save
+  preparation, and sign-out with a pending write (unit coverage exists in
+  `drafts.test.mjs`; the integrated retest owns the browser receipt).
 - Run the editor receipt against a synthetic-data preview once one is available and
   attach screenshots to this record; then close K-015.
 - Decision: whether drafts should sync across devices (would require a server-side

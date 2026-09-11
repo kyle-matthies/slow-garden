@@ -10,8 +10,10 @@ import {
 import type { Entry } from "@/lib/garden/types";
 import { saveEntry } from "./actions";
 import {
+  DRAFTS_CLEARED_EVENT,
   draftKey,
   describeDraftTime,
+  findForeignDraft,
   getTabId,
   isDirtyDraft,
   LEGACY_DRAFT_STORAGE_PREFIX,
@@ -44,8 +46,8 @@ export function EntryEditor({
   quietPage?: boolean;
   onQuietPageChange?: (quiet: boolean) => void;
 }) {
-  const key = draftKey(tenantId, seedId, entry?.entry_id);
   const baseBody = entry?.body ?? "";
+  const scope: DraftRecord["scope"] = entry ? "revise" : "new";
   const [draft, setDraft] = useState<Draft>({
     body: baseBody,
     entryId: entry?.entry_id ?? "",
@@ -67,6 +69,7 @@ export function EntryEditor({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const tabIdRef = useRef("");
+  const keyRef = useRef("");
 
   function freshDraft(): Draft {
     return {
@@ -110,11 +113,11 @@ export function EntryEditor({
     const backend = backendRef.current;
     if (!backend || storageKind === "none") return;
     const record: DraftRecord = {
-      key,
+      key: keyRef.current,
       tenantId,
       seedId,
       entryId: next.entryId,
-      scope: entry ? "revise" : "new",
+      scope,
       body: next.body,
       revisionId: next.revisionId,
       expectedRevisionId: next.expectedRevisionId,
@@ -134,7 +137,14 @@ export function EntryEditor({
   // Browser draft hydration is intentionally a one-time external-store synchronization.
   useEffect(() => {
     let cancelled = false;
+    const dropPending = () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+      timerRef.current = null;
+      pendingRecordRef.current = null;
+      backendRef.current = null;
+    };
     window.addEventListener("pagehide", flushPending);
+    window.addEventListener(DRAFTS_CLEARED_EVENT, dropPending);
     async function loadDraft() {
       let storage: Storage | null = null;
       try {
@@ -143,6 +153,13 @@ export function EntryEditor({
         storage = null;
       }
       tabIdRef.current = getTabId(storage);
+      keyRef.current = draftKey(
+        tenantId,
+        seedId,
+        entry?.entry_id,
+        tabIdRef.current,
+      );
+      const key = keyRef.current;
       const initial = freshDraft();
       try {
         const backend = await openDraftStore({
@@ -153,6 +170,15 @@ export function EntryEditor({
         backendRef.current = backend;
         setStorageKind(backend?.kind ?? "none");
         let saved = backend ? await backend.get(key) : null;
+        const foreign = backend
+          ? findForeignDraft(await backend.list(tenantId), {
+              tenantId,
+              seedId,
+              scope,
+              entryId: entry?.entry_id,
+              tabId: tabIdRef.current,
+            })
+          : null;
         const legacy = readLegacySessionDraft(
           storage,
           tenantId,
@@ -165,7 +191,7 @@ export function EntryEditor({
             tenantId,
             seedId,
             entryId: legacy.entryId,
-            scope: entry ? "revise" : "new",
+            scope,
             body: legacy.body,
             revisionId: legacy.revisionId,
             expectedRevisionId: legacy.expectedRevisionId,
@@ -184,10 +210,13 @@ export function EntryEditor({
         }
         const dirty = !!saved && isDirtyDraft(saved);
         if (saved && !dirty && backend) await backend.remove(key);
-        if (saved && dirty && saved.tabId !== tabIdRef.current)
-          setRecovered(saved);
+        if (
+          foreign &&
+          (!saved || !dirty || foreign.updatedAt > saved.updatedAt)
+        )
+          setRecovered(foreign);
         setDraft(
-          saved && dirty && saved.tabId === tabIdRef.current
+          saved && dirty
             ? {
                 body: saved.body,
                 entryId: saved.entryId,
@@ -207,10 +236,11 @@ export function EntryEditor({
     return () => {
       cancelled = true;
       window.removeEventListener("pagehide", flushPending);
+      window.removeEventListener(DRAFTS_CLEARED_EVENT, dropPending);
       void flushPending();
     };
-  // The editor is keyed by entry and hydrates browser storage once.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // The editor is keyed by entry and hydrates browser storage once.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   /* eslint-disable react-hooks/set-state-in-effect */
@@ -256,10 +286,10 @@ export function EntryEditor({
   async function submit(event: FormEvent): Promise<void> {
     event.preventDefault();
     if (pending || !draft.body.trim()) return;
-    await flushPending();
     setPending(true);
     setStatus("Saving…");
     try {
+      await flushPending();
       const result = await saveEntry({ seedId, ...draft });
       if (!result.ok) {
         setStatus(result.message);
@@ -268,7 +298,7 @@ export function EntryEditor({
       const backend = backendRef.current;
       if (backend) {
         try {
-          await backend.remove(key);
+          await backend.remove(keyRef.current);
         } catch {
           setStorageKind("none");
         }
@@ -294,19 +324,32 @@ export function EntryEditor({
       expectedRevisionId: recovered.expectedRevisionId,
     });
     setRecovered(null);
-    void persist({ ...recovered, tabId: tabIdRef.current });
-  }
-
-  async function discard(): Promise<void> {
+    setStatus("Not saved yet");
     const backend = backendRef.current;
     if (backend) {
       try {
-        await backend.remove(key);
+        await persist({
+          ...recovered,
+          key: keyRef.current,
+          tabId: tabIdRef.current,
+        });
+        await backend.remove(recovered.key);
       } catch {
         setStorageKind("none");
       }
     }
-    setDraft(freshDraft());
+  }
+
+  async function discard(): Promise<void> {
+    if (!recovered) return;
+    const backend = backendRef.current;
+    if (backend) {
+      try {
+        await backend.remove(recovered.key);
+      } catch {
+        setStorageKind("none");
+      }
+    }
     setRecovered(null);
   }
 

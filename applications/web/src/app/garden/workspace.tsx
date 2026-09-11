@@ -11,6 +11,7 @@ import {
 import type { GardenData, Entry, ActionResult } from "@/lib/garden/types";
 import {
   clearLegacySessionDrafts,
+  DRAFTS_CLEARED_EVENT,
   openDraftStore,
 } from "@/lib/garden/drafts";
 import { GardenReturns } from "./returns";
@@ -425,6 +426,7 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
       return;
     }
     try {
+      window.dispatchEvent(new Event(DRAFTS_CLEARED_EVENT));
       const store = await openDraftStore();
       await store?.clear(data.tenantId);
       clearLegacySessionDrafts(sessionStorage, data.tenantId);

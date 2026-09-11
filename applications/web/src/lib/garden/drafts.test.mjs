@@ -6,6 +6,7 @@ import {
   createStorageBackend,
   draftKey,
   describeDraftTime,
+  findForeignDraft,
   getTabId,
   isDirtyDraft,
   isDraftRecord,
@@ -178,9 +179,19 @@ function record(overrides = {}) {
 }
 
 test("draft keys and runtime validation", () => {
-  assert.equal(draftKey("tenant", "seed"), "tenant:seed:new");
-  assert.equal(draftKey("tenant", "seed", null), "tenant:seed:new");
-  assert.equal(draftKey("tenant", "seed", "entry"), "tenant:seed:entry");
+  assert.equal(
+    draftKey("tenant", "seed", undefined, "tab"),
+    "tenant:seed:new:tab",
+  );
+  assert.equal(draftKey("tenant", "seed", null, "tab"), "tenant:seed:new:tab");
+  assert.equal(
+    draftKey("tenant", "seed", "entry", "tab-2"),
+    "tenant:seed:entry:tab-2",
+  );
+  assert.notEqual(
+    draftKey("tenant", "seed", "entry", "tab-a"),
+    draftKey("tenant", "seed", "entry", "tab-b"),
+  );
   assert.equal(isDraftRecord(record()), true);
   assert.equal(isDraftRecord({ ...record(), expectedRevisionId: 4 }), false);
   assert.equal(isDraftRecord({ ...record(), updatedAt: "100" }), false);
@@ -201,9 +212,14 @@ test("session storage backend isolates tenants and ignores invalid entries", asy
   });
   await backend.put(first);
   await backend.put(second);
-  await backend.put(record({ key: "tenant-b:seed-b:entry-c", tenantId: "tenant-b" }));
+  await backend.put(
+    record({ key: "tenant-b:seed-b:entry-c", tenantId: "tenant-b" }),
+  );
   storage.setItem(`${DRAFT_STORAGE_PREFIX}bad`, "{not json");
-  storage.setItem(`${DRAFT_STORAGE_PREFIX}foreign`, JSON.stringify({ foreign: true }));
+  storage.setItem(
+    `${DRAFT_STORAGE_PREFIX}foreign`,
+    JSON.stringify({ foreign: true }),
+  );
   storage.setItem("other-app:key", JSON.stringify(first));
   assert.deepEqual(await backend.get(first.key), first);
   assert.deepEqual(await backend.list("tenant-a"), [second, first]);
@@ -229,7 +245,9 @@ test("indexeddb backend round trips, lists, removes, and clears", async () => {
   });
   await backend.put(first);
   await backend.put(second);
-  await backend.put(record({ key: "tenant-b:seed-b:entry-c", tenantId: "tenant-b" }));
+  await backend.put(
+    record({ key: "tenant-b:seed-b:entry-c", tenantId: "tenant-b" }),
+  );
   assert.deepEqual(await backend.get(first.key), first);
   assert.deepEqual(await backend.list("tenant-a"), [second, first]);
   await backend.remove(first.key);
@@ -240,13 +258,20 @@ test("indexeddb backend round trips, lists, removes, and clears", async () => {
 
 test("draft store fallback and unavailable environments", async () => {
   const storage = new MemoryStorage();
-  const broken = { open() { throw new Error("blocked"); } };
+  const broken = {
+    open() {
+      throw new Error("blocked");
+    },
+  };
   assert.equal(
     (await openDraftStore({ indexedDB: broken, sessionStorage: storage })).kind,
     "sessionstorage",
   );
   assert.equal(await openDraftStore({}), null);
-  assert.equal(await openDraftStore({ indexedDB: null, sessionStorage: null }), null);
+  assert.equal(
+    await openDraftStore({ indexedDB: null, sessionStorage: null }),
+    null,
+  );
 });
 
 test("legacy migration helpers only read and clear the requested tenant", () => {
@@ -267,7 +292,10 @@ test("legacy migration helpers only read and clear the requested tenant", () => 
     `${LEGACY_DRAFT_STORAGE_PREFIX}tenant-b:seed-b:new`,
     JSON.stringify(parsed),
   );
-  assert.deepEqual(readLegacySessionDraft(storage, "tenant-a", "seed-a"), parsed);
+  assert.deepEqual(
+    readLegacySessionDraft(storage, "tenant-a", "seed-a"),
+    parsed,
+  );
   storage.setItem(key, JSON.stringify({ body: 4 }));
   assert.equal(readLegacySessionDraft(storage, "tenant-a", "seed-a"), null);
   clearLegacySessionDrafts(storage, "tenant-a");
@@ -289,4 +317,41 @@ test("draft time labels, dirty detection, and stable tab ids", () => {
   assert.equal(isDirtyDraft(record({ body: "changed", baseBody: "" })), true);
   const storage = new MemoryStorage();
   assert.equal(getTabId(storage), getTabId(storage));
+});
+
+test("tabs keep separate draft records and recover each other's dirty work", async () => {
+  const backend = createStorageBackend(new MemoryStorage());
+  const a = record({ key: draftKey("tenant-a", "seed-a", "entry-a", "tab-a") });
+  const b = record({
+    key: draftKey("tenant-a", "seed-a", "entry-a", "tab-b"),
+    tabId: "tab-b",
+    body: "B thought",
+    updatedAt: 200,
+  });
+  await backend.put(a);
+  await backend.put(b);
+  await backend.remove(a.key);
+  assert.deepEqual(await backend.get(b.key), b);
+  assert.equal(await backend.get(a.key), null);
+
+  const records = await backend.list("tenant-a");
+  const target = {
+    tenantId: "tenant-a",
+    seedId: "seed-a",
+    scope: "revise",
+    entryId: "entry-a",
+    tabId: "tab-a",
+  };
+  assert.deepEqual(findForeignDraft(records, target), b);
+  assert.equal(findForeignDraft(records, { ...target, tabId: "tab-b" }), null);
+  assert.equal(
+    findForeignDraft(records, { ...target, entryId: "entry-z" }),
+    null,
+  );
+  assert.equal(findForeignDraft([{ ...b, body: b.baseBody }], target), null);
+  const newA = { ...b, scope: "new", entryId: "fresh-1" };
+  assert.deepEqual(
+    findForeignDraft([newA], { ...target, scope: "new", entryId: "fresh-2" }),
+    newA,
+  );
 });

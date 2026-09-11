@@ -18,12 +18,40 @@ export type DraftRecord = {
   tabId: string;
 };
 
+export const DRAFTS_CLEARED_EVENT = "slow-garden:drafts-cleared";
+
 export function draftKey(
   tenantId: string,
   seedId: string,
-  entryId?: string | null,
+  entryId: string | null | undefined,
+  tabId: string,
 ): string {
-  return `${tenantId}:${seedId}:${entryId ?? "new"}`;
+  return `${tenantId}:${seedId}:${entryId ?? "new"}:${tabId}`;
+}
+
+export function findForeignDraft(
+  records: DraftRecord[],
+  target: {
+    tenantId: string;
+    seedId: string;
+    scope: DraftRecord["scope"];
+    entryId?: string | null;
+    tabId: string;
+  },
+): DraftRecord | null {
+  return (
+    records
+      .filter(
+        (record) =>
+          record.tenantId === target.tenantId &&
+          record.seedId === target.seedId &&
+          record.scope === target.scope &&
+          (target.scope === "new" || record.entryId === target.entryId) &&
+          record.tabId !== target.tabId &&
+          isDirtyDraft(record),
+      )
+      .sort(sortByUpdatedAt)[0] ?? null
+  );
 }
 
 export function isDraftRecord(value: unknown): value is DraftRecord {
@@ -110,7 +138,8 @@ export function createStorageBackend(storage: Storage): DraftBackend {
 function requestResult<T>(request: IDBRequest<T>): Promise<T> {
   return new Promise((resolve, reject) => {
     request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error ?? new Error("IndexedDB request failed"));
+    request.onerror = () =>
+      reject(request.error ?? new Error("IndexedDB request failed"));
   });
 }
 
@@ -124,7 +153,9 @@ function transactionComplete(transaction: IDBTransaction): Promise<void> {
   });
 }
 
-export function openIndexedDbBackend(factory: IDBFactory): Promise<DraftBackend> {
+export function openIndexedDbBackend(
+  factory: IDBFactory,
+): Promise<DraftBackend> {
   return new Promise((resolve, reject) => {
     let request: IDBOpenDBRequest;
     try {
@@ -141,8 +172,7 @@ export function openIndexedDbBackend(factory: IDBFactory): Promise<DraftBackend>
       if (!store.indexNames.contains("tenantId"))
         store.createIndex("tenantId", "tenantId", { unique: false });
     };
-    request.onblocked = () =>
-      reject(new Error("IndexedDB open was blocked"));
+    request.onblocked = () => reject(new Error("IndexedDB open was blocked"));
     request.onerror = () =>
       reject(request.error ?? new Error("IndexedDB open failed"));
     request.onsuccess = () => {
@@ -166,9 +196,7 @@ export function openIndexedDbBackend(factory: IDBFactory): Promise<DraftBackend>
             DRAFT_STORE_NAME,
             "readwrite",
           );
-          const request = transaction
-            .objectStore(DRAFT_STORE_NAME)
-            .put(record);
+          const request = transaction.objectStore(DRAFT_STORE_NAME).put(record);
           await Promise.all([
             requestResult(request).then(() => undefined),
             transactionComplete(transaction),
@@ -197,7 +225,9 @@ export function openIndexedDbBackend(factory: IDBFactory): Promise<DraftBackend>
             typeof IDBKeyRange !== "undefined"
               ? IDBKeyRange.only(tenantId)
               : tenantId;
-          const records = (await requestResult(index.getAll(range))) as DraftRecord[];
+          const records = (await requestResult(
+            index.getAll(range),
+          )) as DraftRecord[];
           return records.filter(isDraftRecord).sort(sortByUpdatedAt);
         },
         async clear(tenantId) {
@@ -318,7 +348,8 @@ export function describeDraftTime(
   const elapsed = Math.max(0, now - updatedAt);
   if (elapsed < 60_000) return "just now";
   const minutes = Math.floor(elapsed / 60_000);
-  if (elapsed < 3_600_000) return `${minutes} minute${minutes === 1 ? "" : "s"} ago`;
+  if (elapsed < 3_600_000)
+    return `${minutes} minute${minutes === 1 ? "" : "s"} ago`;
   const hours = Math.floor(elapsed / 3_600_000);
   if (elapsed < 86_400_000) return `${hours} hour${hours === 1 ? "" : "s"} ago`;
   return `on ${new Date(updatedAt).toLocaleString(undefined, {
