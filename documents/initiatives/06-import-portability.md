@@ -72,6 +72,7 @@ Not verified:
 
 - Run `scripts/test-web-journeys.mjs`-style coverage for import and per-garden export against the disposable local stack and record a receipt.
 - Decision: whether back-dating `entries.created_at` on import is the right chronology signal, or whether an explicit `imported_at`/`source_date` column (proposed migration, not applied) should carry it.
+- Proposed migration (not applied): a `save_entry` overload with `p_created_at timestamptz default null` so entry creation and source-date stamping happen in one statement; today the stamp is a second write that is re-applied on retry.
 - Decision: whether the import should offer merging into an existing thought rather than always creating one.
 - The tests use `node:test` and `node:assert/strict` in `.test.mjs` files so `npm test` (Vitest, `*.test.ts`) does not try to bundle `node:test`; port to Vitest later if desired.
 - Consider a `scripts/verify-web-export.mjs` that round-trips a fixture through the JSON and Markdown exporters and the importer.
