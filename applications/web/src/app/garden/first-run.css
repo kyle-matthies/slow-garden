@@ -14,7 +14,7 @@
 }
 
 .first-run p {
-  color: #526752;
+  color: var(--ink-muted, #526752);
   line-height: 1.6;
 }
 

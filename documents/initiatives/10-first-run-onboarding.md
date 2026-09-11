@@ -117,6 +117,10 @@ Not verified:
 
 ## Follow-ups
 
+- Instructional text uses `var(--ink-muted)` (with the light fallback) instead of a
+  hardcoded green so it stays readable once initiative 8's dark palette lands; the dark
+  contrast receipt belongs to the integrated axe/contrast rerun.
+
 - Once Initiative 1's Vitest harness lands, add component tests for `FirstRun`:
   step progression, idempotent id reset on input change, starters created only when
   checked, "Write later" confirm.
