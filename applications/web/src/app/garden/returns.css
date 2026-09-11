@@ -1,7 +1,11 @@
 /* Cabinet: the deliberate, evidence-rich posture for inspecting a return (D-015). */
 .return-cabinet {
-  --cabinet-ivory: #fffaf0;
+  --cabinet-ivory: var(--cabinet-bg, #fffaf0);
   --cabinet-edge: #d2d8c7;
+  --cabinet-card: #fffdf7;
+  --cabinet-clipping: #fffef9;
+  --cabinet-clipping-edge: #e3e6da;
+  --cabinet-input-edge: #ccd6c4;
   --cabinet-evidence: #4b6fb5; /* cornflower: source/evidence cues */
   --cabinet-derived: #b9563f; /* restrained coral: derived attention */
   --cabinet-stale: #8a6d2f;
@@ -96,7 +100,7 @@
   position: relative;
   margin: 18px 0;
   padding: 20px 22px 18px;
-  background: #fffdf7;
+  background: var(--cabinet-card);
   border: 1px solid var(--cabinet-edge);
   border-left: 4px solid var(--cabinet-derived);
   border-radius: 6px;
@@ -155,8 +159,8 @@
 .cabinet-clipping {
   margin: 0 0 12px;
   padding: 12px 16px;
-  background: #fffef9;
-  border: 1px solid #e3e6da;
+  background: var(--cabinet-clipping);
+  border: 1px solid var(--cabinet-clipping-edge);
   border-left: 3px solid var(--cabinet-evidence);
   box-shadow: 0 1px 0 rgba(36, 79, 66, 0.08);
 }
@@ -206,7 +210,7 @@
 }
 .cabinet-actions .secondary-button[aria-pressed="true"] {
   background: var(--moss-deep);
-  color: #fffef7;
+  color: var(--button-ink, #fffef7);
   border-color: var(--moss-deep);
 }
 .cabinet-prior p {
@@ -230,8 +234,8 @@
   display: block;
   width: 100%;
   min-height: 90px;
-  background: #fffef9;
-  border: 1px solid #ccd6c4;
+  background: var(--cabinet-clipping);
+  border: 1px solid var(--cabinet-input-edge);
   padding: 12px;
   font: inherit;
 }
@@ -278,5 +282,20 @@
       opacity: 1;
       transform: none;
     }
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  .return-cabinet {
+    --cabinet-ivory: var(--cabinet-bg, #1d251e);
+    --cabinet-edge: #3a4a40;
+    --cabinet-evidence: #8fb0ea;
+    --cabinet-derived: #e08a72;
+    --cabinet-stale: #d3b46a;
+    --cabinet-muted: #a9bfb2;
+    --cabinet-card: #242f28;
+    --cabinet-clipping: #1a231e;
+    --cabinet-clipping-edge: #3a4a40;
+    --cabinet-input-edge: #4a5c50;
   }
 }
