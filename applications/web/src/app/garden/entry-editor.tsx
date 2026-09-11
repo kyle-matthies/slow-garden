@@ -10,6 +10,10 @@ import {
 import type { Entry } from "@/lib/garden/types";
 import { saveEntry } from "./actions";
 import {
+  appendContinuation,
+  takeContinuation,
+} from "@/lib/garden/continuation";
+import {
   DRAFTS_CLEARED_EVENT,
   draftKey,
   describeDraftTime,
@@ -215,7 +219,7 @@ export function EntryEditor({
           (!saved || !dirty || foreign.updatedAt > saved.updatedAt)
         )
           setRecovered(foreign);
-        setDraft(
+        let next: Draft =
           saved && dirty
             ? {
                 body: saved.body,
@@ -223,8 +227,32 @@ export function EntryEditor({
                 revisionId: saved.revisionId,
                 expectedRevisionId: saved.expectedRevisionId,
               }
-            : initial,
-        );
+            : initial;
+        const continuation =
+          scope === "new" ? takeContinuation(storage, tenantId, seedId) : null;
+        if (continuation !== null) {
+          next = {
+            ...next,
+            body: appendContinuation(next.body, continuation),
+            revisionId: crypto.randomUUID(),
+          };
+          if (backend)
+            await persist({
+              key,
+              tenantId,
+              seedId,
+              entryId: next.entryId,
+              scope,
+              body: next.body,
+              revisionId: next.revisionId,
+              expectedRevisionId: next.expectedRevisionId,
+              baseBody,
+              updatedAt: Date.now(),
+              tabId: tabIdRef.current,
+            });
+          setStatus("Not saved yet");
+        }
+        setDraft(next);
       } catch {
         if (!cancelled) setStorageKind("none");
         if (!cancelled) setDraft(initial);

@@ -61,6 +61,9 @@ inference, proposal, or automatic action occurs.
   another tab's dirty record is newer, shows the restore/discard notice for it.
 - Save while a debounced draft write is still pending: the editor is disabled before the
   flush, so the submitted snapshot is the text the person last saw.
+- Continuation handoff from the Return Cabinet (initiative 3): on mount a new-entry editor
+  takes any text queued under `lib/garden/continuation.ts` and appends it to its draft, so
+  neither the durable draft nor the continuation is lost.
 - Sign out with a pending draft write: the workspace dispatches `DRAFTS_CLEARED_EVENT`
   before clearing storage; editors drop their timer and pending record so the tenant's
   drafts cannot be repopulated after cleanup.
