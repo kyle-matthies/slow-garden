@@ -37,6 +37,11 @@ Rebuild the returns surface as a Cabinet panel:
 - "Continue this thought" pre-fills the new-entry draft for the clipping's seed with a Markdown
   blockquote of the writer's own words followed by a bracketed attribution that names the AI's
   role: `[Clipping chosen by AI · <kind>. The quote above is yours; the choice to surface it is not.]`
+  The text is queued under a tab-local handoff key (`slow-garden:continue:v1:<tenant>:<seed>`,
+  `lib/garden/continuation.ts`) rather than written into any editor's draft storage; the next
+  new-entry editor for that thought takes the queue and appends it to whatever draft it already
+  holds, so a durable draft (initiative 2) never hides a requested continuation and a
+  continuation never replaces waiting writing.
 - A development-only fixture preview (`/garden/returns-preview?scene=<slug>`) renders every pass
   and bloom state from synthetic data with no provider, database, or sign-in.
 
@@ -66,7 +71,7 @@ Rebuild the returns surface as a Cabinet panel:
 | Cancelled / withdrawn | Labelled drawers; withdrawn blooms remain readable but marked |
 | Clipping current | "Sources unchanged" |
 | Clipping superseded | "Source revised since" badge; link still targets the entry |
-| Clipping archived | "Source archived" badge |
+| Clipping archived | "Source archived" badge; link carries `view=archive` so it lands in the archive view |
 | Clipping unlinked | "Source unavailable"; no dead link rendered |
 | Prior responses | Latest shown as pressed; history collapsible |
 | Provider unavailable / AI disabled | Unchanged: invitation action reports the gate |
@@ -91,12 +96,12 @@ clippings.
 |---|---|
 | `applications/web/src/app/garden/returns.tsx` | Container: loads returns, resolves stale revisions, persists responses, hands continuation to the workspace |
 | `applications/web/src/app/garden/returns-cabinet.tsx` | Pure presentation: `ReturnCabinet`, `PassDrawer`, `BloomSpecimen`, `ClippingCard`, `makeClippingResolver` |
-| `applications/web/src/app/garden/returns-continue.tsx` | `buildContinuation` (quoted clipping + attribution) and `prefillNewEntryDraft` (existing draft key, append-only) |
+| `applications/web/src/app/garden/returns-continue.tsx` | `buildContinuation` (quoted clipping + attribution); the handoff itself lives in `lib/garden/continuation.ts` (`queueContinuation`, `takeContinuation`, `appendContinuation`) |
 | `applications/web/src/app/garden/returns-lookup.ts` | `locateRevisions` server action (metadata only, auth via `getClaims`) |
 | `applications/web/src/app/garden/returns-fixtures.tsx` | Synthetic garden, revisions, passes, blooms, responses, and eight scenes |
 | `applications/web/src/app/garden/returns.css` | Component-imported styles; ivory paper, coral "derived" cue, blue "evidence" cue, focus rings, reduced motion, 390px layout |
 | `applications/web/src/app/garden/returns-preview/page.tsx`, `preview.tsx` | Dev-only fixture browser |
-| `applications/web/src/app/garden/workspace.tsx` | Hook point only: `editorGeneration` counter so the new-entry editor remounts and hydrates the prefilled draft after `onContinue` |
+| `applications/web/src/app/garden/workspace.tsx` | Hook point: `editorGeneration` counter so the new-entry editor remounts after `onContinue`; the editor takes the queued continuation on mount |
 
 ### Verified
 

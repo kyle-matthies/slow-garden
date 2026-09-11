@@ -5,12 +5,7 @@ import type { GardenData } from "@/lib/garden/types";
 import "./returns.css";
 
 export type PassStatus =
-  | "queued"
-  | "processing"
-  | "complete"
-  | "failed"
-  | "cancelled"
-  | "withdrawn";
+  "queued" | "processing" | "complete" | "failed" | "cancelled" | "withdrawn";
 export type BloomKind = "connection" | "tension" | "change" | "question";
 export type BloomResponseKind = "keep" | "correct" | "prune";
 
@@ -64,7 +59,7 @@ export function makeClippingResolver(
   data: Pick<GardenData, "gardenId" | "seeds" | "entries">,
   located: Record<string, RevisionLocation>,
 ): (clipping: Clipping) => ClippingSource {
-  const href = (seedId: string, entryId: string) => {
+  const href = (seedId: string, entryId: string, archived: boolean) => {
     const seed = data.seeds.find((s) => s.id === seedId);
     if (!seed) return null;
     const query = new URLSearchParams({
@@ -72,6 +67,7 @@ export function makeClippingResolver(
       topic: seed.plot_id,
       thought: seedId,
     });
+    if (archived) query.set("view", "archive");
     return `/garden?${query}#entry-${entryId}`;
   };
   return (clipping) => {
@@ -85,7 +81,7 @@ export function makeClippingResolver(
         seed_id: current.seed_id,
         revision_number: current.revision_number,
         created_at: current.created_at,
-        href: href(current.seed_id, current.entry_id),
+        href: href(current.seed_id, current.entry_id, !!current.archived_at),
       };
     const old = located[clipping.revision_id];
     if (old) {
@@ -96,7 +92,7 @@ export function makeClippingResolver(
         seed_id: old.seed_id,
         revision_number: old.revision_number,
         created_at: old.created_at,
-        href: href(old.seed_id, old.entry_id),
+        href: href(old.seed_id, old.entry_id, !!entry?.archived_at),
       };
     }
     return {
@@ -286,9 +282,8 @@ function PassDrawer({
         <span className="cabinet-pass-status">{passLabel(pass.status)}</span>
         <span className="cabinet-pass-date">
           {" · "}
-          Invited <time dateTime={pass.created_at}>
-            {formatDate(pass.created_at)}
-          </time>
+          Invited{" "}
+          <time dateTime={pass.created_at}>{formatDate(pass.created_at)}</time>
         </span>
         {countText && (
           <span className="cabinet-pass-count">
@@ -349,7 +344,10 @@ function PassDrawer({
                 withdrawn={pass.status === "withdrawn"}
                 responses={responses
                   .filter((r) => r.bloom_id === bloom.id)
-                  .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))}
+                  .sort(
+                    (a, b) =>
+                      Date.parse(b.created_at) - Date.parse(a.created_at),
+                  )}
                 resolveClipping={resolveClipping}
                 onRespond={onRespond}
                 onContinue={onContinue}
@@ -399,7 +397,9 @@ function BloomSpecimen({
       : freshness === "historical"
         ? "historical"
         : "current",
-    latest ? responseLabel(latest.response).toLowerCase() : "awaiting your response",
+    latest
+      ? responseLabel(latest.response).toLowerCase()
+      : "awaiting your response",
   ].join(", ");
   async function respond(kind: BloomResponseKind) {
     setBusy(kind);
@@ -514,8 +514,9 @@ function BloomSpecimen({
             {responses.length > 1 && (
               <details>
                 <summary>
-                  Earlier {responses.length - 1 === 1 ? "response" : "responses"}{" "}
-                  ({responses.length - 1})
+                  Earlier{" "}
+                  {responses.length - 1 === 1 ? "response" : "responses"} (
+                  {responses.length - 1})
                 </summary>
                 <ul>
                   {responses.slice(1).map((r) => (
@@ -634,7 +635,9 @@ function ClippingCard({
     source.state === "unknown"
       ? "Source revision no longer available"
       : [
-          source.created_at ? `Your entry of ${formatDate(source.created_at)}` : "Your entry",
+          source.created_at
+            ? `Your entry of ${formatDate(source.created_at)}`
+            : "Your entry",
           source.revision_number !== null
             ? `revision ${source.revision_number}`
             : null,

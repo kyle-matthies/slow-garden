@@ -17,7 +17,8 @@ import {
   type ResolvedClipping,
   type RevisionLocation,
 } from "./returns-cabinet";
-import { buildContinuation, prefillNewEntryDraft } from "./returns-continue";
+import { queueContinuation } from "@/lib/garden/continuation";
+import { buildContinuation } from "./returns-continue";
 
 type Returns = Awaited<ReturnType<typeof readReturns>>;
 
@@ -123,7 +124,14 @@ export function GardenReturns({
   }
   function continueThought(bloom: CabinetBloom, clipping: ResolvedClipping) {
     if (!clipping.source.seed_id) return;
-    const stored = prefillNewEntryDraft(
+    let storage: Storage | null = null;
+    try {
+      storage = sessionStorage;
+    } catch {
+      storage = null;
+    }
+    const stored = queueContinuation(
+      storage,
       data.tenantId,
       clipping.source.seed_id,
       buildContinuation(bloom, clipping),
@@ -210,8 +218,8 @@ export function GardenReturns({
               </label>
             ))}
             <p className="cabinet-note">
-              Only these topics’ saved entries will be sent to the configured
-              AI provider. No other garden participates.
+              Only these topics’ saved entries will be sent to the configured AI
+              provider. No other garden participates.
             </p>
             <button
               type="button"

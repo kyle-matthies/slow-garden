@@ -9,6 +9,10 @@ import {
   type FormEvent,
 } from "react";
 import type { GardenData, Entry, ActionResult } from "@/lib/garden/types";
+import {
+  appendContinuation,
+  takeContinuation,
+} from "@/lib/garden/continuation";
 import { GardenReturns } from "./returns";
 import {
   createArea,
@@ -229,10 +233,38 @@ function EntryEditor({
     } catch {
       setStorageWorks(false);
     }
+    if (!entry?.entry_id) {
+      let storage: Storage | null = null;
+      try {
+        storage = sessionStorage;
+      } catch {
+        storage = null;
+      }
+      const continuation = takeContinuation(storage, tenantId, seedId);
+      if (continuation !== null) {
+        initial = {
+          ...initial,
+          body: appendContinuation(initial.body, continuation),
+          revisionId: crypto.randomUUID(),
+        };
+        try {
+          sessionStorage.setItem(storageKey, JSON.stringify(initial));
+        } catch {
+          setStorageWorks(false);
+        }
+      }
+    }
     // Hydrate the tab-local draft only after mounting; never read browser storage on the server.
     setDraft(initial);
     setReady(true);
-  }, [storageKey, entry?.body, entry?.entry_id, entry?.revision_id]);
+  }, [
+    storageKey,
+    tenantId,
+    seedId,
+    entry?.body,
+    entry?.entry_id,
+    entry?.revision_id,
+  ]);
   /* eslint-enable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (!ready) return;
