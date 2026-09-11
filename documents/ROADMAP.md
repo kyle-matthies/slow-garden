@@ -6,6 +6,11 @@ Primary rule: Do not advance a horizon because code exists; advance when its exi
 
 ## Current web priority — 2026-09-10 initiative wave
 
+Status 2026-09-11: two correction rounds landed on the initiative branches; the combined tree
+`9d5eae1` passes the shell gate and the synthetic browser suite (see
+[verification](operations/INITIATIVE_WAVE_2026-09.md#verification--2026-09-11-combined-tree-9d5eae1-wave-still-unmerged)).
+Boxes stay unchecked until the wave merges and physical-device / real-tenant gaps close.
+
 The September wave ([plan](operations/INITIATIVE_WAVE_2026-09.md), D-021) drives the
 no-AI garden toward a voluntary return and prepares honest activation gates. Each item
 is one reviewable pull request with a record under [documents/initiatives](initiatives/README.md).
