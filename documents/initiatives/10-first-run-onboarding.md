@@ -24,7 +24,7 @@ did not write.
 
 - Sign-in page: plain-language explanation of the six-digit code flow, a
   confirmation of which address the code went to, and a "Resend code" control with
-  a 30-second cooldown. Only the newest code works; the copy says so.
+  a 60-second cooldown (Supabase `auth.email.max_frequency`). Only the newest code works; the copy says so.
 - First run: when an account has no gardens, the garden page renders a single
   four-step flow — garden → topic → thought → write — one step visible at a time,
   with the hierarchy explained once in a sentence that stays visible on every step.
@@ -61,7 +61,7 @@ default. AI stays outside your writing."
 - Unsaved writing: a `beforeunload` guard is active while the textarea is non-empty;
   "Write later" confirms before discarding. The first-run textarea does not persist
   a draft to storage (see Follow-ups).
-- Sign-in: resend disabled while pending and for 30 s after any send; the status
+- Sign-in: resend disabled while pending and for 60 s after any send; the status
   message uses `aria-live="polite"`; a send error shows the provider message.
 - Unauthorized/expired session: actions throw "Please sign in again…" which the
   flow surfaces as a retryable error; writing stays in the textarea.
@@ -97,7 +97,7 @@ Built:
   `firstRun` state, and the former `.first-garden` branch replaced by
   `<FirstRun … onDone={…router.push(/garden?garden&topic&thought#entry-…)…} />`.
 - `applications/web/src/app/login/login-form.tsx` — clearer code-flow copy,
-  "code sent to <email>" line, "Resend code" with 30 s cooldown.
+  "code sent to <email>" line, "Resend code" with 60 s cooldown.
 
 Verified (Node 22, `applications/web`):
 

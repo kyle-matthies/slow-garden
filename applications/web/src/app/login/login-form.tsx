@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
+const RESEND_COOLDOWN_MS = 60_000; // matches Supabase auth.email.max_frequency
+
 export function LoginForm({ configured }: { configured: boolean }) {
   const router = useRouter();
   const supabase = useMemo(
@@ -35,7 +37,7 @@ export function LoginForm({ configured }: { configured: boolean }) {
   function startResendCooldown() {
     const current = Date.now();
     setClock(current);
-    setResendAt(current + 30_000);
+    setResendAt(current + RESEND_COOLDOWN_MS);
   }
 
   async function sendCode(event: FormEvent<HTMLFormElement>) {
