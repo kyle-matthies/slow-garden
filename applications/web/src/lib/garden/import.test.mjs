@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   IMPORT_LIMITS,
   deterministicId,
+  isCalendarDate,
   parseDateHeading,
   parseImportFile,
   sha256Hex,
@@ -142,4 +143,50 @@ test("sha256Hex matches the known digest", async () => {
     await sha256Hex(""),
     "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
   );
+});
+
+test("calendar dates reject impossible days and months", () => {
+  assert.equal(isCalendarDate("2026-02-28"), true);
+  assert.equal(isCalendarDate("2024-02-29"), true);
+  assert.equal(isCalendarDate("2026-02-30"), false);
+  assert.equal(isCalendarDate("2026-13-01"), false);
+  assert.equal(isCalendarDate("2026-00-10"), false);
+  assert.equal(isCalendarDate("2026-1-1"), false);
+  assert.equal(isCalendarDate("nope"), false);
+});
+
+test("import entry identity includes date and occurrence, not only body", async () => {
+  const seed = "seed";
+  const hash = await sha256Hex("Same words");
+  const a = await deterministicId(
+    "import-entry",
+    seed,
+    hash,
+    "2026-01-01",
+    "0",
+  );
+  const b = await deterministicId(
+    "import-entry",
+    seed,
+    hash,
+    "2026-01-02",
+    "0",
+  );
+  const c = await deterministicId(
+    "import-entry",
+    seed,
+    hash,
+    "2026-01-01",
+    "1",
+  );
+  const again = await deterministicId(
+    "import-entry",
+    seed,
+    hash,
+    "2026-01-01",
+    "0",
+  );
+  assert.notEqual(a, b);
+  assert.notEqual(a, c);
+  assert.equal(a, again);
 });

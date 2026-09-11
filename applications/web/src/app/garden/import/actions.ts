@@ -2,10 +2,13 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import type { ActionResult } from "@/lib/garden/types";
-import { deterministicId, sha256Hex } from "@/lib/garden/import";
+import {
+  deterministicId,
+  isCalendarDate,
+  sha256Hex,
+} from "@/lib/garden/import";
 
 const UUID = /^[0-9a-f-]{36}$/i;
-const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 async function authenticated() {
   const db = await createClient();
@@ -31,7 +34,7 @@ export async function importThought(input: {
       (e) =>
         !e.body.trim() ||
         e.body.length > 20000 ||
-        (e.date !== null && !DATE.test(e.date)),
+        (e.date !== null && !isCalendarDate(e.date)),
     )
   )
     return { ok: false, message: "Check the topic and entries, then retry." };
@@ -72,10 +75,15 @@ export async function importThought(input: {
     }
     let created = 0,
       skipped = 0;
+    const occurrences = new Map<string, number>();
     for (const entry of input.entries) {
       const hash = await sha256Hex(entry.body);
-      const entryId = await deterministicId("import-entry", seedId, hash);
-      const revisionId = await deterministicId("import-revision", seedId, hash);
+      const identity = `${entry.date ?? ""}\n${hash}`;
+      const ordinal = occurrences.get(identity) ?? 0;
+      occurrences.set(identity, ordinal + 1);
+      const parts = [seedId, hash, entry.date ?? "", String(ordinal)];
+      const entryId = await deterministicId("import-entry", ...parts);
+      const revisionId = await deterministicId("import-revision", ...parts);
       const { data: existing, error: checkError } = await db
         .from("seed_revisions")
         .select("id")
@@ -93,11 +101,13 @@ export async function importThought(input: {
         skipped++;
       } else {
         created++;
-        if (entry.date)
-          await db
+        if (entry.date) {
+          const { error: dateError } = await db
             .from("entries")
             .update({ created_at: `${entry.date}T12:00:00.000Z` })
             .eq("id", entryId);
+          if (dateError) throw dateError;
+        }
       }
     }
     revalidatePath("/garden");

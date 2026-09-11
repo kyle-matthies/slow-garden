@@ -15,7 +15,7 @@ Slow Garden's value comes from a body of writing accumulating over time. Without
 ## Proposed capability
 
 - `/garden/import`: choose a garden and an active topic, pick up to 50 Markdown or plain-text files (≤200 KB each), review a preview, then confirm. One file becomes one thought; headings that are dates (`## 2024-03-05`, `## March 5, 2024`, `## 5 March 2024`, with optional trailing note) split the file into dated entries; a file without dated headings becomes one entry dated from the file's modification date. Text before the first dated heading becomes an entry dated by the file. Sections over 20,000 characters are split at paragraph breaks. Titles are editable in the preview.
-- Import is idempotent by content hash: thought, entry, and revision identifiers are derived deterministically from tenant, topic, and text, and writes go through the existing `save_entry` RPC, which treats a replayed revision id with identical body as a no-op. Importing the same file twice adds nothing; the result reports entries added versus already present.
+- Import is idempotent by content hash: thought, entry, and revision identifiers are derived deterministically from tenant, topic, and text (entry and revision ids also fold in the entry's date and its occurrence ordinal within the file, so identical words written on different days, or twice under one day, stay separate entries), and writes go through the existing `save_entry` RPC, which treats a replayed revision id with identical body as a no-op. Importing the same file twice adds nothing; the result reports entries added versus already present.
 - Export v2 (`/garden/export`, `?format=md`, optional `?garden=<id>`): JSON schema `slow-garden-export-v2` with `source` (authorship `user`: gardens, plots, seeds, entries, revisions) and `derived` (passes; blooms with authorship `ai-derived`; bloom responses with authorship `user`). Markdown keeps the previous source layout and appends a `## Derived material (AI)` section with each bloom labelled `AI-derived`, its evidence, and any author response or correction. A per-garden export filters every table by garden and names the file after the garden.
 - Settings & export in the workspace gains "Export this garden" (JSON, Markdown) and "Import notes".
 
@@ -29,6 +29,10 @@ The system reads only files the person chooses and saves nothing until they conf
 - Oversized file or too many files: skipped with a notice; nothing is saved.
 - Archived or missing topic: "Choose an active topic."; no writes.
 - Duplicate import: every entry reported as already present; no new rows.
+- Repeated text under different dates, or repeated within a day: kept as distinct entries.
+- Impossible calendar date (e.g. `2026-02-30`): the whole request is rejected before any write.
+- Date stamping fails after `save_entry`: the import reports failure instead of silently leaving the entry at import time; retrying is safe because ids are deterministic.
+- Switching gardens on the import page remounts the form, so the topic list and selection always belong to the garden shown.
 - Partial failure: files import sequentially; each shows its own result, and a failed file leaves the others' results visible. Because ids are deterministic, retrying is safe.
 - Signed out mid-import: quiet error, files remain in the browser.
 - Export with unknown garden id: 404; malformed id: 400; database failure: 503 with no partial export.

@@ -21,6 +21,7 @@ export default async function ImportPage({
   const garden = await loadGarden(data.claims.sub, params.garden);
   return (
     <ImportForm
+      key={garden.gardenId}
       gardens={garden.gardens}
       gardenId={garden.gardenId}
       plots={garden.plots.filter((p) => !p.archived_at)}

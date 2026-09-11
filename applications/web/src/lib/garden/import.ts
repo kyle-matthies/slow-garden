@@ -26,6 +26,19 @@ export async function sha256Hex(text: string): Promise<string> {
     .join("");
 }
 
+const CALENDAR_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+export function isCalendarDate(value: string): boolean {
+  if (!CALENDAR_DATE.test(value)) return false;
+  const [y, m, d] = value.split("-").map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d));
+  return (
+    date.getUTCFullYear() === y &&
+    date.getUTCMonth() === m - 1 &&
+    date.getUTCDate() === d
+  );
+}
+
 export async function deterministicId(...parts: string[]): Promise<string> {
   const hex = await sha256Hex(parts.join("\u0000"));
   return (
@@ -202,9 +215,7 @@ export async function parseImportFile(file: {
   return {
     title,
     sourceName: file.name,
-    hash: await sha256Hex(
-      title + "\n" + entries.map((e) => e.hash).join("\n"),
-    ),
+    hash: await sha256Hex(title + "\n" + entries.map((e) => e.hash).join("\n")),
     entries,
     warnings,
   };
