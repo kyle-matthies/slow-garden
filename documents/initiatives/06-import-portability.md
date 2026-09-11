@@ -54,7 +54,7 @@ Built (branch `devin/1789018577-import-portability`):
 
 Verified locally on Node 22:
 
-- `node --experimental-strip-types --test src/lib/garden/import.test.ts src/lib/garden/export.test.ts`: 20 passing.
+- `node --test src/lib/garden/import.test.mjs src/lib/garden/export.test.mjs`: 20 passing (Node 22 type stripping; `.mjs` keeps them out of the Vitest glob).
 - `npm run lint`, `npx tsc --noEmit`, `npm run build`: pass (`/garden/import` registered as a dynamic route).
 - `node --test services/garden-worker/runtime.test.mjs`: 14 passing.
 
@@ -69,5 +69,5 @@ Not verified:
 - Run `scripts/test-web-journeys.mjs`-style coverage for import and per-garden export against the disposable local stack and record a receipt.
 - Decision: whether back-dating `entries.created_at` on import is the right chronology signal, or whether an explicit `imported_at`/`source_date` column (proposed migration, not applied) should carry it.
 - Decision: whether the import should offer merging into an existing thought rather than always creating one.
-- Initiative 1 may port the `node:test` files to Vitest once the harness lands; the tests use only `node:test` and `node:assert/strict`.
+- The tests use `node:test` and `node:assert/strict` in `.test.mjs` files so `npm test` (Vitest, `*.test.ts`) does not try to bundle `node:test`; port to Vitest later if desired.
 - Consider a `scripts/verify-web-export.mjs` that round-trips a fixture through the JSON and Markdown exporters and the importer.

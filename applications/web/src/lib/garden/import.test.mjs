@@ -6,7 +6,6 @@ import {
   parseDateHeading,
   parseImportFile,
   sha256Hex,
-  // @ts-expect-error node --test strips types and needs the explicit extension
 } from "./import.ts";
 
 test("title comes from a leading level-1 heading", async () => {
@@ -28,7 +27,7 @@ test("title falls back to the file name", async () => {
 });
 
 test("dated headings in every accepted format split entries", async () => {
-  const formats: [string, string][] = [
+  const formats = [
     ["2024-03-05", "2024-03-05"],
     ["2024/03/05", "2024-03-05"],
     ["2024-03-05 Tuesday", "2024-03-05"],

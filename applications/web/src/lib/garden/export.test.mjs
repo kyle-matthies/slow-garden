@@ -5,10 +5,7 @@ import {
   exportFilename,
   filterSnapshotByGarden,
   formatExportMarkdown,
-  type ExportSnapshot,
-  // @ts-expect-error node --test strips types and needs the explicit extension
 } from "./export.ts";
-// @ts-expect-error node --test strips types and needs the explicit extension
 import { parseImportFile } from "./import.ts";
 
 const G1 = "11111111-1111-8111-8111-111111111111";
@@ -24,7 +21,8 @@ const B2 = "aaaaaaaa-aaaa-8aaa-8aaa-aaaaaaaaaaaa";
 const RESP1 = "bbbbbbbb-bbbb-8bbb-8bbb-bbbbbbbbbbbb";
 const TENANT = "cccccccc-cccc-8ccc-8ccc-cccccccccccc";
 
-function fixture(): ExportSnapshot {
+/** @returns {import("./export.ts").ExportSnapshot} */
+function fixture() {
   return {
     exported_at: "2024-06-01T00:00:00.000Z",
     gardens: [
