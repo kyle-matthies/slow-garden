@@ -64,9 +64,9 @@ inference, proposal, or automatic action occurs.
 - Continuation handoff from the Return Cabinet (initiative 3): on mount a new-entry editor
   takes any text queued under `lib/garden/continuation.ts` and appends it to its draft, so
   neither the durable draft nor the continuation is lost.
-- Sign out with a pending draft write: the workspace dispatches `DRAFTS_CLEARED_EVENT`
-  before clearing storage; editors drop their timer and pending record so the tenant's
-  drafts cannot be repopulated after cleanup.
+- Sign out with a pending draft write: the workspace writes a localStorage tombstone and
+  broadcasts `DRAFTS_CLEARED_EVENT` before clearing storage; editors drop their timer and
+  pending record so the tenant's drafts cannot be repopulated after cleanup.
 
 ## Acceptance evidence
 
@@ -86,20 +86,23 @@ Built:
 
 - `applications/web/src/lib/garden/drafts.ts`: `DraftRecord`, `DraftBackend`,
   `createStorageBackend`, `openIndexedDbBackend`, `openDraftStore` (IndexedDB →
-  sessionStorage → null), legacy v2 read/clear, `getTabId`, `describeDraftTime`,
-  `isDirtyDraft`.
+  sessionStorage → null), legacy v2 read/clear, atomic `removeIf`/`transfer` recovery,
+  heartbeat-registry tab identity with reload reuse, localStorage tombstone and
+  BroadcastChannel sign-out invalidation, `getTabId`, `describeDraftTime`, `isDirtyDraft`.
 - `applications/web/src/app/garden/entry-editor.tsx` + `entry-editor.css`: `EntryEditor`
   extracted from `workspace.tsx`; debounced (300 ms) durable persistence with flush on
   `pagehide`/unmount; recovery notice; Ctrl/⌘+Enter save; auto-grow; quiet page toggle.
 - `workspace.tsx`: import hook, `quietPage` state and `.garden-frame.quiet-page` class,
-  sign-out clears the store, copy updated; the sessionStorage-scanning `beforeunload`
-  guard was removed (the editor still guards its own dirty state).
+  tombstone/broadcast sign-out invalidation before tenant cleanup, copy updated; the
+  sessionStorage-scanning `beforeunload` guard was removed (the editor still guards its
+  own dirty state).
 
 Verified (Node 22.23):
 
-- `node --test src/lib/garden/drafts.test.mjs`: 6 test groups, all pass (storage backend,
-  IndexedDB backend against an in-memory fake, fallback order, legacy migration, time
-  description, dirty check, tab id).
+- `node --test src/lib/garden/drafts.test.mjs src/lib/garden/continuation.test.mjs`: 14
+  test groups, all pass, including atomic transfer/removeIf failure and race cases,
+  live-tab identity/reload reuse, cross-tab tombstone subscription, and deferred-write
+  invalidation.
 - `npm --prefix applications/web ci`, `npm run lint`, `npx tsc --noEmit`, `npm run build`,
   `node --test services/garden-worker/runtime.test.mjs` (14/14): pass.
 - Manual receipt, Chromium (Google Chrome headless via Playwright, persistent profile) on

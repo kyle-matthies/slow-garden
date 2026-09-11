@@ -10,8 +10,9 @@ import {
 } from "react";
 import type { GardenData, Entry, ActionResult } from "@/lib/garden/types";
 import {
+  broadcastDraftsCleared,
   clearLegacySessionDrafts,
-  DRAFTS_CLEARED_EVENT,
+  markDraftsCleared,
   openDraftStore,
 } from "@/lib/garden/drafts";
 import { GardenReturns } from "./returns";
@@ -426,7 +427,14 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
       return;
     }
     try {
-      window.dispatchEvent(new Event(DRAFTS_CLEARED_EVENT));
+      let safeLocalStorage: Storage | null = null;
+      try {
+        safeLocalStorage = localStorage;
+      } catch {
+        safeLocalStorage = null;
+      }
+      markDraftsCleared(safeLocalStorage, data.tenantId);
+      broadcastDraftsCleared(data.tenantId);
       const store = await openDraftStore();
       await store?.clear(data.tenantId);
       clearLegacySessionDrafts(sessionStorage, data.tenantId);

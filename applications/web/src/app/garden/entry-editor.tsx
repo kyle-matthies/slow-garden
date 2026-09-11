@@ -14,15 +14,18 @@ import {
   takeContinuation,
 } from "@/lib/garden/continuation";
 import {
-  DRAFTS_CLEARED_EVENT,
   draftKey,
   describeDraftTime,
+  discardForeignDraft,
+  draftsClearedSince,
+  ensureTabIdentity,
   findForeignDraft,
-  getTabId,
   isDirtyDraft,
   LEGACY_DRAFT_STORAGE_PREFIX,
   openDraftStore,
   readLegacySessionDraft,
+  restoreForeignDraft,
+  subscribeDraftsCleared,
   type DraftBackend,
   type DraftRecord,
 } from "@/lib/garden/drafts";
@@ -68,12 +71,15 @@ export function EntryEditor({
   const [isMac, setIsMac] = useState(false);
   const backendRef = useRef<DraftBackend | null>(null);
   const pendingRecordRef = useRef<DraftRecord | null>(null);
-  const writePromiseRef = useRef<Promise<void> | null>(null);
+  const writePromiseRef = useRef<Promise<boolean> | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const tabIdRef = useRef("");
   const keyRef = useRef("");
+  const localStorageRef = useRef<Storage | null>(null);
+  const mountedAtRef = useRef(0);
+  const invalidatedRef = useRef(false);
 
   function freshDraft(): Draft {
     return {
@@ -84,13 +90,24 @@ export function EntryEditor({
     };
   }
 
-  function persist(record: DraftRecord): Promise<void> {
+  function persist(record: DraftRecord): Promise<boolean> {
     const backend = backendRef.current;
-    if (!backend) return Promise.resolve();
+    if (
+      !backend ||
+      invalidatedRef.current ||
+      draftsClearedSince(
+        localStorageRef.current,
+        tenantId,
+        mountedAtRef.current,
+      )
+    )
+      return Promise.resolve(false);
     const write = backend
       .put(record)
+      .then(() => true)
       .catch(() => {
         setStorageKind("none");
+        return false;
       })
       .finally(() => {
         if (writePromiseRef.current === write) writePromiseRef.current = null;
@@ -141,14 +158,17 @@ export function EntryEditor({
   // Browser draft hydration is intentionally a one-time external-store synchronization.
   useEffect(() => {
     let cancelled = false;
-    const dropPending = () => {
+    const handleCleared = () => {
       if (timerRef.current) clearTimeout(timerRef.current);
       timerRef.current = null;
       pendingRecordRef.current = null;
       backendRef.current = null;
+      invalidatedRef.current = true;
+      setStorageKind("none");
+      setStatus("Signed out in another tab. Drafts were cleared for privacy.");
     };
     window.addEventListener("pagehide", flushPending);
-    window.addEventListener(DRAFTS_CLEARED_EVENT, dropPending);
+    const unsubscribe = subscribeDraftsCleared(tenantId, handleCleared);
     async function loadDraft() {
       let storage: Storage | null = null;
       try {
@@ -156,7 +176,18 @@ export function EntryEditor({
       } catch {
         storage = null;
       }
-      tabIdRef.current = getTabId(storage);
+      let local: Storage | null = null;
+      try {
+        local = localStorage;
+      } catch {
+        local = null;
+      }
+      localStorageRef.current = local;
+      mountedAtRef.current = Date.now();
+      tabIdRef.current = ensureTabIdentity({
+        sessionStorage: storage,
+        localStorage: local,
+      });
       keyRef.current = draftKey(
         tenantId,
         seedId,
@@ -170,7 +201,7 @@ export function EntryEditor({
           indexedDB: typeof indexedDB === "undefined" ? null : indexedDB,
           sessionStorage: storage,
         });
-        if (cancelled) return;
+        if (cancelled || invalidatedRef.current) return;
         backendRef.current = backend;
         setStorageKind(backend?.kind ?? "none");
         let saved = backend ? await backend.get(key) : null;
@@ -190,6 +221,7 @@ export function EntryEditor({
           entry?.entry_id,
         );
         if (!saved && legacy && backend) {
+          if (invalidatedRef.current) return;
           saved = {
             key,
             tenantId,
@@ -264,7 +296,7 @@ export function EntryEditor({
     return () => {
       cancelled = true;
       window.removeEventListener("pagehide", flushPending);
-      window.removeEventListener(DRAFTS_CLEARED_EVENT, dropPending);
+      unsubscribe();
       void flushPending();
     };
     // The editor is keyed by entry and hydrates browser storage once.
@@ -356,12 +388,11 @@ export function EntryEditor({
     const backend = backendRef.current;
     if (backend) {
       try {
-        await persist({
-          ...recovered,
+        const result = await restoreForeignDraft(backend, recovered, {
           key: keyRef.current,
           tabId: tabIdRef.current,
         });
-        await backend.remove(recovered.key);
+        if (result === "failed") setStorageKind("none");
       } catch {
         setStorageKind("none");
       }
@@ -373,9 +404,22 @@ export function EntryEditor({
     const backend = backendRef.current;
     if (backend) {
       try {
-        await backend.remove(recovered.key);
+        const removed = await discardForeignDraft(backend, recovered);
+        if (!removed) {
+          setRecovered(
+            findForeignDraft(await backend.list(tenantId), {
+              tenantId,
+              seedId,
+              scope,
+              entryId: entry?.entry_id,
+              tabId: tabIdRef.current,
+            }),
+          );
+          return;
+        }
       } catch {
         setStorageKind("none");
+        return;
       }
     }
     setRecovered(null);

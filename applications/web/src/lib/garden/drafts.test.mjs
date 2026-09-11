@@ -2,20 +2,38 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   DRAFT_STORAGE_PREFIX,
+  DRAFTS_CLEARED_KEY,
   LEGACY_DRAFT_STORAGE_PREFIX,
+  TAB_ID_KEY,
+  TAB_STALE_MS,
+  broadcastDraftsCleared,
+  claimTabId,
   createStorageBackend,
+  discardForeignDraft,
   draftKey,
   describeDraftTime,
+  draftsClearedSince,
+  ensureTabIdentity,
   findForeignDraft,
   getTabId,
+  heartbeatTab,
   isDirtyDraft,
   isDraftRecord,
+  markDraftsCleared,
   openDraftStore,
   readLegacySessionDraft,
   clearLegacySessionDrafts,
+  releaseTab,
+  resetTabIdentityForTests,
+  restoreForeignDraft,
+  subscribeDraftsCleared,
 } from "./drafts.ts";
 
 class MemoryStorage {
+  constructor(initial = {}) {
+    this.values = new Map(Object.entries(initial));
+    this.failNextSet = false;
+  }
   values = new Map();
   get length() {
     return this.values.size;
@@ -27,6 +45,10 @@ class MemoryStorage {
     return this.values.get(key) ?? null;
   }
   setItem(key, value) {
+    if (this.failNextSet) {
+      this.failNextSet = false;
+      throw new DOMException("Quota exceeded", "QuotaExceededError");
+    }
     this.values.set(String(key), String(value));
   }
   removeItem(key) {
@@ -53,7 +75,8 @@ class FakeRequest {
 }
 
 class FakeStore {
-  constructor() {
+  constructor(database) {
+    this.database = database;
     this.records = new Map();
     this.indexes = new Set();
     this.indexNames = { contains: (name) => this.indexes.has(name) };
@@ -64,40 +87,67 @@ class FakeStore {
   }
   get(key, transaction) {
     const request = new FakeRequest();
+    transaction.start();
     queueMicrotask(() => {
+      if (transaction.failed) {
+        request.reject(transaction.error);
+        transaction.finish();
+        return;
+      }
       request.resolve(this.records.get(key) ?? undefined);
-      transaction.completeSoon();
+      transaction.finish();
     });
     return request;
   }
   put(record, transaction) {
     const request = new FakeRequest();
+    transaction.start();
     queueMicrotask(() => {
+      if (transaction.failed) {
+        request.reject(transaction.error);
+        transaction.finish();
+        return;
+      }
+      if (this.database.factory.failNextPut) {
+        this.database.factory.failNextPut = false;
+        const error = new DOMException("Quota exceeded", "QuotaExceededError");
+        request.reject(error);
+        transaction.fail(error);
+        return;
+      }
       this.records.set(record.key, structuredClone(record));
       request.resolve(record);
-      transaction.completeSoon();
+      transaction.finish();
     });
     return request;
   }
   delete(key, transaction) {
     const request = new FakeRequest();
+    transaction.start();
     queueMicrotask(() => {
+      if (transaction.failed) {
+        request.reject(transaction.error);
+        transaction.finish();
+        return;
+      }
       this.records.delete(key);
       request.resolve(undefined);
-      transaction.completeSoon();
+      transaction.finish();
     });
     return request;
   }
-  index() {
+  index(_name, transaction) {
     return {
       getAll: (tenantId) => {
         const request = new FakeRequest();
+        transaction.start();
         queueMicrotask(() => {
           request.resolve(
             [...this.records.values()].filter(
               (record) => record.tenantId === tenantId,
             ),
           );
+          transaction.finish();
         });
         return request;
       },
@@ -111,15 +161,40 @@ class FakeTransaction {
   onabort = null;
   error = null;
   completed = false;
+  failed = false;
+  pending = 0;
   constructor(store) {
     this.store = store;
+  }
+  start() {
+    this.pending += 1;
+  }
+  finish() {
+    this.pending -= 1;
+    if (this.pending === 0 && !this.failed) {
+      queueMicrotask(() => {
+        if (!this.completed && !this.failed) {
+          this.completed = true;
+          this.oncomplete?.();
+        }
+      });
+    }
+  }
+  fail(error) {
+    if (this.failed) return;
+    this.failed = true;
+    this.error = error;
+    queueMicrotask(() => {
+      this.onerror?.();
+      this.onabort?.();
+    });
   }
   objectStore() {
     return {
       get: (key) => this.store.get(key, this),
       put: (record) => this.store.put(record, this),
       delete: (key) => this.store.delete(key, this),
-      index: (name) => this.store.index(name),
+      index: (name) => this.store.index(name, this),
     };
   }
   completeSoon() {
@@ -130,10 +205,13 @@ class FakeTransaction {
 }
 
 class FakeDatabase {
+  constructor(factory) {
+    this.factory = factory;
+  }
   stores = new Map();
   objectStoreNames = { contains: (name) => this.stores.has(name) };
   createObjectStore(name) {
-    const store = new FakeStore();
+    const store = new FakeStore(this);
     this.stores.set(name, store);
     return store;
   }
@@ -143,11 +221,11 @@ class FakeDatabase {
 }
 
 class FakeOpenRequest extends FakeRequest {
-  result = new FakeDatabase();
   onupgradeneeded = null;
   onblocked = null;
-  constructor() {
+  constructor(database) {
     super();
+    this.result = database;
     queueMicrotask(() => {
       this.onupgradeneeded?.();
       this.resolve(this.result);
@@ -156,8 +234,12 @@ class FakeOpenRequest extends FakeRequest {
 }
 
 class FakeIDBFactory {
+  constructor() {
+    this.database = new FakeDatabase(this);
+    this.failNextPut = false;
+  }
   open() {
-    return new FakeOpenRequest();
+    return new FakeOpenRequest(this.database);
   }
 }
 
@@ -354,4 +436,212 @@ test("tabs keep separate draft records and recover each other's dirty work", asy
     findForeignDraft([newA], { ...target, scope: "new", entryId: "fresh-2" }),
     newA,
   );
+});
+
+async function backendFixtures() {
+  const storage = new MemoryStorage();
+  const factory = new FakeIDBFactory();
+  return [
+    {
+      name: "sessionstorage",
+      backend: createStorageBackend(storage),
+      fail: () => {
+        storage.failNextSet = true;
+      },
+    },
+    {
+      name: "indexeddb",
+      backend: await openDraftStore({ indexedDB: factory }),
+      fail: () => {
+        factory.failNextPut = true;
+      },
+    },
+  ];
+}
+
+function foreignRecord() {
+  return record({
+    key: draftKey("tenant-a", "seed-a", "entry-a", "foreign"),
+    tabId: "foreign",
+    body: "foreign writing",
+    updatedAt: 1_000,
+  });
+}
+
+test("failed foreign restore leaves the original record in both backends", async () => {
+  for (const fixture of await backendFixtures()) {
+    const recovered = foreignRecord();
+    await fixture.backend.put(recovered);
+    fixture.fail();
+    assert.equal(
+      await restoreForeignDraft(fixture.backend, recovered, {
+        key: draftKey("tenant-a", "seed-a", "entry-a", "current"),
+        tabId: "current",
+      }),
+      "failed",
+      fixture.name,
+    );
+    assert.deepEqual(await fixture.backend.get(recovered.key), recovered);
+    assert.equal((await fixture.backend.list("tenant-a")).length, 1);
+  }
+});
+
+test("foreign restore copies newer source and moves unchanged source", async () => {
+  for (const fixture of await backendFixtures()) {
+    const recovered = foreignRecord();
+    const target = {
+      key: draftKey("tenant-a", "seed-a", "entry-a", "current"),
+      tabId: "current",
+    };
+    await fixture.backend.put(recovered);
+    await fixture.backend.put({
+      ...recovered,
+      body: "newer foreign writing",
+      updatedAt: recovered.updatedAt + 1_000,
+    });
+    assert.equal(
+      await restoreForeignDraft(fixture.backend, recovered, target),
+      "copied",
+      fixture.name,
+    );
+    assert.equal(
+      (await fixture.backend.get(recovered.key)).body,
+      "newer foreign writing",
+    );
+    assert.equal((await fixture.backend.get(target.key)).body, recovered.body);
+
+    await fixture.backend.remove(target.key);
+    await fixture.backend.put(recovered);
+    assert.equal(
+      await restoreForeignDraft(fixture.backend, recovered, target),
+      "moved",
+      fixture.name,
+    );
+    assert.equal(await fixture.backend.get(recovered.key), null);
+    assert.equal((await fixture.backend.get(target.key)).body, recovered.body);
+  }
+});
+
+test("foreign discard is conditional and preserves newer writing", async () => {
+  for (const fixture of await backendFixtures()) {
+    const recovered = foreignRecord();
+    await fixture.backend.put(recovered);
+    await fixture.backend.put({
+      ...recovered,
+      body: "newer foreign writing",
+      updatedAt: recovered.updatedAt + 1_000,
+    });
+    assert.equal(await discardForeignDraft(fixture.backend, recovered), false);
+    assert.equal(
+      (await fixture.backend.get(recovered.key)).body,
+      "newer foreign writing",
+    );
+    assert.equal(await discardForeignDraft(fixture.backend, await fixture.backend.get(recovered.key)), true);
+    assert.equal(await fixture.backend.get(recovered.key), null);
+  }
+});
+
+test("live tab identity reuses released or stale ids and separates duplicates", async () => {
+  const now = 10_000;
+  const staleSession = new MemoryStorage({ [TAB_ID_KEY]: "tab-x" });
+  const local = new MemoryStorage({
+    "slow-garden:live-tabs": JSON.stringify({
+      "tab-x": now - TAB_STALE_MS - 1,
+    }),
+  });
+  assert.equal(claimTabId(staleSession, local, now), "tab-x");
+
+  const openerSession = new MemoryStorage({ [TAB_ID_KEY]: "tab-x" });
+  const sharedLocal = new MemoryStorage();
+  const tabA = claimTabId(openerSession, sharedLocal, now);
+  const copiedSession = new MemoryStorage(
+    Object.fromEntries(openerSession.values),
+  );
+  const tabB = claimTabId(copiedSession, sharedLocal, now + 10);
+  assert.notEqual(tabA, tabB);
+  assert.equal(draftKey("tenant", "seed", "entry", tabA) === draftKey("tenant", "seed", "entry", tabB), false);
+  assert.equal(copiedSession.getItem(TAB_ID_KEY), tabB);
+
+  heartbeatTab(sharedLocal, tabB, now + 20);
+  releaseTab(sharedLocal, tabB);
+  assert.equal(claimTabId(copiedSession, sharedLocal, now + 30), tabB);
+
+  const backend = createStorageBackend(new MemoryStorage());
+  const keyA = draftKey("tenant", "seed", "entry", tabA);
+  const keyB = draftKey("tenant", "seed", "entry", tabB);
+  await backend.put(record({ key: keyA, tabId: tabA }));
+  await backend.put(record({ key: keyB, tabId: tabB }));
+  assert.equal(await backend.removeIf(keyB, 100), true);
+  assert.notEqual(await backend.get(keyA), null);
+  assert.equal(await backend.get(keyB), null);
+  const snapshotA = record({
+    key: keyA,
+    tabId: tabA,
+    updatedAt: 100,
+  });
+  await backend.put(record({ key: keyB, tabId: tabB, updatedAt: 200 }));
+  assert.equal(await discardForeignDraft(backend, snapshotA), true);
+  assert.notEqual(await backend.get(keyB), null);
+
+  resetTabIdentityForTests();
+  const identitySession = new MemoryStorage();
+  const identityLocal = new MemoryStorage();
+  const first = ensureTabIdentity({
+    sessionStorage: identitySession,
+    localStorage: identityLocal,
+  });
+  assert.equal(
+    ensureTabIdentity({
+      sessionStorage: new MemoryStorage(),
+      localStorage: new MemoryStorage(),
+    }),
+    first,
+  );
+  resetTabIdentityForTests();
+});
+
+test("sign-out tombstones notify subscribers and block deferred writes", async () => {
+  const now = 50_000;
+  const local = new MemoryStorage();
+  markDraftsCleared(local, "tenant-a", now);
+  assert.equal(draftsClearedSince(local, "tenant-a", now - 1), true);
+  assert.equal(draftsClearedSince(local, "tenant-a", now + 1), false);
+  assert.equal(draftsClearedSince(local, "tenant-b", now - 1), false);
+
+  const previousWindow = globalThis.window;
+  const previousChannel = globalThis.BroadcastChannel;
+  const fakeWindow = new EventTarget();
+  globalThis.window = fakeWindow;
+  globalThis.BroadcastChannel = undefined;
+  try {
+    let calls = 0;
+    const unsubscribe = subscribeDraftsCleared("tenant-a", () => {
+      calls += 1;
+    });
+    const event = new Event("storage");
+    Object.defineProperties(event, {
+      key: { value: DRAFTS_CLEARED_KEY },
+      newValue: {
+        value: JSON.stringify({ tenantId: "tenant-a", at: now }),
+      },
+    });
+    fakeWindow.dispatchEvent(event);
+    assert.equal(calls, 1);
+    unsubscribe();
+    fakeWindow.dispatchEvent(event);
+    assert.equal(calls, 1);
+    broadcastDraftsCleared("tenant-a");
+  } finally {
+    globalThis.window = previousWindow;
+    globalThis.BroadcastChannel = previousChannel;
+  }
+
+  const backend = createStorageBackend(new MemoryStorage());
+  const pending = record({ tenantId: "tenant-a", updatedAt: now + 1 });
+  await backend.put(pending);
+  markDraftsCleared(local, "tenant-a", now + 2);
+  await backend.clear("tenant-a");
+  if (!draftsClearedSince(local, "tenant-a", now + 1))
+    await backend.put({ ...pending, body: "must not return" });
+  assert.equal((await backend.list("tenant-a")).length, 0);
 });
