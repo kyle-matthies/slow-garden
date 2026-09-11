@@ -42,7 +42,7 @@
   padding: 16px 18px;
   margin: 10px 0;
   color: inherit;
-  background: #fffdf7;
+  background: var(--surface-solid, #fffdf7);
   border: 1px solid var(--line);
   border-radius: 10px;
   cursor: pointer;
@@ -62,7 +62,7 @@
   line-height: 1.6;
 }
 .lens-excerpt mark {
-  background: #f1d990;
+  background: var(--highlight, #f1d990);
   color: inherit;
   padding: 0 1px;
   border-radius: 2px;
@@ -87,5 +87,11 @@
 @media (max-width: 760px) {
   .lens-search .search-field input {
     min-width: 0;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  .lens-excerpt mark {
+    --highlight: #6b5a1c;
   }
 }
