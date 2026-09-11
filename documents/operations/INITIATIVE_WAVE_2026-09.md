@@ -219,6 +219,64 @@ the receipts in each record's follow-ups exist.
 | 9 | [#11](https://github.com/kyle-matthies/slow-garden/pull/11) | Enforced CSP (still `'unsafe-inline'`), COOP/CORP, `npm audit` in CI, `SECURITY_REVIEW_2026-09.md` with T-01..T-13 receipts and follow-ups F-1..F-10. |
 | 10 | [#7](https://github.com/kyle-matthies/slow-garden/pull/7) | `FirstRun` four-step flow replacing the first-garden branch; starter topics opt-in; login explains the code and adds resend. |
 
+## Verification — 2026-09-11 (combined tree `9d5eae1`, wave still unmerged)
+
+Two review rounds (Devin browser run, then Codex + maintainer) produced corrections on each
+initiative branch. Nothing has merged; `main` is untouched. Evidence is grouped by kind so
+that passing checks are not mistaken for closed gates.
+
+### Corrections landed on the owning branches
+
+| PR | Round 1 (Devin/Codex) | Round 2 (maintainer) |
+|---|---|---|
+| #13 | per-tab draft keys; editor locked while the pending write flushes; sign-out clears pending writes | atomic version-checked Restore transfer, compare-and-delete Discard, live-tab registry so opener/duplicated tabs get fresh ids, cross-tab sign-out tombstone + `BroadcastChannel` with post-clear writes blocked |
+| #9 | entry ids keyed by date + occurrence; impossible calendar dates rejected; date-update failures surfaced; form remounts per garden | date stamping re-applied on every confirm so a retry repairs a failed update (`import-core.ts`, fake-db regression) |
+| #15 | continuation queue appended to existing durable drafts; archived source links carry `view=archive` | Continue only for a writable owning thought/topic/garden; otherwise "Restore the thought to continue it" (`lib/garden/writable.ts`) |
+| #14 / #11 | CI runs the `.mjs` suites via `npm run test:node` | Vitest 4.1.11 + lockfile; combined `npm audit --audit-level=high` clean |
+| #8 | malformed arrays/fields reported as `packet-invalid` | null cases and null sources validated before property access |
+| #10 | — | rollback cancels and drains active passes before disabling the global `private.ai_runtime` switch; switch documented as global, not per tenant |
+| #7 / #16 | resend aligned to the 60 s throttle; dark card tokens | muted-ink token for first-run text (≥ 8.68:1 measured); `.plant-grid` is a labelled `<section>`, axe allowlist emptied |
+
+### Static and unit verification (combined tree)
+
+`npm ci` · `npm audit --audit-level=high` (0) · `npm run lint` · `tsc --noEmit` · Vitest 8/8 ·
+`npm run test:node` 70/70 · worker runtime 25/25 · `scripts/canary-dry-run.mjs` 7/7 offline
+scenarios · `next build`.
+
+### Browser receipts (local Supabase + Mailpit, synthetic identities, `GARDEN_AI_ENABLED=false`)
+
+Passed at `9d5eae1`: opener-tab isolation; Restore and Discard after the other tab edited
+(newer record preserved); cross-tab and same-tab pending-write sign-out cleanup; reload and
+close/reopen recovery; rapid save keeps submit-time text; stale-edit rejection; Cabinet
+Continue gated on archived thought, still offered for an archived entry in an active thought,
+appends after existing draft text; archived source link lands in the archive view; duplicate
+dated import creates three entries and replays as three skips with source dates retained;
+Feb 30 rejected; garden switch resets the topic; export v2 filters; timeline/search/archive;
+resend enabled at ~60.3 s and accepted; FirstRun starter gating at 390 px light/dark; skip
+links; axe harness 0 violations over 32 state/scheme/viewport cases; production `next start`
+security headers and CSP with local-only `connect-src`, zero CSP/console errors;
+`/garden/returns-preview` and `/dev/axe-fixtures` soft-404 in production.
+
+### Local database verification
+
+Supabase database tests and lint run in CI per branch; the combined tree was exercised against
+the `.local-runtime` stack only. No migration in this wave has been applied anywhere.
+
+### Remaining gaps (roadmap boxes stay unchecked)
+
+- Physical phones/tablets: only emulated 390 px viewports were checked.
+- Real-tenant continuation persistence: only synthetic tenants; hosted preview not exercised.
+- `/dev/axe-fixtures` isolation with `GARDEN_AXE_FIXTURES` explicitly set was not tested.
+- Full regression on the final tree was a delta run over the earlier full run at `64628c6`.
+- Proposed migrations (`provider_orphans`, `source_date`/`p_created_at`, `entry_drafts`) remain
+  proposals.
+
+### Closed gates
+
+AI activation and any external pilot remain closed (ADR-006). The activation runbook's global
+enable switch means any future canary needs a synthetic-only environment or a maintained
+exclusion of real tenants. Merge of the wave is held pending maintainer approval.
+
 ### Suggested merge order
 
 Non-`workspace.tsx` PRs first, then the five that add hook points to `workspace.tsx`,

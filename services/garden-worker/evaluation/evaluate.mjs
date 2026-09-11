@@ -12,9 +12,13 @@ const sha256 = (text) => createHash("sha256").update(text).digest("hex");
 const normalize = (body) => body.toLowerCase().replace(/\s+/g, " ").trim();
 
 const list = (value) => (Array.isArray(value) ? value : []);
+const isObject = (value) =>
+  value !== null && typeof value === "object" && !Array.isArray(value);
 
-function checkCase(raw, seenBodies) {
+function checkCase(input, seenBodies) {
   const problems = [];
+  const raw = isObject(input) ? input : {};
+  if (!isObject(input)) problems.push("malformed_case");
   const c = {
     ...raw,
     sources: list(raw.sources),
@@ -26,12 +30,14 @@ function checkCase(raw, seenBodies) {
   for (const field of ["sources", "superseded_revisions", "excluded_sources", "corrections", "rejected_returns"])
     if (!Array.isArray(raw[field])) problems.push(`malformed_field:${field}`);
   if (typeof c.id !== "string" || !c.id) problems.push("missing_case_id");
-  const snapshotIds = new Set(c.sources.map((s) => s.revision_id));
+  const snapshotIds = new Set(
+    c.sources.filter(isObject).map((s) => s.revision_id),
+  );
   if (!c.sources.length) problems.push("empty_snapshot");
   if (!["none", "bloom", "either"].includes(c.expected_output))
     problems.push("unknown_expected_output");
   for (const s of c.sources) {
-    if (!s || typeof s.body !== "string") {
+    if (!isObject(s) || typeof s.body !== "string") {
       problems.push("malformed_source");
       continue;
     }
@@ -42,6 +48,10 @@ function checkCase(raw, seenBodies) {
     seenBodies.set(normalize(s.body), c.id);
   }
   for (const r of c.superseded_revisions) {
+    if (!isObject(r)) {
+      problems.push("malformed_superseded_revision");
+      continue;
+    }
     if (snapshotIds.has(r.revision_id)) problems.push(`superseded_in_snapshot:${r.revision_id}`);
     const current = c.sources.find((s) => s.revision_id === r.superseded_by);
     if (!current) problems.push(`superseded_by_missing:${r.revision_id}`);
@@ -51,12 +61,16 @@ function checkCase(raw, seenBodies) {
     }
   }
   for (const x of c.excluded_sources) {
+    if (!isObject(x)) {
+      problems.push("malformed_excluded_source");
+      continue;
+    }
     if (snapshotIds.has(x.revision_id)) problems.push(`excluded_in_snapshot:${x.revision_id}`);
     if (x.plot_id === c.plot_id) problems.push(`excluded_same_plot:${x.revision_id}`);
   }
   let prev = "";
   for (const k of c.corrections) {
-    if (!k || !Array.isArray(k.revision_ids)) {
+    if (!isObject(k) || !Array.isArray(k.revision_ids)) {
       problems.push("malformed_correction");
       continue;
     }
@@ -66,9 +80,12 @@ function checkCase(raw, seenBodies) {
       if (!snapshotIds.has(id)) problems.push(`correction_unknown_revision:${k.id}`);
     if (!["correct", "coincidence"].includes(k.action)) problems.push(`correction_action:${k.id}`);
   }
+  const validSources = c.sources.filter(
+    (s) => isObject(s) && typeof s.body === "string",
+  );
   let reference_valid = true;
   try {
-    validateReturn(c.reference_return, c.sources);
+    validateReturn(c.reference_return, validSources);
   } catch (e) {
     reference_valid = false;
     problems.push(`reference_return_invalid:${e.message}`);
@@ -79,7 +96,7 @@ function checkCase(raw, seenBodies) {
   let rejected_refused = 0;
   c.rejected_returns.forEach((r, i) => {
     try {
-      validateReturn(r, c.sources);
+      validateReturn(r, validSources);
       problems.push(`rejected_return_accepted:${i}`);
     } catch {
       rejected_refused++;
@@ -104,10 +121,10 @@ function checkCase(raw, seenBodies) {
 export function evaluateCorpus(cases = corpus) {
   const seenBodies = new Map();
   const seenIds = new Set();
-  const results = cases.map((c) => {
+  const results = list(cases).map((c) => {
     const r = checkCase(c, seenBodies);
-    if (seenIds.has(c.id)) r.problems.push("duplicate_case_id");
-    seenIds.add(c.id);
+    if (seenIds.has(r.id)) r.problems.push("duplicate_case_id");
+    seenIds.add(r.id);
     return r;
   });
   const families = {};
@@ -128,7 +145,7 @@ export function evaluateCorpus(cases = corpus) {
     Object.values(families).every((f) => f.actual === f.required) &&
     Object.values(fixtures).every((f) => f.actual >= f.required);
   const problems = results.flatMap((r) => r.problems.map((p) => `${r.id}:${p}`));
-  const corpusJson = JSON.stringify(cases);
+  const corpusJson = JSON.stringify(list(cases));
   return {
     status: problems.length || !coverage_ok ? "packet-invalid" : "packet-valid",
     note: "Deterministic packet integrity only; no model output was scored and no release approval is inferred.",
@@ -143,10 +160,10 @@ export function evaluateCorpus(cases = corpus) {
       bloom: results.filter((r) => r.expected_output === "bloom").length,
       either: results.filter((r) => r.expected_output === "either").length,
     },
-    evidence_excerpts: cases.reduce(
+    evidence_excerpts: list(cases).reduce(
       (n, c) =>
         n +
-        list(c.reference_return?.blooms).reduce(
+        list(c?.reference_return?.blooms).reduce(
           (m, b) => m + list(b?.evidence).length,
           0,
         ),

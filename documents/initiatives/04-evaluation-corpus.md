@@ -113,7 +113,8 @@ Not verified:
 
 - `evaluateCorpus` now reports structurally malformed cases (missing arrays, blank ids,
   sources without bodies, corrections without revision lists, reference returns without
-  blooms) as `packet-invalid` problems instead of throwing; covered by
+  blooms, and null cases, sources, superseded revisions, or excluded sources) as
+  `packet-invalid` problems instead of throwing; covered by
   `tests/evaluation/corpus.test.mjs`.
 - Proposed decision: the worker snapshot contract does not yet pass superseded-revision
   or excluded-plot identifiers to `validateReturn`; the corpus models them as absent from

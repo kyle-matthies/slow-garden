@@ -84,10 +84,16 @@ Verified locally (Node 22.23.2):
 - `node --test services/garden-worker/runtime.test.mjs` — 14 passed.
 - Lockfile diff against `main` contains no version changes or removals of
   previously locked packages; only additions and reordering.
+- `npm audit --audit-level=high` — 0 vulnerabilities with `vitest` 4.1.11 (4.0.18 carried
+  GHSA-5xrq-8626-4rwp and GHSA-82fw-gwwq-j7x9 via `@vitest/mocker`).
+- Combined checkout with initiative 9 (`devin/1789018546-security-hardening`): `npm ci`,
+  `npm audit --audit-level=high`, `npm test`, `npm run test:node`, lint, `tsc`, build,
+  and the worker `runtime.test.mjs` all pass.
 
 Not verified:
 
-- The CI run of the `npm test` step on GitHub Actions (pending on the pull request).
+- The CI run of the `npm test` step on GitHub Actions passed on the pull request; the
+  integrated run on `main` with all wave branches merged is pending.
 - Rendering of `EntryTime` under non-English locales; the test asserts an English
   month abbreviation via the jsdom/Node default locale.
 

@@ -31,7 +31,7 @@ The system reads only files the person chooses and saves nothing until they conf
 - Duplicate import: every entry reported as already present; no new rows.
 - Repeated text under different dates, or repeated within a day: kept as distinct entries.
 - Impossible calendar date (e.g. `2026-02-30`): the whole request is rejected before any write.
-- Date stamping fails after `save_entry`: the import reports failure instead of silently leaving the entry at import time; retrying is safe because ids are deterministic.
+- Date stamping fails after `save_entry`: the import reports failure instead of silently leaving the entry at import time; the date stamp is applied whether or not the revision already existed, so a retry re-applies it to the same deterministic ids.
 - Switching gardens on the import page remounts the form, so the topic list and selection always belong to the garden shown.
 - Partial failure: files import sequentially; each shows its own result, and a failed file leaves the others' results visible. Because ids are deterministic, retrying is safe.
 - Signed out mid-import: quiet error, files remain in the browser.
@@ -52,13 +52,13 @@ Depends on ADR-006 (web-first) and the existing `save_entry` RPC and RLS. Non-go
 Built (branch `devin/1789018577-import-portability`):
 
 - `applications/web/src/lib/garden/import.ts`: `parseImportFile`, `parseDateHeading`, `sha256Hex`, `deterministicId`, `IMPORT_LIMITS` (pure; runs in browser and Node).
-- `applications/web/src/app/garden/import/`: `page.tsx` (auth + `loadGarden`), `import-form.tsx` (preview and confirm), `actions.ts` (`importThought` server action: validation, active-topic check, deterministic ids, `save_entry`, created/skipped counts, entry back-dating), `import.css`.
+- `applications/web/src/app/garden/import/`: `page.tsx` (auth + `loadGarden`), `import-form.tsx` (preview and confirm), `actions.ts` (`importThought` server action: auth and a Supabase adapter over `ImportDb`), `import-core.ts` (`runImport`: validation, active-topic check, deterministic ids, `save_entry`, created/skipped counts, entry back-dating — pure, tested against a fake db), `import.css`.
 - `applications/web/src/lib/garden/export.ts`: `ExportSnapshot`, `filterSnapshotByGarden`, `buildExportDocument`, `formatExportMarkdown`, `exportFilename`; `export/route.ts` now loads passes, blooms, and responses with `allRows` and honours `?garden=`.
 - `workspace.tsx`: three links in the settings section and one sentence of copy.
 
 Verified locally on Node 22:
 
-- `node --test src/lib/garden/import.test.mjs src/lib/garden/export.test.mjs`: 20 passing (Node 22 type stripping; `.mjs` keeps them out of the Vitest glob).
+- `node --test src/lib/garden/import.test.mjs src/lib/garden/export.test.mjs src/app/garden/import/import-core.test.mjs`: 26 passing, including a fake-db regression test that a failed date stamp is re-applied on retry (Node 22 type stripping; `.mjs` keeps them out of the Vitest glob).
 - `npm run lint`, `npx tsc --noEmit`, `npm run build`: pass (`/garden/import` registered as a dynamic route).
 - `node --test services/garden-worker/runtime.test.mjs`: 14 passing.
 
@@ -72,6 +72,7 @@ Not verified:
 
 - Run `scripts/test-web-journeys.mjs`-style coverage for import and per-garden export against the disposable local stack and record a receipt.
 - Decision: whether back-dating `entries.created_at` on import is the right chronology signal, or whether an explicit `imported_at`/`source_date` column (proposed migration, not applied) should carry it.
+- Proposed migration (not applied): a `save_entry` overload with `p_created_at timestamptz default null` so entry creation and source-date stamping happen in one statement; today the stamp is a second write that is re-applied on retry.
 - Decision: whether the import should offer merging into an existing thought rather than always creating one.
 - The tests use `node:test` and `node:assert/strict` in `.test.mjs` files so `npm test` (Vitest, `*.test.ts`) does not try to bundle `node:test`; port to Vitest later if desired.
 - Consider a `scripts/verify-web-export.mjs` that round-trips a fixture through the JSON and Markdown exporters and the importer.
