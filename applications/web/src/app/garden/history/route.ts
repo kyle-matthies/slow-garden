@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { allRows } from "@/lib/garden/data";
+import { applyPrivateCacheHeaders } from "@/lib/garden/cache-headers";
 export async function GET(request: Request) {
   const db = await createClient();
   const { data, error } = await db.auth.getClaims();
@@ -17,9 +18,7 @@ export async function GET(request: Request) {
         .order("revision_number", { ascending: false })
         .range(a, b),
     );
-    return Response.json(rows, {
-      headers: { "Cache-Control": "private, no-store" },
-    });
+    return applyPrivateCacheHeaders(Response.json(rows));
   } catch {
     return new Response("History unavailable", { status: 503 });
   }

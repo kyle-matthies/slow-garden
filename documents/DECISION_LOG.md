@@ -189,3 +189,24 @@ The local proof of concept remains valid evidence, but it is no longer the produ
   stable decorative identity may improve now; photographic asset replacement waits.
 - Evidence: Owner testing feedback, three explicit planning choices, and approval to
   implement the proposed functional plan. Personal example names are omitted.
+
+## D-021: September 2026 initiative wave with parallel, evidence-gated delivery
+
+- Status: Accepted; initiatives are Proposed until their evidence exists
+- Date: 2026-09-10
+- Decision: Run ten scoped initiatives in parallel, each as one reviewable pull request
+  with its own record under `documents/initiatives/`. Prioritize protecting existing
+  writing (durable drafts, tests) over new capability, then the no-AI garden's usefulness
+  (chronology, search, import, first run, accessibility), then activation gates
+  (evaluation corpus, worker receipts, return Cabinet, security review). No initiative
+  activates AI, applies a migration, changes hosted configuration, or adds chat or
+  autocomplete to capture.
+- Decision: Shared files have owners. `globals.css` belongs to the accessibility
+  initiative; other initiatives style through component-imported CSS. `ROADMAP.md` and
+  this log are updated only by the wave owner during roll-up.
+- Rationale: The writing release is deployed and the next question is voluntary return
+  without AI. Parallel delivery is safe only with explicit file ownership and per-
+  initiative evidence, so that speed does not erode the trust contract.
+- Evidence: [Initiative wave plan](operations/INITIATIVE_WAVE_2026-09.md).
+- Revisit when: Two or more initiatives conflict in review, or dogfood evidence
+  reprioritizes the no-AI garden versus activation work.

@@ -5,40 +5,26 @@ import {
   useEffect,
   useRef,
   useState,
-  useSyncExternalStore,
   type FormEvent,
 } from "react";
 import type { GardenData, Entry, ActionResult } from "@/lib/garden/types";
+import {
+  broadcastDraftsCleared,
+  clearLegacySessionDrafts,
+  markDraftsCleared,
+  openDraftStore,
+} from "@/lib/garden/drafts";
 import { GardenReturns } from "./returns";
+import { ChronologyLens, GardenSearch, type LensView } from "./chronology";
+import { EntryTime } from "./entry-time";
+import { EntryEditor } from "./entry-editor";
+import { FirstRun } from "./first-run";
 import {
   createArea,
-  saveEntry,
   setArchived,
   setPlotPermissions,
   signOut,
 } from "./actions";
-
-const subscribeToClock = () => () => {};
-function EntryTime({ value }: { value: string }) {
-  const hydrated = useSyncExternalStore(
-    subscribeToClock,
-    () => true,
-    () => false,
-  );
-  return (
-    <time dateTime={value}>
-      {new Date(value).toLocaleString(undefined, {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-        hour: "numeric",
-        minute: "2-digit",
-        timeZone: hydrated ? undefined : "UTC",
-        timeZoneName: "short",
-      })}
-    </time>
-  );
-}
 
 function Plant({ identity = "garden" }: { identity?: string }) {
   const variant = Array.from(identity).reduce(
@@ -178,150 +164,6 @@ function NewArea({
   );
 }
 
-type Draft = {
-  body: string;
-  entryId: string;
-  revisionId: string;
-  expectedRevisionId: string | null;
-};
-function EntryEditor({
-  tenantId,
-  seedId,
-  entry,
-  onSaved,
-}: {
-  tenantId: string;
-  seedId: string;
-  entry?: Entry;
-  onSaved: (entryId: string) => void;
-}) {
-  const storageKey = `slow-garden:draft:v2:${tenantId}:${seedId}:${entry?.entry_id ?? "new"}`;
-  const [draft, setDraft] = useState<Draft>({
-    body: entry?.body ?? "",
-    entryId: entry?.entry_id ?? "",
-    revisionId: "",
-    expectedRevisionId: entry?.revision_id ?? null,
-  });
-  const [ready, setReady] = useState(false),
-    [pending, setPending] = useState(false),
-    [status, setStatus] = useState(""),
-    [storageWorks, setStorageWorks] = useState(true);
-  // Browser draft hydration is intentionally a one-time external-store synchronization.
-  /* eslint-disable react-hooks/set-state-in-effect */
-  useEffect(() => {
-    let initial: Draft = {
-      body: entry?.body ?? "",
-      entryId: entry?.entry_id ?? crypto.randomUUID(),
-      revisionId: crypto.randomUUID(),
-      expectedRevisionId: entry?.revision_id ?? null,
-    };
-    try {
-      const saved = sessionStorage.getItem(storageKey);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (
-          typeof parsed.body === "string" &&
-          typeof parsed.entryId === "string" &&
-          typeof parsed.revisionId === "string"
-        )
-          initial = parsed;
-      }
-    } catch {
-      setStorageWorks(false);
-    }
-    // Hydrate the tab-local draft only after mounting; never read browser storage on the server.
-    setDraft(initial);
-    setReady(true);
-  }, [storageKey, entry?.body, entry?.entry_id, entry?.revision_id]);
-  /* eslint-enable react-hooks/set-state-in-effect */
-  useEffect(() => {
-    if (!ready) return;
-    const protect = (event: BeforeUnloadEvent) => {
-      if (draft.body !== (entry?.body ?? "")) {
-        event.preventDefault();
-      }
-    };
-    window.addEventListener("beforeunload", protect);
-    return () => window.removeEventListener("beforeunload", protect);
-  }, [draft.body, ready, entry?.body]);
-  function change(body: string) {
-    const next = { ...draft, body, revisionId: crypto.randomUUID() };
-    setDraft(next);
-    setStatus("Not saved yet");
-    try {
-      sessionStorage.setItem(storageKey, JSON.stringify(next));
-    } catch {
-      setStorageWorks(false);
-    }
-  }
-  async function submit(e: FormEvent) {
-    e.preventDefault();
-    setPending(true);
-    setStatus("Saving…");
-    try {
-      const result = await saveEntry({ seedId, ...draft });
-      if (!result.ok) {
-        setStatus(result.message);
-        return;
-      }
-      try {
-        sessionStorage.removeItem(storageKey);
-      } catch {}
-      setStatus("Saved");
-      if (!entry)
-        setDraft({
-          body: "",
-          entryId: crypto.randomUUID(),
-          revisionId: crypto.randomUUID(),
-          expectedRevisionId: null,
-        });
-      onSaved(draft.entryId);
-    } catch {
-      setStatus(
-        "Connection interrupted. Your draft is still here. Retry when connected.",
-      );
-    } finally {
-      setPending(false);
-    }
-  }
-  return (
-    <form className="writing-form" onSubmit={submit}>
-      <label
-        className="panel-kicker"
-        htmlFor={`writing-${entry?.entry_id ?? "new"}`}
-      >
-        {entry ? "Revise this entry" : "New entry"}
-      </label>
-      <textarea
-        id={`writing-${entry?.entry_id ?? "new"}`}
-        aria-label={entry ? "Revise entry" : "New entry"}
-        placeholder="A thought, a question, something you’re not ready to name…"
-        value={draft.body}
-        onChange={(e) => change(e.target.value)}
-        disabled={!ready || pending}
-        maxLength={20000}
-        required
-      />
-      <div className="writing-footer">
-        <button
-          className="primary-button"
-          disabled={!ready || pending || !draft.body.trim()}
-        >
-          {pending ? "Saving…" : entry ? "Save revision" : "Save entry"}
-        </button>
-        <span role="status" aria-live="polite">
-          {status}
-        </span>
-      </div>
-      <p className="form-note">
-        {storageWorks
-          ? "Unsaved writing stays in this tab when you revisit. Save before closing the tab."
-          : "This browser cannot retain drafts. Keep this page open until saved."}{" "}
-        AI stays outside your writing.
-      </p>
-    </form>
-  );
-}
 function EntryCard({
   entry,
   tenantId,
@@ -421,12 +263,15 @@ function EntryCard({
   );
 }
 export function GardenWorkspace({ data }: { data: GardenData }) {
+  const [editorGeneration, setEditorGeneration] = useState(0);
   const router = useRouter();
   const params = useSearchParams();
   const [search, setSearch] = useState(""),
     [settings, setSettings] = useState(false),
     [notice, setNotice] = useState(""),
-    [savedEntry, setSavedEntry] = useState("");
+    [savedEntry, setSavedEntry] = useState(""),
+    [quietPage, setQuietPage] = useState(false),
+    [firstRun, setFirstRun] = useState(() => data.gardens.length === 0);
   const garden = data.gardens.find((g) => g.id === data.gardenId);
   const requestedTopic = params.get("topic") ?? "";
   const requestedThought = params.get("thought") ?? "";
@@ -435,16 +280,23 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
     data.seeds.find((s) => s.id === requestedThought && s.plot_id === plotId)
       ?.id ?? "";
   const archived = params.get("view") === "archive";
+  const timeline = params.get("view") === "timeline";
+  const view: LensView = archived ? "archive" : timeline ? "timeline" : "";
   const invalidLocation =
     (!!requestedTopic && !plotId) ||
     (!!requestedThought && !seedId) ||
     (!!params.get("garden") && params.get("garden") !== data.gardenId);
-  function navigate(topic = "", thought = "", archive = archived, entry = "") {
+  function navigate(
+    topic = "",
+    thought = "",
+    nextView: LensView = view,
+    entry = "",
+  ) {
     const query = new URLSearchParams();
     if (data.gardenId) query.set("garden", data.gardenId);
     if (topic) query.set("topic", topic);
     if (thought) query.set("thought", thought);
-    if (archive) query.set("view", "archive");
+    if (nextView) query.set("view", nextView);
     window.history.pushState(
       null,
       "",
@@ -452,6 +304,7 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
     );
     setSearch("");
     setSavedEntry("");
+    setQuietPage(false);
   }
   const setPlotId = (id: string) => navigate(id);
   const setSeedId = (id: string) =>
@@ -464,26 +317,6 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
     if (anchor)
       document.getElementById(anchor)?.scrollIntoView({ block: "center" });
   }, [params, data.entries, savedEntry]);
-  useEffect(() => {
-    const protectDrafts = (event: BeforeUnloadEvent) => {
-      try {
-        for (let i = 0; i < sessionStorage.length; i++) {
-          const key = sessionStorage.key(i);
-          if (
-            key?.startsWith(`slow-garden:draft:v2:${data.tenantId}:`) &&
-            JSON.parse(sessionStorage.getItem(key) ?? "{}").body
-          ) {
-            event.preventDefault();
-            return;
-          }
-        }
-      } catch {
-        /* The editor separately warns if storage is unavailable. */
-      }
-    };
-    window.addEventListener("beforeunload", protectDrafts);
-    return () => window.removeEventListener("beforeunload", protectDrafts);
-  }, [data.tenantId]);
   const plots = data.plots.filter((p) =>
     archived
       ? garden?.status === "archived" ||
@@ -556,7 +389,7 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
     if (
       archive &&
       !window.confirm(
-        `Archive this ${label}? It will be hidden from active views, not deleted. Find it in Archive to restore it. Any unsaved draft stays in this tab.`,
+        `Archive this ${label}? It will be hidden from active views, not deleted. Find it in Archive to restore it. Any unsaved draft stays in this browser.`,
       )
     )
       return;
@@ -570,7 +403,7 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
   async function leave(scope: "local" | "global" = "local") {
     if (
       !window.confirm(
-        "Sign out and clear this tab’s unsaved drafts? Save any writing you want to keep first.",
+        "Sign out and clear this browser’s unsaved drafts? Save any writing you want to keep first.",
       )
     )
       return;
@@ -582,10 +415,20 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
       );
       return;
     }
-    for (let i = sessionStorage.length - 1; i >= 0; i--) {
-      const key = sessionStorage.key(i);
-      if (key?.startsWith(`slow-garden:draft:v2:${data.tenantId}:`))
-        sessionStorage.removeItem(key);
+    try {
+      let safeLocalStorage: Storage | null = null;
+      try {
+        safeLocalStorage = localStorage;
+      } catch {
+        safeLocalStorage = null;
+      }
+      markDraftsCleared(safeLocalStorage, data.tenantId);
+      broadcastDraftsCleared(data.tenantId);
+      const store = await openDraftStore();
+      await store?.clear(data.tenantId);
+      clearLegacySessionDrafts(sessionStorage, data.tenantId);
+    } catch {
+      // Sign out still succeeds if browser storage is unavailable.
     }
     router.replace("/login");
     router.refresh();
@@ -609,7 +452,7 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
           <button
             className="plain-button"
             onClick={() => {
-              navigate("", "", !archived);
+              navigate("", "", archived ? "" : "archive");
             }}
           >
             {archived ? "Back to garden" : "Archive"}
@@ -630,10 +473,33 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
             <a className="secondary-button" href="/garden/export?format=md">
               Export all sources · Markdown
             </a>
+            {data.gardenId && (
+              <>
+                <a
+                  className="secondary-button"
+                  href={`/garden/export?garden=${data.gardenId}`}
+                >
+                  Export this garden · JSON
+                </a>
+                <a
+                  className="secondary-button"
+                  href={`/garden/export?format=md&garden=${data.gardenId}`}
+                >
+                  Export this garden · Markdown
+                </a>
+              </>
+            )}
+            <Link
+              className="secondary-button"
+              href={`/garden/import?garden=${data.gardenId}`}
+            >
+              Import notes
+            </Link>
           </div>
           <p>
-            Exports include archived writing and every revision. Drafts remain
-            in this browser tab until saved.
+            Exports include archived writing and every revision, with
+            AI-derived blooms kept in a separate section from your own words.
+            Unsaved drafts stay privately in this browser until saved or discarded.
           </p>
           <p>
             You stay signed in on this browser between visits, until you sign
@@ -649,7 +515,7 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
           </div>
         </section>
       )}
-      <div className="garden-frame">
+      <div className={`garden-frame${quietPage ? " quiet-page" : ""}`}>
         <aside className="plot-rail">
           <label className="panel-kicker" htmlFor="garden-choice">
             Your garden
@@ -780,20 +646,30 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
             </p>
           )}
 
-          {!garden ? (
-            <div className="first-garden">
-              <Plant />
-              <h1>A place for what’s on your mind.</h1>
-              <p>Name a garden. Leave room for the thoughts that follow.</p>
-              <NewArea
-                kind="garden"
-                parentId=""
-                onCreated={(id) => {
-                  router.push(`/garden?garden=${id}`);
-                  refresh();
-                }}
-              />
-            </div>
+          {firstRun || !garden ? (
+            <FirstRun
+              tenantId={data.tenantId}
+              onDone={({ gardenId, topicId, thoughtId, entryId }) => {
+                setFirstRun(false);
+                const query = new URLSearchParams({
+                  garden: gardenId,
+                  topic: topicId,
+                  thought: thoughtId,
+                });
+                router.push(
+                  `/garden?${query}${entryId ? `#entry-${entryId}` : ""}`,
+                );
+                refresh();
+              }}
+            />
+          ) : timeline && !seed ? (
+            <ChronologyLens
+              key={`${data.gardenId}:${plotId}`}
+              data={data}
+              plotId={plotId}
+              archived={archived}
+              onNavigate={navigate}
+            />
           ) : seed ? (
             <>
               <button
@@ -821,7 +697,7 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
                 garden.status === "active" &&
                 !data.plots.find((p) => p.id === seed.plot_id)?.archived_at && (
                   <EntryEditor
-                    key={`${data.gardenId}:${seed.id}`}
+                    key={`${data.gardenId}:${seed.id}:${editorGeneration}`}
                     tenantId={data.tenantId}
                     seedId={seed.id}
                     onSaved={(id) => {
@@ -829,6 +705,8 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
                       setSavedEntry(id);
                       refresh();
                     }}
+                    quietPage={quietPage}
+                    onQuietPageChange={setQuietPage}
                   />
                 )}
               <div className="journal-entries" id="saved-entries">
@@ -891,15 +769,15 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
                 </p>
               </div>
               <div className="meadow-tools">
-                <label className="search-field">
-                  <span className="sr-only">Find a thought</span>
-                  <input
-                    type="search"
-                    placeholder="Find a thought…"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                  />
-                </label>
+                <GardenSearch
+                  key={`${data.gardenId}:${plotId}:${view}`}
+                  data={data}
+                  plotId={plotId}
+                  archived={archived}
+                  query={search}
+                  onQueryChange={setSearch}
+                  onNavigate={navigate}
+                />
                 {plot &&
                   garden.status === "active" &&
                   !plot.archived_at &&
@@ -939,9 +817,11 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
                   ))}
                 </div>
               )}
-              <h2>{plot ? "Thoughts in this topic" : "All thoughts"}</h2>
-              <div className="plant-grid" aria-label="Thoughts">
-                {seeds.map((s) => (
+              {!search && (
+                <h2>{plot ? "Thoughts in this topic" : "All thoughts"}</h2>
+              )}
+              <section className="plant-grid" aria-label="Thoughts">
+                {(search ? [] : seeds).map((s) => (
                   <button
                     className="seed-plant"
                     key={s.id}
@@ -983,14 +863,12 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
                     </small>
                   </button>
                 ))}
-              </div>
-              {seeds.length === 0 && (
+              </section>
+              {seeds.length === 0 && !search && (
                 <p className="empty-garden-note">
-                  {search
-                    ? "No thoughts match this search."
-                    : plot
-                      ? "Create a thought in this topic, then save your first dated entry."
-                      : "Create a topic for related thoughts, then add a thought and its first entry."}
+                  {plot
+                    ? "Create a thought in this topic, then save your first dated entry."
+                    : "Create a topic for related thoughts, then add a thought and its first entry."}
                 </p>
               )}
               {!plot && !archived && !search && (
@@ -1016,7 +894,7 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
                             navigate(
                               thought.plot_id,
                               thought.id,
-                              false,
+                              "",
                               e.entry_id,
                             )
                           }
@@ -1052,7 +930,10 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
                   key={plot.id}
                   data={data}
                   plotId={plot.id}
-                  onContinue={setSeedId}
+                  onContinue={(id) => {
+                    setSeedId(id);
+                    setEditorGeneration((n) => n + 1);
+                  }}
                 />
               )}
               {plot && (
