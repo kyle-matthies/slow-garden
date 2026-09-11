@@ -11,13 +11,30 @@ import { corpus, requiredFamilies, requiredFixtures } from "./corpus.mjs";
 const sha256 = (text) => createHash("sha256").update(text).digest("hex");
 const normalize = (body) => body.toLowerCase().replace(/\s+/g, " ").trim();
 
-function checkCase(c, seenBodies) {
+const list = (value) => (Array.isArray(value) ? value : []);
+
+function checkCase(raw, seenBodies) {
   const problems = [];
+  const c = {
+    ...raw,
+    sources: list(raw.sources),
+    superseded_revisions: list(raw.superseded_revisions),
+    excluded_sources: list(raw.excluded_sources),
+    corrections: list(raw.corrections),
+    rejected_returns: list(raw.rejected_returns),
+  };
+  for (const field of ["sources", "superseded_revisions", "excluded_sources", "corrections", "rejected_returns"])
+    if (!Array.isArray(raw[field])) problems.push(`malformed_field:${field}`);
+  if (typeof c.id !== "string" || !c.id) problems.push("missing_case_id");
   const snapshotIds = new Set(c.sources.map((s) => s.revision_id));
   if (!c.sources.length) problems.push("empty_snapshot");
   if (!["none", "bloom", "either"].includes(c.expected_output))
     problems.push("unknown_expected_output");
   for (const s of c.sources) {
+    if (!s || typeof s.body !== "string") {
+      problems.push("malformed_source");
+      continue;
+    }
     if (s.plot_id !== c.plot_id) problems.push(`out_of_plot_source:${s.revision_id}`);
     if (!s.body.trim()) problems.push(`blank_body:${s.revision_id}`);
     const owner = seenBodies.get(normalize(s.body));
@@ -39,6 +56,10 @@ function checkCase(c, seenBodies) {
   }
   let prev = "";
   for (const k of c.corrections) {
+    if (!k || !Array.isArray(k.revision_ids)) {
+      problems.push("malformed_correction");
+      continue;
+    }
     if (k.created_at < prev) problems.push(`corrections_out_of_order:${k.id}`);
     prev = k.created_at;
     for (const id of k.revision_ids)
@@ -52,7 +73,7 @@ function checkCase(c, seenBodies) {
     reference_valid = false;
     problems.push(`reference_return_invalid:${e.message}`);
   }
-  const blooms = c.reference_return.blooms.length;
+  const blooms = list(c.reference_return?.blooms).length;
   if (c.expected_output === "none" && blooms) problems.push("reference_bloom_on_none_case");
   if (c.expected_output === "bloom" && !blooms) problems.push("reference_none_on_bloom_case");
   let rejected_refused = 0;
@@ -122,9 +143,13 @@ export function evaluateCorpus(cases = corpus) {
       bloom: results.filter((r) => r.expected_output === "bloom").length,
       either: results.filter((r) => r.expected_output === "either").length,
     },
-    evidence_excerpts: results.reduce(
-      (n, r, i) =>
-        n + cases[i].reference_return.blooms.reduce((m, b) => m + b.evidence.length, 0),
+    evidence_excerpts: cases.reduce(
+      (n, c) =>
+        n +
+        list(c.reference_return?.blooms).reduce(
+          (m, b) => m + list(b?.evidence).length,
+          0,
+        ),
       0,
     ),
     problems,

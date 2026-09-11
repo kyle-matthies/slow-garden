@@ -104,16 +104,17 @@ Verified locally on Node 22.23.2:
 Not verified:
 
 - Any model output against the corpus; no provider was called.
-- CI does not yet run `tests/evaluation/corpus.test.mjs` (the workflow only runs the
-  worker runtime test); adding it touches `.github/workflows`, which this initiative
-  does not own.
+- CI coverage lands through initiative 1's `npm run test:node`, whose glob includes
+  `tests/**/*.test.mjs`; until that merges the suite runs only locally.
 - Whether reviewers find the reference returns useful anchors; they are examples of
   validity, not model targets.
 
 ## Follow-ups
 
-- Proposed decision: add `node --test tests/evaluation/corpus.test.mjs` to the CI `web`
-  job (or a new root job) alongside the runtime test.
+- `evaluateCorpus` now reports structurally malformed cases (missing arrays, blank ids,
+  sources without bodies, corrections without revision lists, reference returns without
+  blooms) as `packet-invalid` problems instead of throwing; covered by
+  `tests/evaluation/corpus.test.mjs`.
 - Proposed decision: the worker snapshot contract does not yet pass superseded-revision
   or excluded-plot identifiers to `validateReturn`; the corpus models them as absent from
   the snapshot. If the runtime later exposes revision history to the model, the validator

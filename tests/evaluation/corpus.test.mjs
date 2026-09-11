@@ -122,6 +122,25 @@ test("evaluator flags a corrupted packet", () => {
   assert.notEqual(r.corpus_sha256, report.corpus_sha256);
 });
 
+test("evaluator reports structurally malformed cases instead of throwing", () => {
+  const broken = structuredClone(corpus);
+  delete broken[2].reference_return.blooms;
+  broken[3].sources = null;
+  broken[4].corrections = [{ id: "k", created_at: "2026-01-01" }];
+  broken[5].sources[0] = { revision_id: "r", plot_id: broken[5].plot_id };
+  const r = evaluateCorpus([...broken, { id: "", family: "nope" }]);
+  assert.equal(r.status, "packet-invalid");
+  for (const marker of [
+    "reference_return_invalid",
+    "malformed_field:sources",
+    "malformed_correction",
+    "malformed_source",
+    "missing_case_id",
+    "unknown_family",
+  ])
+    assert.ok(r.problems.some((p) => p.includes(marker)), marker);
+});
+
 test("prepare.mjs output is byte-stable across two separate runs", async () => {
   const run = promisify(execFile);
   const dirs = [];
