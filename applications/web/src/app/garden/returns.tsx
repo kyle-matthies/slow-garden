@@ -123,7 +123,7 @@ export function GardenReturns({
     await refresh();
   }
   function continueThought(bloom: CabinetBloom, clipping: ResolvedClipping) {
-    if (!clipping.source.seed_id) return;
+    if (!clipping.source.seed_id || !clipping.source.writable) return;
     let storage: Storage | null = null;
     try {
       storage = sessionStorage;

@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useId, useState, type ReactNode, type RefObject } from "react";
+import { isThoughtWritable } from "@/lib/garden/writable";
 import type { GardenData } from "@/lib/garden/types";
 import "./returns.css";
 
@@ -42,6 +43,8 @@ export type ClippingSource = {
   revision_number: number | null;
   created_at: string | null;
   href: string | null;
+  /** True when the owning thought, topic, and garden can still take a new entry. */
+  writable: boolean;
 };
 export type ResolvedClipping = Clipping & { source: ClippingSource };
 
@@ -56,7 +59,10 @@ export type RevisionLocation = {
  * then against located superseded revisions, and builds its exact entry anchor.
  */
 export function makeClippingResolver(
-  data: Pick<GardenData, "gardenId" | "seeds" | "entries">,
+  data: Pick<
+    GardenData,
+    "gardenId" | "gardens" | "plots" | "seeds" | "entries"
+  >,
   located: Record<string, RevisionLocation>,
 ): (clipping: Clipping) => ClippingSource {
   const href = (seedId: string, entryId: string, archived: boolean) => {
@@ -82,6 +88,7 @@ export function makeClippingResolver(
         revision_number: current.revision_number,
         created_at: current.created_at,
         href: href(current.seed_id, current.entry_id, !!current.archived_at),
+        writable: isThoughtWritable(data, current.seed_id),
       };
     const old = located[clipping.revision_id];
     if (old) {
@@ -93,6 +100,7 @@ export function makeClippingResolver(
         revision_number: old.revision_number,
         created_at: old.created_at,
         href: href(old.seed_id, old.entry_id, !!entry?.archived_at),
+        writable: isThoughtWritable(data, old.seed_id),
       };
     }
     return {
@@ -102,6 +110,7 @@ export function makeClippingResolver(
       revision_number: null,
       created_at: null,
       href: null,
+      writable: false,
     };
   };
 }
@@ -686,14 +695,20 @@ function ClippingCard({
         {onContinue && source.seed_id && source.state !== "unknown" && (
           <>
             {" · "}
-            <button
-              type="button"
-              className="plain-button cabinet-continue"
-              disabled={disabled}
-              onClick={onContinue}
-            >
-              Continue this thought
-            </button>
+            {source.writable ? (
+              <button
+                type="button"
+                className="plain-button cabinet-continue"
+                disabled={disabled}
+                onClick={onContinue}
+              >
+                Continue this thought
+              </button>
+            ) : (
+              <span className="cabinet-source-note">
+                Restore the thought to continue it
+              </span>
+            )}
           </>
         )}
       </figcaption>

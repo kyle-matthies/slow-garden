@@ -73,6 +73,7 @@ Rebuild the returns surface as a Cabinet panel:
 | Clipping superseded | "Source revised since" badge; link still targets the entry |
 | Clipping archived | "Source archived" badge; link carries `view=archive` so it lands in the archive view |
 | Clipping unlinked | "Source unavailable"; no dead link rendered |
+| Owning thought, topic, or garden archived | Continue is replaced by "Restore the thought to continue it" (`lib/garden/writable.ts`), because the workspace opens no editor for an archived thought. An archived entry inside an active thought still offers Continue |
 | Prior responses | Latest shown as pressed; history collapsible |
 | Provider unavailable / AI disabled | Unchanged: invitation action reports the gate |
 
@@ -98,10 +99,11 @@ clippings.
 | `applications/web/src/app/garden/returns-cabinet.tsx` | Pure presentation: `ReturnCabinet`, `PassDrawer`, `BloomSpecimen`, `ClippingCard`, `makeClippingResolver` |
 | `applications/web/src/app/garden/returns-continue.tsx` | `buildContinuation` (quoted clipping + attribution); the handoff itself lives in `lib/garden/continuation.ts` (`queueContinuation`, `takeContinuation`, `appendContinuation`) |
 | `applications/web/src/app/garden/returns-lookup.ts` | `locateRevisions` server action (metadata only, auth via `getClaims`) |
-| `applications/web/src/app/garden/returns-fixtures.tsx` | Synthetic garden, revisions, passes, blooms, responses, and eight scenes |
+| `applications/web/src/app/garden/returns-fixtures.tsx` | Synthetic garden (incl. an archived thought and an archived topic), revisions, passes, blooms, responses, and nine scenes |
 | `applications/web/src/app/garden/returns.css` | Component-imported styles; ivory paper, coral "derived" cue, blue "evidence" cue, focus rings, reduced motion, 390px layout |
-| `applications/web/src/app/garden/returns-preview/page.tsx`, `preview.tsx` | Dev-only fixture browser |
-| `applications/web/src/app/garden/workspace.tsx` | Hook point: `editorGeneration` counter so the new-entry editor remounts after `onContinue`; the editor takes the queued continuation on mount |
+| `applications/web/src/app/garden/returns-preview/page.tsx`, `preview.tsx` | Dev-only fixture browser; Continue mounts the real `EntryEditor` for the fixture thought so the handoff can be exercised without a database |
+| `applications/web/src/app/garden/workspace.tsx` | Hook points: `editorGeneration` counter so the new-entry editor remounts after `onContinue`; the editor takes the queued continuation on mount; `EntryEditor` exported for the preview |
+| `applications/web/src/lib/garden/writable.ts` | `isThoughtWritable`: garden, topic, and thought must all be active; archived entries do not count |
 
 ### Verified
 
@@ -132,6 +134,23 @@ Keyboard and screen-reader pass (Playwright against Chromium, `scene=all` and `s
   own words"; next Tab stop is "Save correction"; saving announces "Correction saved in your
   words." and moves the prior response under "Earlier response (1)".
 - Continue this thought via Enter: preview shows the blockquote and attribution line.
+
+Continuation gating and handoff receipt (Playwright against Chromium, `scene=restore-needed`,
+session storage cleared first):
+
+- The scene shows three clippings from one bloom: one in an archived thought, one in a thought whose
+  topic is archived, one archived entry inside an active thought. Only the last renders the
+  `Continue this thought` button (count 1); the other two render the text "Restore the thought to
+  continue it" and no button.
+- Activating the enabled button mounts the real `EntryEditor` (`#writing-new`) for "Lamp inventory",
+  body begins `> Kept it anyway.`, and focus lands on the textarea once it is enabled.
+- Typing `MY OWN WORDS…` into the editor, then activating Continue again: the editor remounts with
+  the body `MY OWN WORDS…` followed by a blank line and the quoted clipping plus the
+  `[Clipping chosen by AI · Possible connection. …]` attribution. Own words precede the quote; nothing
+  is discarded. Screenshot: `receipt-2-editor.png` on the PR.
+- Unit tests: `node --test applications/web/src/lib/garden/*.test.mjs` — 7 pass (writable: active;
+  archived entry in active thought stays writable; archived thought; archived topic; archived garden;
+  unknown thought; continuation queue/append).
 - Withdrawn scene: bloom named "…, withdrawn, awaiting your response".
 - The only unlabelled `svg` on the page belongs to the Next.js dev-tools indicator, not the panel.
 
@@ -139,8 +158,10 @@ Keyboard and screen-reader pass (Playwright against Chromium, `scene=all` and `s
 
 - Real Supabase data path (`readReturns`, `locateRevisions`, `respondToBloom`) against a database;
   no Supabase env is available locally and no AI provider is enabled.
-- The continuation flow end-to-end in the signed-in workspace (draft prefill → editor remount);
-  verified only via the fixture preview's continuation text and by type-checking the workspace hook.
+- The continuation flow in the signed-in workspace against real data. The editor component and the
+  queue are the same ones exercised in the preview receipt above, but the `GardenWorkspace`
+  remount path (`editorGeneration`) is verified only by type-checking; saving is not exercised.
+- Restoring an archived thought/topic/garden and then continuing; fixtures are static.
 - A real screen reader (VoiceOver/NVDA); evidence is from the accessibility tree and roles/names.
 - A hard HTTP 404 status for the preview route in production (see follow-ups).
 
