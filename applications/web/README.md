@@ -23,6 +23,20 @@ light/dark, 390px and 1280px, overflow, a 200% zoom proxy, and contrast. See
 `accessibility/README.md`; receipts live in `documents/initiatives/receipts/08/`.
 Colours are tokens in `src/app/globals.css` with dark values under
 `prefers-color-scheme: dark`; add new colours as tokens in both blocks.
+## Garden lenses
+
+The garden overview is the primary surface. Two secondary, URL-backed lenses live in
+`src/app/garden/chronology.tsx` with pure helpers in `src/lib/garden/search.ts`:
+
+- `?view=timeline` (optionally with `topic=`) lists saved entries by calendar day.
+- The search field ranks thought titles above entry bodies, shows a bounded excerpt
+  with highlighted terms, caps results at 30, and hides archived writing unless
+  "Include archived" is checked (or the Archive view is open).
+
+Both read only the already-loaded page data; nothing is fetched or stored. Test the
+helpers with Node 22 type stripping:
+
+    node --test src/lib/garden/search.test.mjs
 
 ## Authorization boundary
 
