@@ -463,10 +463,33 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
             <a className="secondary-button" href="/garden/export?format=md">
               Export all sources · Markdown
             </a>
+            {data.gardenId && (
+              <>
+                <a
+                  className="secondary-button"
+                  href={`/garden/export?garden=${data.gardenId}`}
+                >
+                  Export this garden · JSON
+                </a>
+                <a
+                  className="secondary-button"
+                  href={`/garden/export?format=md&garden=${data.gardenId}`}
+                >
+                  Export this garden · Markdown
+                </a>
+              </>
+            )}
+            <Link
+              className="secondary-button"
+              href={`/garden/import?garden=${data.gardenId}`}
+            >
+              Import notes
+            </Link>
           </div>
           <p>
-            Exports include archived writing and every revision. Unsaved drafts
-            stay privately in this browser until saved or discarded.
+            Exports include archived writing and every revision, with
+            AI-derived blooms kept in a separate section from your own words.
+            Unsaved drafts stay privately in this browser until saved or discarded.
           </p>
           <p>
             You stay signed in on this browser between visits, until you sign
