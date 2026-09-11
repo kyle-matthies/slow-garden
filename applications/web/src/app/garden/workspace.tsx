@@ -188,7 +188,7 @@ type Draft = {
   revisionId: string;
   expectedRevisionId: string | null;
 };
-function EntryEditor({
+export function EntryEditor({
   tenantId,
   seedId,
   entry,

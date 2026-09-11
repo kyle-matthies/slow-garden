@@ -31,6 +31,25 @@ test("active thought in active topic and garden is writable", () => {
   assert.equal(isThoughtWritable(base(), "s"), true);
 });
 
+test("an archived entry inside an active thought leaves the thought writable", () => {
+  const d = {
+    ...base(),
+    entries: [
+      {
+        entry_id: "e",
+        revision_id: "r",
+        seed_id: "s",
+        body: "",
+        revision_number: 1,
+        created_at: "2026-01-02T00:00:00Z",
+        revised_at: "2026-01-02T00:00:00Z",
+        archived_at: "2026-01-03T00:00:00Z",
+      },
+    ],
+  };
+  assert.equal(isThoughtWritable(d, "s"), true);
+});
+
 test("archived thought is not writable", () => {
   const d = base();
   d.seeds[0].status = "archived";

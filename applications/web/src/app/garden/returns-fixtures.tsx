@@ -13,15 +13,22 @@ export const FIXTURE_TENANT = "00000000-0000-4000-8000-00000000f1de";
 export const FIXTURE_GARDEN = "00000000-0000-4000-8000-0000000000a1";
 const PLOT_A = "00000000-0000-4000-8000-0000000000b1";
 const PLOT_B = "00000000-0000-4000-8000-0000000000b2";
+const PLOT_C_ARCHIVED = "00000000-0000-4000-8000-0000000000b3";
 const SEED_1 = "00000000-0000-4000-8000-0000000000c1";
 const SEED_2 = "00000000-0000-4000-8000-0000000000c2";
+const SEED_3_ARCHIVED = "00000000-0000-4000-8000-0000000000c3";
+const SEED_4_IN_ARCHIVED_TOPIC = "00000000-0000-4000-8000-0000000000c4";
 const ENTRY_1 = "00000000-0000-4000-8000-0000000000d1";
 const ENTRY_2 = "00000000-0000-4000-8000-0000000000d2";
 const ENTRY_3 = "00000000-0000-4000-8000-0000000000d3";
+const ENTRY_4 = "00000000-0000-4000-8000-0000000000d4";
+const ENTRY_5 = "00000000-0000-4000-8000-0000000000d5";
 const REV_1 = "00000000-0000-4000-8000-0000000000e1";
 const REV_2_OLD = "00000000-0000-4000-8000-0000000000e2";
 const REV_2_NEW = "00000000-0000-4000-8000-0000000000e3";
 const REV_3 = "00000000-0000-4000-8000-0000000000e4";
+const REV_4 = "00000000-0000-4000-8000-0000000000e5";
+const REV_5 = "00000000-0000-4000-8000-0000000000e6";
 const REV_GONE = "00000000-0000-4000-8000-0000000000e9";
 
 export const fixturePlots: Plot[] = [
@@ -43,6 +50,15 @@ export const fixturePlots: Plot[] = [
     archived_at: null,
     permission_version: 1,
   },
+  {
+    id: PLOT_C_ARCHIVED,
+    garden_id: FIXTURE_GARDEN,
+    name: "Fixture topic · stairs (archived)",
+    ai_enabled: true,
+    cross_pollinate: false,
+    archived_at: "2026-09-06T08:00:00Z",
+    permission_version: 1,
+  },
 ];
 export const fixtureSeeds: Seed[] = [
   {
@@ -60,6 +76,22 @@ export const fixtureSeeds: Seed[] = [
     title: "Lamp inventory",
     status: "active",
     created_at: "2026-08-31T08:00:00Z",
+  },
+  {
+    id: SEED_3_ARCHIVED,
+    garden_id: FIXTURE_GARDEN,
+    plot_id: PLOT_A,
+    title: "Shoes by the door (archived thought)",
+    status: "archived",
+    created_at: "2026-08-29T08:00:00Z",
+  },
+  {
+    id: SEED_4_IN_ARCHIVED_TOPIC,
+    garden_id: FIXTURE_GARDEN,
+    plot_id: PLOT_C_ARCHIVED,
+    title: "Counting stairs",
+    status: "active",
+    created_at: "2026-08-28T08:00:00Z",
   },
 ];
 export const fixtureEntries: Entry[] = [
@@ -92,6 +124,26 @@ export const fixtureEntries: Entry[] = [
     created_at: "2026-09-02T21:00:00Z",
     revised_at: "2026-09-02T21:00:00Z",
     archived_at: "2026-09-07T10:00:00Z",
+  },
+  {
+    entry_id: ENTRY_4,
+    revision_id: REV_4,
+    seed_id: SEED_3_ARCHIVED,
+    body: "Two pairs by the door means someone is home. One pair means I am.",
+    revision_number: 1,
+    created_at: "2026-08-29T19:00:00Z",
+    revised_at: "2026-08-29T19:00:00Z",
+    archived_at: null,
+  },
+  {
+    entry_id: ENTRY_5,
+    revision_id: REV_5,
+    seed_id: SEED_4_IN_ARCHIVED_TOPIC,
+    body: "Fourteen steps. I count them every time and it is always fourteen.",
+    revision_number: 1,
+    created_at: "2026-08-28T19:00:00Z",
+    revised_at: "2026-08-28T19:00:00Z",
+    archived_at: null,
   },
 ];
 /** Superseded revisions the live app resolves via `seed_revisions`; fixtures resolve them here. */
@@ -126,6 +178,7 @@ const P = {
   failed: "00000000-0000-4000-8000-000000000106",
   cancelled: "00000000-0000-4000-8000-000000000107",
   withdrawn: "00000000-0000-4000-8000-000000000108",
+  restoreNeeded: "00000000-0000-4000-8000-000000000109",
 };
 const B = {
   fresh: "00000000-0000-4000-8000-000000000201",
@@ -133,6 +186,7 @@ const B = {
   corrected: "00000000-0000-4000-8000-000000000203",
   pruned: "00000000-0000-4000-8000-000000000204",
   gone: "00000000-0000-4000-8000-000000000205",
+  blocked: "00000000-0000-4000-8000-000000000206",
 };
 
 export const fixturePasses: CabinetPass[] = [
@@ -199,6 +253,14 @@ export const fixturePasses: CabinetPass[] = [
     finished_at: "2026-09-05T06:00:00Z",
     no_output_reason: null,
     plot_ids: [PLOT_B],
+  },
+  {
+    id: P.restoreNeeded,
+    status: "complete",
+    created_at: "2026-09-05T09:00:00Z",
+    finished_at: "2026-09-05T12:00:00Z",
+    no_output_reason: null,
+    plot_ids: [PLOT_A, PLOT_B, PLOT_C_ARCHIVED],
   },
 ];
 
@@ -287,6 +349,20 @@ export const fixtureBlooms: CabinetBloom[] = [
     evidence: [{ revision_id: REV_3, excerpt: "Counted the lamps" }],
     created_at: "2026-09-01T09:00:00Z",
   },
+  {
+    id: B.blocked,
+    pass_id: P.restoreNeeded,
+    kind: "connection",
+    ordinal: 0,
+    interpretation:
+      "Counting recurs: stairs, lamps, shoes. Only the lamp thought can still take a new entry today.",
+    evidence: [
+      { revision_id: REV_4, excerpt: "One pair means I am." },
+      { revision_id: REV_5, excerpt: "it is always fourteen" },
+      { revision_id: REV_3, excerpt: "Kept it anyway." },
+    ],
+    created_at: "2026-09-05T12:00:00Z",
+  },
 ];
 
 export const fixtureResponses: CabinetResponse[] = [
@@ -331,7 +407,7 @@ export const fixtureScenes: FixtureScene[] = [
   {
     slug: "all",
     title: "Every state at once",
-    description: "All eight pass states and all five bloom states.",
+    description: "All pass states and all bloom states, including restore-needed sources.",
     passIds: Object.values(P),
   },
   {
@@ -376,5 +452,12 @@ export const fixtureScenes: FixtureScene[] = [
     title: "Withdrawn",
     description: "A return withdrawn after permissions changed.",
     passIds: [P.withdrawn],
+  },
+  {
+    slug: "restore-needed",
+    title: "Archived thought and topic",
+    description:
+      "Clippings from an archived thought and from a thought inside an archived topic cannot be continued until restored; an archived entry inside an active thought still can.",
+    passIds: [P.restoreNeeded],
   },
 ];
