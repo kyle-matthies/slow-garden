@@ -1,6 +1,10 @@
 # Initiative wave — September 2026
 
-Status: Accepted for parallel implementation (D-021); each initiative closes only on its own evidence
+Status 2026-09-27: Implementation merged September 11 (PRs #6–#16); remaining acceptance gates require their own evidence.
+
+See [current reconciliation and priorities](RECONCILIATION_2026-09-27.md). The plan and
+September 11 pre-merge verification sections below are retained as historical evidence;
+their merge hold and suggested merge order have been superseded.
 Date: 2026-09-10
 Owner: Kyle
 Delivery model: ten scoped initiatives, each delivered as one reviewable pull request by an independent agent, with a per-initiative record under `documents/initiatives/`
@@ -219,7 +223,9 @@ the receipts in each record's follow-ups exist.
 | 9 | [#11](https://github.com/kyle-matthies/slow-garden/pull/11) | Enforced CSP (still `'unsafe-inline'`), COOP/CORP, `npm audit` in CI, `SECURITY_REVIEW_2026-09.md` with T-01..T-13 receipts and follow-ups F-1..F-10. |
 | 10 | [#7](https://github.com/kyle-matthies/slow-garden/pull/7) | `FirstRun` four-step flow replacing the first-garden branch; starter topics opt-in; login explains the code and adds resend. |
 
-## Verification — 2026-09-11 (combined tree `9d5eae1`, wave still unmerged)
+<a id="verification--2026-09-11-combined-tree-9d5eae1-wave-still-unmerged"></a>
+
+## Historical pre-merge verification — 2026-09-11 (combined tree `9d5eae1`, wave still unmerged)
 
 Two review rounds (Devin browser run, then Codex + maintainer) produced corrections on each
 initiative branch. Nothing has merged; `main` is untouched. Evidence is grouped by kind so
@@ -275,7 +281,7 @@ the `.local-runtime` stack only. No migration in this wave has been applied anyw
 
 AI activation and any external pilot remain closed (ADR-006). The activation runbook's global
 enable switch means any future canary needs a synthetic-only environment or a maintained
-exclusion of real tenants. Merge of the wave is held pending maintainer approval.
+exclusion of real tenants. At the time of this receipt, merge was held for maintainer approval; the wave subsequently merged on September 11.
 
 ### Suggested merge order
 

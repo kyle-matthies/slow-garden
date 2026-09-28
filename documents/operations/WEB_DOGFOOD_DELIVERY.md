@@ -4,6 +4,11 @@ Status: writing release deployed; AI activation, dogfood study and pilot remain 
 Owner: Kyle
 Decision: ADR-006; implementation authorized 2026-09-06
 
+Current integration update (2026-09-27): PR #4 and the September wave have merged.
+See [reconciliation](RECONCILIATION_2026-09-27.md) for the current merge/CI status and
+remaining priorities. Baseline and release sections below are dated historical receipts;
+their local branch descriptions and pending-merge steps do not describe current Git state.
+
 ## Baseline reconciliation
 
 Remote main was d2f6fe2 with successful CI and deployment evidence. Local main has
