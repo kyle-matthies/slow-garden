@@ -33,3 +33,16 @@ Scheduled tending, native iOS expansion, botanical scrapbook, Explore mode, and 
 - Evaluation corpus Node tests already run through `npm run test:node` in CI; do not add a duplicate step solely because the original wave plan suggested it.
 - The final review records the labelled plant section and integrated axe run. Navigation focus and physical-device acceptance still require their own evidence.
 - Other historical follow-ups must be checked against current source before implementation; their presence is not proof that code is absent.
+
+## CI registry reliability correction
+
+During reconciliation, repeated main CI attempts passed database lint and SQL tests
+but failed before type generation because ECR refused the pinned postgres-meta image
+with rate/data-limit errors. The database job now explicitly selects Supabase's
+official GHCR mirror via `SUPABASE_INTERNAL_IMAGE_REGISTRY=ghcr.io`. CLI version
+2.109.1, image tags, migrations, and every lint/test/type-diff gate remain unchanged.
+
+The pinned CLI's [registry resolver](https://github.com/supabase/cli/blob/v2.109.1/apps/cli/src/legacy/shared/legacy-docker-registry.ts)
+and [type-generation helper](https://github.com/supabase/cli/blob/v2.109.1/apps/cli/src/legacy/commands/gen/types/types.shared.ts)
+confirm that this override applies to the type-generation image as well as local services.
+This affects disposable CI containers only; it changes no hosted project configuration.
