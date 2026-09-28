@@ -1,5 +1,9 @@
 # Final initiative-wave review — 2026-09-11
 
+Update 2026-09-27: integration PR #6 merged on September 11 as `db83d5a`.
+[Main CI](https://github.com/kyle-matthies/slow-garden/actions/runs/34618501566)
+passed. The review below is the original pre-merge receipt.
+
 The combined implementation at `8fb71bd` includes the final heads of PRs #6–#16. The review found no remaining verified merge blockers after two correction rounds. Implementation merge does not close AI activation, external-pilot, physical-device, or real-tenant verification gates.
 
 Independent validation on the combined tree (Node 26.5.0):

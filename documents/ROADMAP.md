@@ -6,27 +6,29 @@ Primary rule: Do not advance a horizon because code exists; advance when its exi
 
 ## Current web priority — 2026-09-10 initiative wave
 
-Status 2026-09-11: two correction rounds landed on the initiative branches; the combined tree
-`9d5eae1` passes the shell gate and the synthetic browser suite (see
-[verification](operations/INITIATIVE_WAVE_2026-09.md#verification--2026-09-11-combined-tree-9d5eae1-wave-still-unmerged)).
-Boxes stay unchecked until the wave merges and physical-device / real-tenant gaps close.
+Status 2026-09-27: PRs #6–#16 merged on September 11 into `db83d5a`.
+Main CI passed for that exact commit. The implementation wave is merged; physical-device,
+real-tenant, AI activation, and product-learning gates are separate. See the
+[September reconciliation](operations/RECONCILIATION_2026-09-27.md) for evidence and
+prioritized remaining work. Unchecked initiative boxes below retain their broader
+acceptance gates; they do not mean the code is unmerged.
 
 The September wave ([plan](operations/INITIATIVE_WAVE_2026-09.md), D-021) drives the
 no-AI garden toward a voluntary return and prepares honest activation gates. Each item
 is one reviewable pull request with a record under [documents/initiatives](initiatives/README.md).
 
-- [ ] 1 · P0 Test foundation ([#14](https://github.com/kyle-matthies/slow-garden/pull/14), PR open): Vitest harness in CI for web logic and components.
-- [ ] 2 · P0 Durable writing ([#13](https://github.com/kyle-matthies/slow-garden/pull/13), PR open): IndexedDB drafts with recovery, Ctrl/Cmd+Enter save, quiet page.
-- [ ] 3 · P1 Return Cabinet ([#15](https://github.com/kyle-matthies/slow-garden/pull/15), PR open): 0–3 bloom reveal, exact clipping links, fixture preview.
-- [ ] 4 · P1 Evaluation corpus ([#8](https://github.com/kyle-matthies/slow-garden/pull/8), PR open): 48 distinct cases, supersession/exclusion/correction fixtures, deterministic report.
-- [ ] 5 · P1 Activation readiness ([#10](https://github.com/kyle-matthies/slow-garden/pull/10), PR open): expired-job and duplicate handling, canary dry run, runbook.
-- [ ] 6 · P1 Import and portability ([#9](https://github.com/kyle-matthies/slow-garden/pull/9), PR open): Markdown import with preview; export v2 with separated derived material.
-- [ ] 7 · P1 Chronology and search ([#12](https://github.com/kyle-matthies/slow-garden/pull/12), PR open): timeline lens and bounded search with excerpts.
-- [ ] 8 · P1 Accessibility and mobile ([#16](https://github.com/kyle-matthies/slow-garden/pull/16), PR open): axe pass, dark mode, reduced motion, 390px receipts.
-- [ ] 9 · P1 Security hardening ([#11](https://github.com/kyle-matthies/slow-garden/pull/11), PR open): CSP and security headers, CI audit, threat-model receipts.
-- [ ] 10 · P2 First-run onboarding ([#7](https://github.com/kyle-matthies/slow-garden/pull/7), PR open): sign-in to first saved entry in one quiet flow.
+- [ ] 1 · P0 Test foundation ([#14](https://github.com/kyle-matthies/slow-garden/pull/14), merged September 11): Vitest harness in CI for web logic and components.
+- [ ] 2 · P0 Durable writing ([#13](https://github.com/kyle-matthies/slow-garden/pull/13), merged September 11): IndexedDB drafts with recovery, Ctrl/Cmd+Enter save, quiet page.
+- [ ] 3 · P1 Return Cabinet ([#15](https://github.com/kyle-matthies/slow-garden/pull/15), merged September 11): 0–3 bloom reveal, exact clipping links, fixture preview.
+- [ ] 4 · P1 Evaluation corpus ([#8](https://github.com/kyle-matthies/slow-garden/pull/8), merged September 11): 48 distinct cases, supersession/exclusion/correction fixtures, deterministic report.
+- [ ] 5 · P1 Activation readiness ([#10](https://github.com/kyle-matthies/slow-garden/pull/10), merged September 11): expired-job and duplicate handling, canary dry run, runbook.
+- [ ] 6 · P1 Import and portability ([#9](https://github.com/kyle-matthies/slow-garden/pull/9), merged September 11): Markdown import with preview; export v2 with separated derived material.
+- [ ] 7 · P1 Chronology and search ([#12](https://github.com/kyle-matthies/slow-garden/pull/12), merged September 11): timeline lens and bounded search with excerpts.
+- [ ] 8 · P1 Accessibility and mobile ([#16](https://github.com/kyle-matthies/slow-garden/pull/16), merged September 11): axe pass, dark mode, reduced motion, 390px receipts.
+- [ ] 9 · P1 Security hardening ([#11](https://github.com/kyle-matthies/slow-garden/pull/11), merged September 11): CSP and security headers, CI audit, threat-model receipts.
+- [ ] 10 · P2 First-run onboarding ([#7](https://github.com/kyle-matthies/slow-garden/pull/7), merged September 11): sign-in to first saved entry in one quiet flow.
 
-All ten PRs opened 2026-09-10 with lint/type/build/worker tests passing; none is merged and none has live-stack evidence. Merge order and cross-initiative follow-ups are in the wave plan roll-up.
+All ten implementation PRs and integration PR #6 merged on 2026-09-11. Historical local and synthetic evidence is in the wave plan and final review; this reconciliation does not establish new hosted or physical-device evidence.
 
 Out of this wave: scheduled tending, provider activation, native iOS, botanical scrapbook,
 Explore mode, team features, hosted configuration changes.
@@ -40,7 +42,9 @@ Explore mode, team features, hosted configuration changes.
 - [ ] Verify synthetic browser journeys, local auth, tenant boundaries, and mobile clarity.
 - [ ] Future visual phase: [authentic botanical scrapbook](design/BOTANICAL_SCRAPBOOK_ROADMAP.md).
 
-The functional implementation and visual deferral belong to the same change. Mark
+PR #4 merged on September 9. The checklist above retains delivery evidence gates,
+not an outstanding code merge. The functional implementation and visual deferral belong
+to the same change. Mark
 these delivery items complete only with verified release evidence; a local commit
 alone does not close delivery. D-020 records the terminology and lifecycle decisions.
 

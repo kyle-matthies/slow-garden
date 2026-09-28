@@ -1,8 +1,16 @@
 # Feature brief: Durable drafts and quiet keyboard-first writing
 
 - Horizon and phase: Web dogfood · September 2026 initiative wave, initiative 2 (P0)
-- Status: Implemented, pending merge and hosted receipt
+- Status: Merged; hosted draft receipt and device verification remain open.
 - Owner: Kyle (wave owner); implementation by Devin
+
+## Current integration receipt — 2026-09-27
+
+This implementation merged on September 11. Main CI passed at `db83d5a`;
+see [reconciliation](../operations/RECONCILIATION_2026-09-27.md).
+The original implementation and follow-up sections below are historical records.
+Their pre-merge dependencies are not current merge blockers. Unverified product,
+device, hosted, and AI gates remain open unless a later receipt explicitly closes them.
 
 ## User problem
 

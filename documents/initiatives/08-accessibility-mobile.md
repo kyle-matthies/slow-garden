@@ -1,8 +1,16 @@
 # Feature brief: Accessibility, reduced motion, dark mode, 390px hardening
 
 - Horizon and phase: H1 web dogfood · September 2026 initiative wave, initiative 8 (P1)
-- Status: Implemented; acceptance evidence recorded below, focus-order gap open
+- Status: Merged; physical-device and focus-order acceptance remain open.
 - Owner: Kyle (delivered by an initiative agent)
+
+## Current integration receipt — 2026-09-27
+
+This implementation merged on September 11. Main CI passed at `db83d5a`;
+see [reconciliation](../operations/RECONCILIATION_2026-09-27.md).
+The original implementation and follow-up sections below are historical records.
+Their pre-merge dependencies are not current merge blockers. Unverified product,
+device, hosted, and AI gates remain open unless a later receipt explicitly closes them.
 
 ## User problem
 

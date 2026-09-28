@@ -1,8 +1,16 @@
 # Feature brief: First-run flow from sign-in to first saved entry
 
 - Horizon and phase: September 2026 initiative wave · Initiative 10 · P2
-- Status: Implemented, pending merge; complete only on the evidence below
+- Status: Merged; first-run draft persistence and component coverage remain open.
 - Owner: Kyle (wave owner); delivered by an independent agent
+
+## Current integration receipt — 2026-09-27
+
+This implementation merged on September 11. Main CI passed at `db83d5a`;
+see [reconciliation](../operations/RECONCILIATION_2026-09-27.md).
+The original implementation and follow-up sections below are historical records.
+Their pre-merge dependencies are not current merge blockers. Unverified product,
+device, hosted, and AI gates remain open unless a later receipt explicitly closes them.
 
 ## User problem
 
