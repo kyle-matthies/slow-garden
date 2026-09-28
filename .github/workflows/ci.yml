@@ -32,6 +32,9 @@ jobs:
 
   database:
     runs-on: ubuntu-latest
+    env:
+      # Avoid shared-runner ECR quotas, including the gen-types image pull.
+      SUPABASE_INTERNAL_IMAGE_REGISTRY: ghcr.io
     steps:
       - uses: actions/checkout@v4
       - uses: supabase/setup-cli@v1
