@@ -1,7 +1,8 @@
 # Feature brief: Cabinet-style return reveal and provenance inspection
 
 - Horizon and phase: September 2026 initiative wave · Initiative 3 · P1
-- Status: Merged; screen-reader and hosted continuation acceptance remain open.
+- Integration: Merged September 11, 2026.
+- Status: In progress; screen-reader and hosted continuation acceptance remain open.
 - Owner: web returns surface (`applications/web/src/app/garden/returns*.{tsx,ts,css}`)
 
 ## Current integration receipt — 2026-09-27

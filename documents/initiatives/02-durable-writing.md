@@ -1,7 +1,8 @@
 # Feature brief: Durable drafts and quiet keyboard-first writing
 
 - Horizon and phase: Web dogfood · September 2026 initiative wave, initiative 2 (P0)
-- Status: Merged; hosted draft receipt and device verification remain open.
+- Integration: Merged September 11, 2026.
+- Status: In progress; hosted draft receipt and device verification remain open.
 - Owner: Kyle (wave owner); implementation by Devin
 
 ## Current integration receipt — 2026-09-27

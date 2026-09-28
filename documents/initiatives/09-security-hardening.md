@@ -1,7 +1,8 @@
 # Feature brief: Security headers, dependency audit, RLS review receipts
 
 - Horizon and phase: H1 web dogfood · September 2026 initiative wave, initiative 9 (P1)
-- Status: Merged; hosted verification and security decisions remain open.
+- Integration: Merged September 11, 2026.
+- Status: In progress; hosted verification and security decisions remain open.
 - Owner: Kyle (delivered by an independent agent under D-021)
 
 ## Current integration receipt — 2026-09-27
