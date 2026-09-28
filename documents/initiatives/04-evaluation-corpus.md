@@ -1,7 +1,8 @@
 # Feature brief: Distinct 48-case corpus and deterministic evaluator report
 
 - Horizon and phase: H1 web dogfood, model-activation gate (closed)
-- Status: Merged; human review of model output remains gated.
+- Integration: Merged September 11, 2026.
+- Status: In progress; human review of model output remains gated.
 - Owner: Initiative 4 of the September 2026 wave
 
 ## Current integration receipt — 2026-09-27

@@ -1,7 +1,8 @@
 # Feature brief: Chronology lens and bounded search with excerpts
 
 - Horizon and phase: H2 web dogfood · [September 2026 initiative wave](../operations/INITIATIVE_WAVE_2026-09.md), initiative 7 (P1)
-- Status: Merged; real-use and component-level follow-ups remain open.
+- Integration: Merged September 11, 2026.
+- Status: In progress; real-use and component-level follow-ups remain open.
 - Owner: Kyle (wave owner); implementation by an independent agent
 
 ## Current integration receipt — 2026-09-27

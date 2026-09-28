@@ -19,16 +19,16 @@ separate that result from remaining acceptance gates.
 
 | # | Record | PR | Status |
 |---|---|---|---|
-| 1 | [`01-test-foundation.md`](01-test-foundation.md) | [#14](https://github.com/kyle-matthies/slow-garden/pull/14) | Merged September 11; see current receipt and remaining gates |
-| 2 | [`02-durable-writing.md`](02-durable-writing.md) | [#13](https://github.com/kyle-matthies/slow-garden/pull/13) | Merged September 11; see current receipt and remaining gates |
-| 3 | [`03-return-cabinet.md`](03-return-cabinet.md) | [#15](https://github.com/kyle-matthies/slow-garden/pull/15) | Merged September 11; see current receipt and remaining gates |
-| 4 | [`04-evaluation-corpus.md`](04-evaluation-corpus.md) | [#8](https://github.com/kyle-matthies/slow-garden/pull/8) | Merged September 11; see current receipt and remaining gates |
-| 5 | [`05-activation-readiness.md`](05-activation-readiness.md) | [#10](https://github.com/kyle-matthies/slow-garden/pull/10) | Merged September 11; see current receipt and remaining gates |
-| 6 | [`06-import-portability.md`](06-import-portability.md) | [#9](https://github.com/kyle-matthies/slow-garden/pull/9) | Merged September 11; see current receipt and remaining gates |
-| 7 | [`07-chronology-search.md`](07-chronology-search.md) | [#12](https://github.com/kyle-matthies/slow-garden/pull/12) | Merged September 11; see current receipt and remaining gates |
-| 8 | [`08-accessibility-mobile.md`](08-accessibility-mobile.md) | [#16](https://github.com/kyle-matthies/slow-garden/pull/16) | Merged September 11; see current receipt and remaining gates |
-| 9 | [`09-security-hardening.md`](09-security-hardening.md) | [#11](https://github.com/kyle-matthies/slow-garden/pull/11) | Merged September 11; see current receipt and remaining gates |
-| 10 | [`10-first-run-onboarding.md`](10-first-run-onboarding.md) | [#7](https://github.com/kyle-matthies/slow-garden/pull/7) | Merged September 11; see current receipt and remaining gates |
+| 1 | [`01-test-foundation.md`](01-test-foundation.md) | [#14](https://github.com/kyle-matthies/slow-garden/pull/14) | In progress; merged September 11; acceptance gates tracked in record |
+| 2 | [`02-durable-writing.md`](02-durable-writing.md) | [#13](https://github.com/kyle-matthies/slow-garden/pull/13) | In progress; merged September 11; acceptance gates tracked in record |
+| 3 | [`03-return-cabinet.md`](03-return-cabinet.md) | [#15](https://github.com/kyle-matthies/slow-garden/pull/15) | In progress; merged September 11; acceptance gates tracked in record |
+| 4 | [`04-evaluation-corpus.md`](04-evaluation-corpus.md) | [#8](https://github.com/kyle-matthies/slow-garden/pull/8) | In progress; merged September 11; acceptance gates tracked in record |
+| 5 | [`05-activation-readiness.md`](05-activation-readiness.md) | [#10](https://github.com/kyle-matthies/slow-garden/pull/10) | In progress; merged September 11; acceptance gates tracked in record |
+| 6 | [`06-import-portability.md`](06-import-portability.md) | [#9](https://github.com/kyle-matthies/slow-garden/pull/9) | In progress; merged September 11; acceptance gates tracked in record |
+| 7 | [`07-chronology-search.md`](07-chronology-search.md) | [#12](https://github.com/kyle-matthies/slow-garden/pull/12) | In progress; merged September 11; acceptance gates tracked in record |
+| 8 | [`08-accessibility-mobile.md`](08-accessibility-mobile.md) | [#16](https://github.com/kyle-matthies/slow-garden/pull/16) | In progress; merged September 11; acceptance gates tracked in record |
+| 9 | [`09-security-hardening.md`](09-security-hardening.md) | [#11](https://github.com/kyle-matthies/slow-garden/pull/11) | In progress; merged September 11; acceptance gates tracked in record |
+| 10 | [`10-first-run-onboarding.md`](10-first-run-onboarding.md) | [#7](https://github.com/kyle-matthies/slow-garden/pull/7) | In progress; merged September 11; acceptance gates tracked in record |
 
 Record files landed with their initiative PRs. Original implementation receipts below
 the current status in each record remain dated pre-merge history.

@@ -1,7 +1,8 @@
 # Feature brief: Import existing notes; export v2 with separated derived material
 
 - Horizon and phase: H1 web dogfood · September 2026 initiative wave, initiative 6 (`import-portability`)
-- Status: Merged; source-date decisions and hosted portability evidence remain open.
+- Integration: Merged September 11, 2026.
+- Status: In progress; source-date decisions and hosted portability evidence remain open.
 - Owner: Kyle
 
 ## Current integration receipt — 2026-09-27

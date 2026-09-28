@@ -1,7 +1,8 @@
 # Feature brief: First-run flow from sign-in to first saved entry
 
 - Horizon and phase: September 2026 initiative wave · Initiative 10 · P2
-- Status: Merged; first-run draft persistence and component coverage remain open.
+- Integration: Merged September 11, 2026.
+- Status: In progress; first-run draft persistence and component coverage remain open.
 - Owner: Kyle (wave owner); delivered by an independent agent
 
 ## Current integration receipt — 2026-09-27

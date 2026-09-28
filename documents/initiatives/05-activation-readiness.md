@@ -1,7 +1,8 @@
 # Feature brief: Worker release-gate receipts and synthetic canary dry run
 
 - Horizon and phase: H1 web dogfood; activation-readiness (initiative 5 of the September 2026 wave)
-- Status: Merged; offline evidence recorded; hosted lifecycle receipts outstanding.
+- Integration: Merged September 11, 2026.
+- Status: In progress; offline evidence recorded; hosted lifecycle receipts outstanding.
 - Owner: Kyle (delivered by an initiative agent)
 
 ## Current integration receipt — 2026-09-27

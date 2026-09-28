@@ -1,7 +1,8 @@
 # Feature brief: Web unit/component test harness in CI
 
 - Horizon and phase: September 2026 initiative wave, initiative 1 (P0)
-- Status: Merged; integrated main CI passed. Locale follow-up remains.
+- Integration: Merged September 11, 2026.
+- Status: In progress; integrated main CI passed. Locale follow-up remains.
 - Owner: Kyle
 
 ## Current integration receipt — 2026-09-27
