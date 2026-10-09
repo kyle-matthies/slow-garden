@@ -1,7 +1,10 @@
 # Botanical scrapbook — future visual phase
 
-Status: Direction accepted for future design exploration; implementation deferred.
-Owner feedback: 2026-09-09. Functional navigation and writing clarity ship first.
+Status: Active. D-022 (2026-10-09) lifts the deferral and makes the living garden the
+primary web surface. Delivery follows [LIVING_GARDEN.md](LIVING_GARDEN.md) and
+[ADR-007](../architecture/ADR-007_LIVING_GARDEN_SCENE.md).
+Owner feedback: 2026-09-09. Functional navigation and writing clarity shipped first
+(September wave, merged 2026-09-11).
 
 ## Intended experience
 
@@ -47,8 +50,12 @@ the original Meadow concept has already been rebuilt.
    Use responsive compressed assets and lazy loading for offscreen specimens. Approve
    only if the writing interface remains responsive on a representative mobile device.
 
-## Explicitly deferred
+## Explicitly deferred (historical, 2026-09-09; superseded by D-022)
 
 Photographic asset generation/purchase, full visual redesign, spatial garden
 navigation, motion, branching diagrams, and a new flower growth grammar. This phase
 must not add chat, live critique, automatic rearrangement, or AI activation.
+
+As of D-022, photographic and generated assets, the visual redesign, spatial garden
+navigation, motion and the flower growth grammar are in scope. The rules on chat, live
+critique, automatic rearrangement and AI activation still apply.
