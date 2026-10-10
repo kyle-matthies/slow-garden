@@ -1030,3 +1030,71 @@
     animation: none;
   }
 }
+
+/* Tending responses inside the focus panel. */
+.tag-actions {
+  display: inline-flex;
+  gap: 0.35rem;
+  margin-top: 0.2rem;
+}
+.tag-action {
+  min-height: 32px;
+  padding: 0.15rem 0.6rem;
+  border: 1px solid var(--sheet-edge);
+  border-radius: 999px;
+  background: var(--vellum);
+  color: var(--vellum-ink);
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+.tag-action:focus-visible {
+  outline: 3px solid var(--moss-deep);
+  outline-offset: 2px;
+}
+.tag-kept {
+  color: var(--sheet-muted);
+  font-size: 0.78rem;
+}
+.review-cabinet {
+  margin-top: 0.6rem;
+}
+.tending-status {
+  min-height: 1.2em;
+  margin: 0.4rem 0 0;
+  font-size: 0.85rem;
+}
+
+/* Overnight tending preference in settings. */
+.tending-settings {
+  display: grid;
+  gap: 0.5rem;
+  max-width: 40rem;
+  margin: 1rem 0;
+  padding: 1rem 1.2rem;
+  border: 1px solid var(--garden-line);
+  border-radius: 8px;
+  background: var(--surface-solid);
+}
+.tending-settings h3 {
+  margin: 0;
+}
+.tending-settings p {
+  margin: 0;
+}
+.tending-settings select {
+  max-width: 22rem;
+  min-height: 40px;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid var(--garden-line);
+  border-radius: 6px;
+  background: var(--input-bg);
+  color: var(--garden-ink);
+  font: inherit;
+}
+.tending-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-weight: 600;
+}

@@ -22,6 +22,14 @@ export function validateBloomResponse(
     : null;
 }
 
+/** IANA zone names as the browser reports them; the database validates further. */
+export function validateTimezone(timezone: string): string | null {
+  return /^[A-Za-z][A-Za-z0-9_+-]*(\/[A-Za-z0-9_+-]+){0,2}$/.test(timezone) &&
+    timezone.length <= 64
+    ? null
+    : "Choose a time zone from the list.";
+}
+
 export function saveErrorMessage(error: unknown): string {
   const e = (error ?? {}) as { code?: string; message?: string };
   return e.code === "40001"

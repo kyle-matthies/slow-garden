@@ -36,6 +36,12 @@ const STATES = [
   ["garden-archive", "/dev/axe-fixtures?view=archive"],
   ["garden-ring", "/dev/axe-fixtures?view=gardens"],
   ["cabinet", "/garden/returns-preview?scene=three-blooms"],
+  // Settings, including the overnight tending preference (ADR-008), open in place.
+  [
+    "garden-settings",
+    "/dev/axe-fixtures?view=list",
+    (page) => page.getByRole("button", { name: "Settings & export" }).click(),
+  ],
 ];
 // Findings reported as warnings instead of failures. Keep empty unless a finding is
 // tracked in an initiative record with an owner.
@@ -50,6 +56,7 @@ const SHOT_STATES = new Set([
   "garden-thought",
   "garden-ring",
   "cabinet",
+  "garden-settings",
   "error",
 ]);
 const SCHEMES = ["light", "dark"];
@@ -131,6 +138,13 @@ const CONTRAST = [
     ],
   },
   {
+    state: "garden-settings",
+    url: "/dev/axe-fixtures?view=list",
+    open: (page) => page.getByRole("button", { name: "Settings & export" }).click(),
+    token: "--garden-bg",
+    selectors: [".tending-settings h3", ".tending-settings p", ".tending-toggle"],
+  },
+  {
     state: "garden-focus",
     url: `/dev/axe-fixtures?focus=${SEED}`,
     token: "--sheet",
@@ -202,7 +216,7 @@ try {
     }
   };
 
-  for (const [state, url] of STATES) {
+  for (const [state, url, open] of STATES) {
     for (const scheme of SCHEMES) {
       for (const vp of VIEWPORTS) {
         const ctx = await browser.newContext({
@@ -213,6 +227,7 @@ try {
         });
         const page = await ctx.newPage();
         await page.goto(`${BASE}${url}`, { waitUntil: "networkidle" });
+        await open?.(page);
         // Hide the Next.js dev-tools badge so receipts show only the app.
         await page.addStyleTag({
           content: "nextjs-portal{display:none!important}",
@@ -310,6 +325,7 @@ try {
     const page = await ctx.newPage();
     for (const block of CONTRAST) {
       await page.goto(`${BASE}${block.url}`, { waitUntil: "networkidle" });
+      await block.open?.(page);
       for (const sel of block.selectors) {
         const rows = await page.evaluate(
           ({ sel, token }) => {

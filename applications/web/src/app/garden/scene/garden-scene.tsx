@@ -62,6 +62,10 @@ export type GardenSceneProps = {
   onListView?: (topicId: string) => void;
   newTopic?: ReactNode;
   newThought?: (plotId: string) => ReactNode;
+  onRespondMark?: (
+    markId: string,
+    response: "keep" | "prune",
+  ) => Promise<string | null>;
 };
 
 /**
@@ -86,6 +90,7 @@ export function GardenScene({
   onListView,
   newTopic,
   newThought,
+  onRespondMark,
 }: GardenSceneProps) {
   const interactive = mode === "interactive";
   const root = useRef<HTMLElement>(null);
@@ -505,6 +510,10 @@ export function GardenScene({
                   canWrite={canWrite}
                   onWrite={() => onOpenThought?.(focusPlant.seed.id)}
                   onClose={closeFocus}
+                  onRespondMark={onRespondMark}
+                  onReviewBlooms={
+                    onListView ? () => onListView(focusBed.plot.id) : undefined
+                  }
                 />
               )}
             </AnimatePresence>

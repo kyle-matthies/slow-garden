@@ -10,7 +10,7 @@ import {
 import type { Tables } from "@/types/database";
 type SourceExport = Omit<
   ExportSnapshot,
-  "passes" | "blooms" | "responses"
+  "passes" | "blooms" | "responses" | "marks" | "markResponses"
 >;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export async function GET(request: Request) {
@@ -25,7 +25,7 @@ export async function GET(request: Request) {
     if (exportError || !snapshot)
       throw exportError ?? new Error("Export unavailable");
     const source = snapshot as unknown as SourceExport;
-    const [passes, blooms, responses] = await Promise.all([
+    const [passes, blooms, responses, marks, markResponses] = await Promise.all([
       allRows<Tables<"garden_passes">>((a, b) =>
         db
           .from("garden_passes")
@@ -50,8 +50,31 @@ export async function GET(request: Request) {
           .order("id")
           .range(a, b),
       ),
+      allRows<Tables<"tending_marks">>((a, b) =>
+        db
+          .from("tending_marks")
+          .select("*")
+          .order("created_at")
+          .order("id")
+          .range(a, b),
+      ),
+      allRows<Tables<"tending_mark_responses">>((a, b) =>
+        db
+          .from("tending_mark_responses")
+          .select("*")
+          .order("created_at")
+          .order("id")
+          .range(a, b),
+      ),
     ]);
-    let full: ExportSnapshot = { ...source, passes, blooms, responses };
+    let full: ExportSnapshot = {
+      ...source,
+      passes,
+      blooms,
+      responses,
+      marks,
+      markResponses,
+    };
     const params = new URL(request.url).searchParams;
     const gardenId = params.get("garden");
     if (gardenId) {

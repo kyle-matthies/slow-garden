@@ -10,6 +10,9 @@ export type ExportSnapshot = {
   passes: Tables<"garden_passes">[];
   blooms: Tables<"blooms">[];
   responses: Tables<"bloom_responses">[];
+  /** Tending marks (ADR-008) and the author's keep/prune replies to them. */
+  marks?: Tables<"tending_marks">[];
+  markResponses?: Tables<"tending_mark_responses">[];
 };
 
 export function filterSnapshotByGarden(
@@ -18,6 +21,8 @@ export function filterSnapshotByGarden(
 ): ExportSnapshot {
   const blooms = s.blooms.filter((b) => b.garden_id === gardenId);
   const bloomIds = new Set(blooms.map((b) => b.id));
+  const marks = (s.marks ?? []).filter((m) => m.garden_id === gardenId);
+  const markIds = new Set(marks.map((m) => m.id));
   return {
     ...s,
     gardens: s.gardens.filter((g) => g.id === gardenId),
@@ -28,6 +33,10 @@ export function filterSnapshotByGarden(
     passes: s.passes.filter((p) => p.garden_id === gardenId),
     blooms,
     responses: s.responses.filter((r) => bloomIds.has(r.bloom_id)),
+    marks,
+    markResponses: (s.markResponses ?? []).filter((r) =>
+      markIds.has(r.mark_id),
+    ),
   };
 }
 
@@ -44,10 +53,15 @@ export function buildExportDocument(s: ExportSnapshot) {
       revisions: s.revisions,
     },
     derived: {
-      note: "Blooms are AI-derived interpretations traceable to source revisions via evidence. Responses are the author's replies to blooms.",
+      note: "Blooms and tending marks are AI-derived and traceable to source revisions via evidence. Responses are the author's replies to them.",
       passes: s.passes,
       blooms: { authorship: "ai-derived" as const, rows: s.blooms },
       responses: { authorship: "user" as const, rows: s.responses },
+      marks: { authorship: "ai-derived" as const, rows: s.marks ?? [] },
+      mark_responses: {
+        authorship: "user" as const,
+        rows: s.markResponses ?? [],
+      },
     },
   };
 }
@@ -113,6 +127,20 @@ export function formatExportMarkdown(s: ExportSnapshot): string {
                     : []),
                   "",
                 ]),
+            ]),
+          ...(s.marks ?? [])
+            .filter((m) => m.pass_id === p.id)
+            .flatMap((m) => [
+              "#### Tended · " +
+                m.kind +
+                (m.label ? " · " + m.label : "") +
+                " · AI-derived",
+              "",
+              "Evidence: " + JSON.stringify(m.evidence),
+              ...(s.markResponses ?? [])
+                .filter((r) => r.mark_id === m.id)
+                .map((r) => "Response · " + r.response + " · " + r.created_at),
+              "",
             ]),
         ])
       : ["No derived material."]),
