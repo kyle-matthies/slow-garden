@@ -10,7 +10,9 @@ const seed = (i: number, extra: Partial<Placeable> = {}): Placeable => ({
 describe("placePlants", () => {
   it("is deterministic", () => {
     const seeds = Array.from({ length: 12 }, (_, i) => seed(i));
-    expect([...placePlants(seeds)]).toEqual([...placePlants([...seeds].reverse())]);
+    expect([...placePlants(seeds)]).toEqual([
+      ...placePlants([...seeds].reverse()),
+    ]);
   });
 
   it("never moves an existing plant when a newer thought is planted", () => {
@@ -35,9 +37,16 @@ describe("placePlants", () => {
   });
 
   it("spreads early plants apart", () => {
-    const placed = [...placePlants(Array.from({ length: 6 }, (_, i) => seed(i))).values()];
+    const placed = [
+      ...placePlants(Array.from({ length: 6 }, (_, i) => seed(i))).values(),
+    ];
     for (let i = 0; i < placed.length; i++)
       for (let j = i + 1; j < placed.length; j++)
-        expect(Math.hypot(placed[i].u - placed[j].u, (placed[i].depth - placed[j].depth) * 0.55)).toBeGreaterThan(0.1);
+        expect(
+          Math.hypot(
+            placed[i].u - placed[j].u,
+            (placed[i].depth - placed[j].depth) * 0.55,
+          ),
+        ).toBeGreaterThan(0.1);
   });
 });

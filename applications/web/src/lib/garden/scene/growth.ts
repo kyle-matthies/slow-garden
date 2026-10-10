@@ -7,7 +7,12 @@
  * rests, and AI output never contributes. It is not a score and is never shown
  * as one.
  */
-export type GrowthStage = "seed" | "sprout" | "leafing" | "budding" | "flowering";
+export type GrowthStage =
+  | "seed"
+  | "sprout"
+  | "leafing"
+  | "budding"
+  | "flowering";
 
 export const GROWTH_STAGES: readonly GrowthStage[] = [
   "seed",
@@ -44,7 +49,8 @@ export function growthFor(entries: readonly GrowthEntry[]): Growth {
   for (const e of entries) {
     contributions += Math.max(1, e.revision_number);
     days.add(day(e.created_at));
-    if (e.revised_at && e.revised_at > e.created_at) days.add(day(e.revised_at));
+    if (e.revised_at && e.revised_at > e.created_at)
+      days.add(day(e.revised_at));
     const latest = e.revised_at > e.created_at ? e.revised_at : e.created_at;
     if (!lastWrittenAt || latest > lastWrittenAt) lastWrittenAt = latest;
   }

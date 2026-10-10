@@ -1,0 +1,251 @@
+/*
+ * Cabinet clipping board (D-022, A4): the bloom's plant pressed on deckled paper
+ * beside the person's exact clippings, joined by dashed provenance connectors.
+ * Layered over returns.css; colours keep its source/derived semantics.
+ */
+.cabinet-board {
+  display: grid;
+  grid-template-columns: minmax(13rem, 0.9fr) minmax(0, 1.25fr);
+  gap: 1.25rem 2.75rem;
+  align-items: start;
+}
+
+.cabinet-bloom {
+  border-left-width: 1px;
+  background: transparent;
+  border-color: transparent;
+  padding-inline: 0;
+}
+
+/* The specimen sheet: deckled edges via a clipped polygon, shadow on the wrapper. */
+.cabinet-specimen-frame {
+  filter: drop-shadow(0 12px 18px rgba(40, 46, 30, 0.2)) drop-shadow(0 1px 1px rgba(40, 46, 30, 0.18));
+  transform: rotate(-0.6deg);
+}
+.cabinet-specimen-card {
+  position: relative;
+  padding: 1.1rem 1.15rem 0.9rem;
+  background:
+    radial-gradient(circle at 20% 15%, rgba(255, 255, 255, 0.5), transparent 40%),
+    linear-gradient(170deg, var(--cabinet-card), var(--cabinet-ivory));
+  clip-path: polygon(
+    0.6% 1.2%, 6% 0.3%, 13% 1%, 21% 0.2%, 29% 0.9%, 38% 0.1%, 47% 0.8%, 56% 0.2%,
+    64% 1%, 73% 0.3%, 81% 0.9%, 89% 0.2%, 95% 0.8%, 99.4% 0.4%, 99.8% 7%, 99.2% 15%,
+    99.9% 24%, 99.3% 33%, 99.8% 42%, 99.2% 51%, 99.9% 60%, 99.3% 69%, 99.8% 78%,
+    99.1% 87%, 99.7% 95%, 99.2% 99.4%, 92% 99.8%, 84% 99.1%, 75% 99.9%, 66% 99.2%,
+    57% 99.8%, 48% 99.1%, 39% 99.9%, 30% 99.3%, 21% 99.8%, 12% 99.2%, 4% 99.8%,
+    0.5% 99.2%, 0.1% 92%, 0.8% 83%, 0.2% 74%, 0.9% 65%, 0.1% 56%, 0.8% 47%,
+    0.2% 38%, 0.9% 29%, 0.1% 20%, 0.8% 11%
+  );
+}
+.cabinet-specimen-card .cabinet-interpretation {
+  margin: 0.6rem 0 0.4rem;
+  font-size: 1.28rem;
+  line-height: 1.45;
+  font-style: normal;
+}
+
+.pressed-specimen {
+  margin: 0.4rem 0 0;
+}
+.pressed-sheet {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 15rem;
+  padding: 0.6rem 0.4rem 1rem;
+}
+.pressed-photo {
+  display: block;
+  width: 100%;
+  max-width: 17rem;
+  height: auto;
+  mix-blend-mode: multiply;
+}
+.pressed-drawn {
+  display: block;
+  width: 72%;
+  max-width: 14rem;
+  height: 15rem;
+}
+.pressed-drawn svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  filter: drop-shadow(0 1px 1px rgba(60, 50, 30, 0.25));
+}
+/* A strip of washi tape across the stem. */
+.pressed-tape {
+  position: absolute;
+  left: 50%;
+  bottom: 2.4rem;
+  width: 5.6rem;
+  height: 1.5rem;
+  background: repeating-linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.18) 0 3px,
+      transparent 3px 7px
+    ),
+    rgba(238, 230, 205, 0.72);
+  box-shadow: 0 1px 2px rgba(60, 50, 30, 0.18);
+  transform: translateX(-50%) rotate(-4deg);
+  clip-path: polygon(2% 0, 98% 6%, 100% 50%, 97% 100%, 3% 94%, 0 50%);
+}
+.pressed-photo + .pressed-tape {
+  display: none;
+}
+.pressed-specimen figcaption {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding-top: 0.45rem;
+  border-top: 1px dotted var(--cabinet-edge);
+  color: var(--cabinet-muted);
+  font-family: var(--font-editorial), serif;
+  font-size: 0.95rem;
+}
+
+/* Clippings: the person's own words, clipped to the board and wired to the specimen. */
+.cabinet-board .cabinet-clipping-list {
+  display: grid;
+  gap: 1.1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.cabinet-board .cabinet-clipping {
+  position: relative;
+  margin: 0;
+  padding: 1rem 1.15rem 0.85rem 1.3rem;
+  border: 1px solid var(--cabinet-clipping-edge);
+  border-left: 1px solid var(--cabinet-clipping-edge);
+  background:
+    radial-gradient(circle at 8px 14px, rgba(80, 90, 70, 0.22) 0 2px, transparent 2.5px) 0 0 / 100% 22px repeat-y,
+    var(--cabinet-clipping);
+  box-shadow: 0 6px 14px rgba(40, 46, 30, 0.12);
+}
+.cabinet-board li:nth-child(odd) .cabinet-clipping {
+  transform: rotate(0.5deg);
+}
+.cabinet-board li:nth-child(even) .cabinet-clipping {
+  transform: rotate(-0.4deg);
+}
+.cabinet-board .cabinet-clipping::before {
+  content: "";
+  position: absolute;
+  top: 1.6rem;
+  right: 100%;
+  width: 2.75rem;
+  border-top: 1.5px dashed var(--cabinet-evidence);
+  opacity: 0.75;
+}
+.cabinet-board .cabinet-clipping::after {
+  content: "";
+  position: absolute;
+  top: calc(1.6rem - 3.5px);
+  right: calc(100% - 4px);
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--cabinet-evidence);
+}
+.cabinet-board .cabinet-clipping[data-state="superseded"]::before,
+.cabinet-board .cabinet-clipping[data-state="archived"]::before {
+  border-top-style: dotted;
+}
+.cabinet-board .cabinet-clipping[data-state="unknown"]::before,
+.cabinet-board .cabinet-clipping[data-state="unknown"]::after {
+  opacity: 0.35;
+}
+.cabinet-paperclip {
+  position: absolute;
+  top: -0.9rem;
+  right: 1rem;
+  width: 0.75rem;
+  height: 2.2rem;
+  fill: none;
+  stroke: #8c9294;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  transform: rotate(8deg);
+}
+.cabinet-board .cabinet-clipping-body {
+  font-family: var(--font-editorial), serif;
+  font-size: 1.15rem;
+  line-height: 1.45;
+}
+
+/* Press: the specimen settles, then clippings collect beside it. */
+@media (prefers-reduced-motion: no-preference) {
+  .cabinet-specimen-frame {
+    animation: specimen-settle 900ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+  .cabinet-board .cabinet-clipping-list > li {
+    animation: clipping-collect 640ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+  .cabinet-board .cabinet-clipping-list > li:nth-child(2) {
+    animation-delay: 120ms;
+  }
+  .cabinet-board .cabinet-clipping-list > li:nth-child(3) {
+    animation-delay: 240ms;
+  }
+  .cabinet-board .cabinet-clipping-list > li:nth-child(n + 4) {
+    animation-delay: 320ms;
+  }
+}
+@keyframes specimen-settle {
+  from {
+    opacity: 0;
+    transform: scale(1.08) rotate(-3deg) translateY(-10px);
+  }
+  60% {
+    opacity: 1;
+  }
+  to {
+    opacity: 1;
+    transform: rotate(-0.6deg);
+  }
+}
+.cabinet-specimen-card .cabinet-bloom-header {
+  gap: 6px 12px;
+}
+@keyframes clipping-collect {
+  from {
+    opacity: 0;
+    transform: translateX(-24px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  .cabinet-specimen-card {
+    background: linear-gradient(170deg, var(--cabinet-card), var(--cabinet-ivory));
+  }
+  .pressed-photo {
+    mix-blend-mode: normal;
+    filter: brightness(0.86) saturate(0.9);
+    border-radius: 2px;
+  }
+  .cabinet-paperclip {
+    stroke: #aab2b4;
+  }
+}
+
+@media (max-width: 720px) {
+  .cabinet-board {
+    grid-template-columns: 1fr;
+  }
+  .cabinet-board .cabinet-clipping::before,
+  .cabinet-board .cabinet-clipping::after {
+    display: none;
+  }
+  .pressed-sheet {
+    min-height: 11rem;
+  }
+  .pressed-drawn {
+    height: 11rem;
+  }
+}

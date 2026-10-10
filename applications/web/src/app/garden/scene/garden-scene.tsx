@@ -97,7 +97,10 @@ export function GardenScene({
   const night = useSyncExternalStore(subscribeDark, getDark, () => false);
   const reduced = useReducedMotion() ?? false;
   const still = reduced || !interactive;
-  const palette = useMemo(() => paletteFor(garden.id, night), [garden.id, night]);
+  const palette = useMemo(
+    () => paletteFor(garden.id, night),
+    [garden.id, night],
+  );
   const beds = useMemo(
     () => buildBeds(plots, seeds, entries, tending),
     [plots, seeds, entries, tending],
@@ -161,14 +164,16 @@ export function GardenScene({
 
   // Turn toward the selected topic, and step closer while it is selected.
   useEffect(() => {
-    const target = topicIndex >= 0 ? nearestAngle(theta.get(), angles[topicIndex]) : null;
+    const target =
+      topicIndex >= 0 ? nearestAngle(theta.get(), angles[topicIndex]) : null;
     if (target !== null) {
       if (reduced) theta.set(target);
       else animate(theta, target, SPRING);
     }
     const nextZoom = topicIndex >= 0 && interactive ? 1.1 : 1;
     if (reduced) zoom.set(nextZoom);
-    else animate(zoom, nextZoom, { type: "spring", stiffness: 60, damping: 20 });
+    else
+      animate(zoom, nextZoom, { type: "spring", stiffness: 60, damping: 20 });
   }, [topicIndex, angles, theta, zoom, reduced, interactive]);
 
   // Which beds to render follows the camera coarsely (every few degrees), so
@@ -182,7 +187,14 @@ export function GardenScene({
       metrics
         ? beds
             .map((b, i) =>
-              isVisible(b.angle, coarseTheta, metrics.fov, metrics.bedWidthDeg * 0.7 + 4) ? i : -1,
+              isVisible(
+                b.angle,
+                coarseTheta,
+                metrics.fov,
+                metrics.bedWidthDeg * 0.7 + 4,
+              )
+                ? i
+                : -1,
             )
             .filter((i) => i >= 0)
         : [],
@@ -210,12 +222,29 @@ export function GardenScene({
   const current = beds.length ? nearestBed(theta.get(), angles) : -1;
 
   // Drag (or swipe) to turn; release settles on the nearest bed.
-  const drag = useRef<{ x: number; theta: number; moved: boolean; t: number; v: number } | null>(null);
+  const drag = useRef<{
+    x: number;
+    theta: number;
+    moved: boolean;
+    t: number;
+    v: number;
+  } | null>(null);
   function onPointerDown(event: React.PointerEvent) {
     if (!interactive || !metrics || event.button !== 0) return;
     const target = event.target as HTMLElement;
-    if (target.closest("button, a, input, textarea, select, .plant-focus, .scene-panel")) return;
-    drag.current = { x: event.clientX, theta: theta.get(), moved: false, t: event.timeStamp, v: 0 };
+    if (
+      target.closest(
+        "button, a, input, textarea, select, .plant-focus, .scene-panel",
+      )
+    )
+      return;
+    drag.current = {
+      x: event.clientX,
+      theta: theta.get(),
+      moved: false,
+      t: event.timeStamp,
+      v: 0,
+    };
     theta.stop();
   }
   function onPointerMove(event: React.PointerEvent) {
@@ -223,7 +252,8 @@ export function GardenScene({
     if (!d || !metrics) return;
     const dx = event.clientX - d.x;
     if (!d.moved && Math.abs(dx) < 6) return;
-    if (!d.moved) (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+    if (!d.moved)
+      (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
     d.moved = true;
     const next = d.theta - dx / metrics.ppd;
     const dt = Math.max(1, event.timeStamp - d.t);
@@ -249,11 +279,13 @@ export function GardenScene({
   function onKeyDown(event: React.KeyboardEvent) {
     if (!interactive) return;
     const target = event.target as HTMLElement;
-    if (target.closest("input, textarea, select, [contenteditable='true']")) return;
+    if (target.closest("input, textarea, select, [contenteditable='true']"))
+      return;
     if (event.key === "ArrowRight" || event.key === "ArrowLeft") {
       if (focusId) return;
       event.preventDefault();
-      const base = topicIndex >= 0 ? topicIndex : nearestBed(theta.get(), angles);
+      const base =
+        topicIndex >= 0 ? topicIndex : nearestBed(theta.get(), angles);
       turnTo(base + (event.key === "ArrowRight" ? 1 : -1));
     } else if (event.key === "Escape") {
       if (focusId) {
@@ -274,15 +306,22 @@ export function GardenScene({
     const id = focusId || lastFocus.current;
     onFocus?.("");
     requestAnimationFrame(() =>
-      root.current?.querySelector<HTMLElement>(`[data-plant="${CSS.escape(id)}"]`)?.focus(),
+      root.current
+        ?.querySelector<HTMLElement>(`[data-plant="${CSS.escape(id)}"]`)
+        ?.focus(),
     );
   }
 
-  const seedsById = useMemo(() => new Map(seeds.map((s) => [s.id, s])), [seeds]);
+  const seedsById = useMemo(
+    () => new Map(seeds.map((s) => [s.id, s])),
+    [seeds],
+  );
   const focusPlant = focusId
     ? beds.flatMap((b) => b.plants).find((p) => p.seed.id === focusId)
     : undefined;
-  const focusBed = focusPlant ? beds.find((b) => b.plot.id === focusPlant.seed.plot_id) : undefined;
+  const focusBed = focusPlant
+    ? beds.find((b) => b.plot.id === focusPlant.seed.plot_id)
+    : undefined;
   const topicBed = topicIndex >= 0 ? beds[topicIndex] : undefined;
 
   return (
@@ -329,7 +368,11 @@ export function GardenScene({
                 onPlant={(id) => onFocus?.(id)}
               />
             ))}
-          <canvas ref={front} className="scene-canvas scene-canvas-front" aria-hidden="true" />
+          <canvas
+            ref={front}
+            className="scene-canvas scene-canvas-front"
+            aria-hidden="true"
+          />
           {metrics &&
             visible.map((i) => (
               <BedSign
@@ -351,7 +394,8 @@ export function GardenScene({
               {topicBed && (
                 <p className="scene-subtitle">
                   in {garden.name}
-                  {topicBed.resting > 0 && ` · ${topicBed.resting} more resting in the list`}
+                  {topicBed.resting > 0 &&
+                    ` · ${topicBed.resting} more resting in the list`}
                 </p>
               )}
             </div>
@@ -361,7 +405,9 @@ export function GardenScene({
                   type="button"
                   className="scene-turn scene-turn-left"
                   aria-label="Turn left to the previous topic"
-                  onClick={() => turnTo((topicIndex >= 0 ? topicIndex : current) - 1)}
+                  onClick={() =>
+                    turnTo((topicIndex >= 0 ? topicIndex : current) - 1)
+                  }
                 >
                   <span aria-hidden="true">‹</span>
                 </button>
@@ -369,26 +415,42 @@ export function GardenScene({
                   type="button"
                   className="scene-turn scene-turn-right"
                   aria-label="Turn right to the next topic"
-                  onClick={() => turnTo((topicIndex >= 0 ? topicIndex : current) + 1)}
+                  onClick={() =>
+                    turnTo((topicIndex >= 0 ? topicIndex : current) + 1)
+                  }
                 >
                   <span aria-hidden="true">›</span>
                 </button>
               </>
             )}
-            <nav ref={dock} className="scene-panel scene-dock" aria-label="Topics in this garden">
+            <nav
+              ref={dock}
+              className="scene-panel scene-dock"
+              aria-label="Topics in this garden"
+            >
               {topicBed ? (
                 <div className="dock-topic">
                   <div className="dock-actions">
                     {canWrite && newThought?.(topicBed.plot.id)}
-                    <button type="button" className="plain-button" onClick={() => onListView?.(topicBed.plot.id)}>
+                    <button
+                      type="button"
+                      className="plain-button"
+                      onClick={() => onListView?.(topicBed.plot.id)}
+                    >
                       Topic settings &amp; Cabinet
                     </button>
-                    <button type="button" className="plain-button" onClick={() => onTopic?.("")}>
+                    <button
+                      type="button"
+                      className="plain-button"
+                      onClick={() => onTopic?.("")}
+                    >
                       Whole garden
                     </button>
                   </div>
                   {topicBed.total === 0 && (
-                    <p className="dock-hint">Plant a thought to begin this bed.</p>
+                    <p className="dock-hint">
+                      Plant a thought to begin this bed.
+                    </p>
                   )}
                 </div>
               ) : (
@@ -397,7 +459,11 @@ export function GardenScene({
                     <ul className="dock-chips">
                       {beds.map((b) => (
                         <li key={b.plot.id}>
-                          <button type="button" className="dock-chip" onClick={() => onTopic?.(b.plot.id)}>
+                          <button
+                            type="button"
+                            className="dock-chip"
+                            onClick={() => onTopic?.(b.plot.id)}
+                          >
                             {b.plot.name}
                           </button>
                         </li>
@@ -413,18 +479,26 @@ export function GardenScene({
                 </>
               )}
               <p className="visually-hidden">
-                Use the left and right arrow keys or the topic buttons to turn through this
-                garden. The list view shows every thought.
+                Use the left and right arrow keys or the topic buttons to turn
+                through this garden. The list view shows every thought.
               </p>
             </nav>
-            {focusId && <div className="scene-scrim" aria-hidden="true" onClick={closeFocus} />}
+            {focusId && (
+              <div
+                className="scene-scrim"
+                aria-hidden="true"
+                onClick={closeFocus}
+              />
+            )}
             <AnimatePresence>
               {focusPlant && focusBed && (
                 <PlantFocus
                   key={focusPlant.seed.id}
                   plant={focusPlant}
                   topicName={focusBed.plot.name}
-                  entries={entries.filter((e) => e.seed_id === focusPlant.seed.id)}
+                  entries={entries.filter(
+                    (e) => e.seed_id === focusPlant.seed.id,
+                  )}
                   seedsById={seedsById}
                   night={night}
                   reduced={reduced}
@@ -482,13 +556,20 @@ function SceneLight({
   const place = useCallback(
     (t: number) => {
       if (!ref.current || !metrics) return;
-      const x = metrics.width / 2 + wrap(palette.lightAngle - t * 0.05) * metrics.ppd;
-      const y = metrics.horizonY * (1 - palette.lightHeight) - metrics.horizonY * 0.05;
+      const x =
+        metrics.width / 2 + wrap(palette.lightAngle - t * 0.05) * metrics.ppd;
+      const y =
+        metrics.horizonY * (1 - palette.lightHeight) - metrics.horizonY * 0.05;
       ref.current.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px)`;
     },
     [metrics, palette],
   );
   useEffect(() => place(theta.get()), [place, theta]);
   useMotionValueEvent(theta, "change", place);
-  return <span ref={ref} className={`scene-light${palette.night ? " is-moon" : ""}`} />;
+  return (
+    <span
+      ref={ref}
+      className={`scene-light${palette.night ? " is-moon" : ""}`}
+    />
+  );
 }

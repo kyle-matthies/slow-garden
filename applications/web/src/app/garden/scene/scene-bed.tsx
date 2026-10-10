@@ -65,13 +65,17 @@ function plantLabel(plant: ScenePlantModel) {
   const parts = [`Thought: ${seed.title}`, describeGrowth(growth)];
   if (growth.lastWrittenAt)
     parts.push(
-      `last written ${new Date(growth.lastWrittenAt).toLocaleDateString(undefined, {
-        month: "short",
-        day: "numeric",
-      })}`,
+      `last written ${new Date(growth.lastWrittenAt).toLocaleDateString(
+        undefined,
+        {
+          month: "short",
+          day: "numeric",
+        },
+      )}`,
     );
   const notes = marks.length + blooms.length;
-  if (notes) parts.push(`${notes} ${notes === 1 ? "tending note" : "tending notes"}`);
+  if (notes)
+    parts.push(`${notes} ${notes === 1 ? "tending note" : "tending notes"}`);
   return parts.join(", ");
 }
 
@@ -90,7 +94,10 @@ const ScenePlant = memo(function ScenePlant({
 }) {
   const { genome, growth, slot, seed } = plant;
   const vigor = Math.round(growth.vigor * 4) / 4;
-  const shape = useMemo(() => plantShape(genome, growth.stage, vigor), [genome, growth.stage, vigor]);
+  const shape = useMemo(
+    () => plantShape(genome, growth.stage, vigor),
+    [genome, growth.stage, vigor],
+  );
   const k = plantPx(metrics, slot.depth);
   const x = slot.u * metrics.bedWidthDeg * metrics.ppd;
   const y = plantBaseY(metrics, slot.depth);
@@ -164,7 +171,11 @@ function Threads({
 }) {
   const positions = new Map<string, { x: number; y: number }>();
   for (const p of bed.plants) {
-    const shape: PlantShape = plantShape(p.genome, p.growth.stage, Math.round(p.growth.vigor * 4) / 4);
+    const shape: PlantShape = plantShape(
+      p.genome,
+      p.growth.stage,
+      Math.round(p.growth.vigor * 4) / 4,
+    );
     const k = plantPx(metrics, p.slot.depth);
     positions.set(p.seed.id, {
       x: p.slot.u * metrics.bedWidthDeg * metrics.ppd,
@@ -212,7 +223,8 @@ export const SceneBed = memo(function SceneBed({
   onPlant: (id: string) => void;
 }) {
   const bands = BANDS.map(() => [] as ScenePlantModel[]);
-  for (const p of bed.plants) bands[BANDS.findIndex((b) => p.slot.depth < b.max)].push(p);
+  for (const p of bed.plants)
+    bands[BANDS.findIndex((b) => p.slot.depth < b.max)].push(p);
   const clearing = plantPx(metrics, 0.5) * 120;
   return (
     <>
@@ -233,7 +245,10 @@ export const SceneBed = memo(function SceneBed({
                 left: -metrics.bedWidthDeg * metrics.ppd * 0.58,
                 width: metrics.bedWidthDeg * metrics.ppd * 1.16,
                 top: plantBaseY(metrics, 0.02),
-                height: plantBaseY(metrics, 1.02) - plantBaseY(metrics, 0.02) + clearing * 0.1,
+                height:
+                  plantBaseY(metrics, 1.02) -
+                  plantBaseY(metrics, 0.02) +
+                  clearing * 0.1,
               }}
             />
           )}
@@ -247,7 +262,9 @@ export const SceneBed = memo(function SceneBed({
               onSelect={onPlant}
             />
           ))}
-          {i === 1 && showThreads && <Threads bed={bed} metrics={metrics} tending={tending} />}
+          {i === 1 && showThreads && (
+            <Threads bed={bed} metrics={metrics} tending={tending} />
+          )}
         </Band>
       ))}
     </>

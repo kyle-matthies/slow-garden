@@ -25,7 +25,12 @@ export function ThoughtPlant({
   );
   return (
     <span className={`${className} thought-plant`} aria-hidden="true">
-      <LivingPlant genome={genome} stage={growth.stage} vigor={growth.vigor} fit />
+      <LivingPlant
+        genome={genome}
+        stage={growth.stage}
+        vigor={growth.vigor}
+        fit
+      />
     </span>
   );
 }
@@ -40,7 +45,10 @@ export function TopicPlants({
 }) {
   const plants = useMemo(() => {
     const ranked = seedIds
-      .map((id) => ({ id, growth: growthFor(entries.filter((e) => e.seed_id === id)) }))
+      .map((id) => ({
+        id,
+        growth: growthFor(entries.filter((e) => e.seed_id === id)),
+      }))
       .sort((a, b) => b.growth.contributions - a.growth.contributions)
       .slice(0, 3);
     return ranked.map((p) => ({ ...p, genome: genomeFor(p.id) }));

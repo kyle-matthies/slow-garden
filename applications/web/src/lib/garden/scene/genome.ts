@@ -27,7 +27,8 @@ export function genomeFor(id: string): Genome {
   const seed = hashString(`plant:${id}`);
   const random = seededRandom(seed);
   const species = SPECIES[seed % SPECIES.length];
-  const [h, s, l] = species.colours[Math.floor(random() * species.colours.length)];
+  const [h, s, l] =
+    species.colours[Math.floor(random() * species.colours.length)];
   const colour: HSL = [
     (h + (random() - 0.5) * 8 + 360) % 360,
     Math.max(0, Math.min(100, s + (random() - 0.5) * 8)),

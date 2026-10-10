@@ -38,7 +38,14 @@ type Blade = {
 
 type Hill = { amps: number[]; phases: number[]; freqs: number[]; base: number };
 
-type Mote = { x: number; y: number; r: number; vx: number; vy: number; phase: number };
+type Mote = {
+  x: number;
+  y: number;
+  r: number;
+  vx: number;
+  vy: number;
+  phase: number;
+};
 
 type Strip = {
   canvas: HTMLCanvasElement;
@@ -115,12 +122,27 @@ function bladePath(
   return [tx, ty] as const;
 }
 
-function rosette(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, colour: string, centre: string) {
+function rosette(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  r: number,
+  colour: string,
+  centre: string,
+) {
   ctx.fillStyle = colour;
   for (let i = 0; i < 5; i++) {
     const a = (i / 5) * TAU;
     ctx.beginPath();
-    ctx.ellipse(x + Math.cos(a) * r * 0.55, y + Math.sin(a) * r * 0.42, r * 0.5, r * 0.32, a, 0, TAU);
+    ctx.ellipse(
+      x + Math.cos(a) * r * 0.55,
+      y + Math.sin(a) * r * 0.42,
+      r * 0.5,
+      r * 0.32,
+      a,
+      0,
+      TAU,
+    );
     ctx.fill();
   }
   ctx.fillStyle = centre;
@@ -154,7 +176,11 @@ export class GardenAtmosphere {
   private start = performance.now();
   private observer: IntersectionObserver | null = null;
 
-  constructor(back: HTMLCanvasElement, front: HTMLCanvasElement, opts: AtmosphereOptions) {
+  constructor(
+    back: HTMLCanvasElement,
+    front: HTMLCanvasElement,
+    opts: AtmosphereOptions,
+  ) {
     this.back = back;
     this.front = front;
     this.bctx = back.getContext("2d", { alpha: true })!;
@@ -185,7 +211,10 @@ export class GardenAtmosphere {
     this.height = height;
     const ideal = Math.min(window.devicePixelRatio || 1, 2);
     // Keep the backing store near 4.5 megapixels on very large screens.
-    this.dpr = Math.min(ideal, Math.sqrt(4_500_000 / Math.max(1, width * height)));
+    this.dpr = Math.min(
+      ideal,
+      Math.sqrt(4_500_000 / Math.max(1, width * height)),
+    );
     for (const canvas of [this.back, this.front]) {
       canvas.width = Math.round(width * this.dpr);
       canvas.height = Math.round(height * this.dpr);
@@ -214,7 +243,10 @@ export class GardenAtmosphere {
 
   private sync() {
     const shouldRun =
-      !this.opts.still && this.visible && this.width > 0 && document.visibilityState === "visible";
+      !this.opts.still &&
+      this.visible &&
+      this.width > 0 &&
+      document.visibilityState === "visible";
     if (shouldRun && !this.running) {
       this.running = true;
       this.frame = requestAnimationFrame(this.loop);
@@ -241,13 +273,19 @@ export class GardenAtmosphere {
     const sorted = [...this.frameTimes].sort((a, b) => a - b);
     const p90 = sorted[Math.floor(sorted.length * 0.9)];
     this.frameTimes = [];
-    if (p90 > 8 && this.quality > 0.35) this.quality = Math.max(0.35, this.quality * 0.75);
-    else if (p90 < 3.5 && this.quality < 1) this.quality = Math.min(1, this.quality * 1.15);
+    if (p90 > 8 && this.quality > 0.35)
+      this.quality = Math.max(0.35, this.quality * 0.75);
+    else if (p90 < 3.5 && this.quality < 1)
+      this.quality = Math.min(1, this.quality * 1.15);
   }
 
   private generate() {
     const random = seededRandom(this.opts.seed);
-    this.hills = [hill(random, 0, [1, 2, 3, 5]), hill(random, 0.02, [2, 3, 7, 11]), hill(random, 0.035, [3, 4, 6, 9])];
+    this.hills = [
+      hill(random, 0, [1, 2, 3, 5]),
+      hill(random, 0.02, [2, 3, 7, 11]),
+      hill(random, 0.035, [3, 4, 6, 9]),
+    ];
     const blade = (depth: number): Blade => ({
       angle: random() * 360,
       depth,
@@ -259,7 +297,8 @@ export class GardenAtmosphere {
       flower: random(),
     });
     const live: Blade[] = [];
-    for (let i = 0; i < 4200; i++) live.push(blade(lerp(LIVE_DEPTH, 1, Math.pow(random(), 0.8))));
+    for (let i = 0; i < 4200; i++)
+      live.push(blade(lerp(LIVE_DEPTH, 1, Math.pow(random(), 0.8))));
     live.sort((a, b) => a.depth - b.depth);
     this.live = live;
     const near: Blade[] = [];
@@ -328,9 +367,16 @@ export class GardenAtmosphere {
         const bend = 0.08 + (random() - 0.4) * 0.5;
         const toneIndex = Math.min(
           tones.length - 1,
-          Math.max(0, Math.floor(depth * (tones.length - 1) + (random() - 0.5) * 2.6)),
+          Math.max(
+            0,
+            Math.floor(depth * (tones.length - 1) + (random() - 0.5) * 2.6),
+          ),
         );
-        for (const ox of x < 60 ? [0, period] : x > period - 60 ? [0, -period] : [0]) {
+        for (const ox of x < 60
+          ? [0, period]
+          : x > period - 60
+            ? [0, -period]
+            : [0]) {
           const [tx, ty] = bladePath(paths[toneIndex], x + ox, y, len, w, bend);
           if (ox === 0 && random() > 0.982)
             flowers.push({
@@ -351,7 +397,15 @@ export class GardenAtmosphere {
           ctx.beginPath();
           ctx.arc(f.x, f.y, f.r, 0, TAU);
           ctx.fill();
-        } else rosette(ctx, f.x, f.y, f.r, f.c, palette.night ? "#7d7a5a" : "#e8c547");
+        } else
+          rosette(
+            ctx,
+            f.x,
+            f.y,
+            f.r,
+            f.c,
+            palette.night ? "#7d7a5a" : "#e8c547",
+          );
       }
       // Atmospheric haze, strongest near the horizon.
       ctx.globalAlpha = Math.max(0, 0.42 - band * 0.12);
@@ -388,9 +442,13 @@ export class GardenAtmosphere {
       b.moveTo(0, hy + 2);
       for (let x = 0; x <= W + 8; x += 8) {
         const deg = shift + (x - W / 2) / ppd;
-        let y = hy - groundH * (h.base + heights[i] * (0.55 + 0.45 * hillHeight(h, deg)));
+        let y =
+          hy -
+          groundH * (h.base + heights[i] * (0.55 + 0.45 * hillHeight(h, deg)));
         if (i === 1) {
-          const crown = Math.abs(Math.sin((deg * Math.PI) / 4.5)) * Math.abs(Math.sin((deg * Math.PI) / 11));
+          const crown =
+            Math.abs(Math.sin((deg * Math.PI) / 4.5)) *
+            Math.abs(Math.sin((deg * Math.PI) / 11));
           y -= crown * groundH * 0.03;
         }
         b.lineTo(x, y);
@@ -422,7 +480,8 @@ export class GardenAtmosphere {
       while (ox > 0) ox -= period;
       const sw = strip.canvas.width / strip.scale;
       const sh = strip.canvas.height / strip.scale;
-      for (let x = ox; x < W; x += period) b.drawImage(strip.canvas, x, strip.top, sw, sh);
+      for (let x = ox; x < W; x += period)
+        b.drawImage(strip.canvas, x, strip.top, sw, sh);
     }
 
     // Live grass with wind, batched by tone.
@@ -442,11 +501,19 @@ export class GardenAtmosphere {
       const w = g.widthFor(blade.depth) * blade.width * scale;
       const bend =
         0.1 +
-        (0.22 + 0.18 * blade.height) * gu * windAt(x, t) * (1.2 - blade.stiffness) +
+        (0.22 + 0.18 * blade.height) *
+          gu *
+          windAt(x, t) *
+          (1.2 - blade.stiffness) +
         Math.sin(t * 1.3 + blade.phase) * 0.03 * gu;
       const toneIndex = Math.min(
         tones.length - 1,
-        Math.max(0, Math.floor(blade.depth * (tones.length - 1) + (blade.tone - 0.5) * 2.4)),
+        Math.max(
+          0,
+          Math.floor(
+            blade.depth * (tones.length - 1) + (blade.tone - 0.5) * 2.4,
+          ),
+        ),
       );
       const [tx, ty] = bladePath(paths[toneIndex], x, y, len, w, bend);
       if (blade.tone > 0.62) {
@@ -466,10 +533,13 @@ export class GardenAtmosphere {
       b.fillStyle = tones[i];
       b.fill(p);
     });
-    b.strokeStyle = palette.night ? "rgba(150, 180, 170, 0.18)" : "rgba(235, 245, 200, 0.32)";
+    b.strokeStyle = palette.night
+      ? "rgba(150, 180, 170, 0.18)"
+      : "rgba(235, 245, 200, 0.32)";
     b.lineWidth = 0.8 * scale;
     b.stroke(tips);
-    for (const fl of flowers) rosette(b, fl.x, fl.y, fl.r, fl.c, palette.night ? "#8a8560" : "#e9c64a");
+    for (const fl of flowers)
+      rosette(b, fl.x, fl.y, fl.r, fl.c, palette.night ? "#8a8560" : "#e9c64a");
 
     // Foreground grass in front of the plants.
     const nearPath = new Path2D();
@@ -481,7 +551,9 @@ export class GardenAtmosphere {
       const len = lerp(40, 120, blade.depth - 1) * blade.height * scale;
       const w = lerp(2.6, 5.2, blade.depth - 1) * blade.width * scale;
       const bend =
-        0.12 + 0.3 * gu * windAt(x, t) * (1.2 - blade.stiffness) + Math.sin(t * 1.1 + blade.phase) * 0.04 * gu;
+        0.12 +
+        0.3 * gu * windAt(x, t) * (1.2 - blade.stiffness) +
+        Math.sin(t * 1.1 + blade.phase) * 0.04 * gu;
       bladePath(blade.tone > 0.5 ? nearPath : nearDark, x, H + 4, len, w, bend);
     }
     f.fillStyle = tones[tones.length - 2];
@@ -494,7 +566,14 @@ export class GardenAtmosphere {
     f.fillStyle = palette.particle;
     for (const m of this.motes) {
       const mx = (((m.x + (this.opts.still ? 0 : m.vx * t)) % 1) + 1) % 1;
-      const my = (((m.y + (this.opts.still ? 0 : m.vy * t + 0.01 * Math.sin(t * 0.7 + m.phase))) % 1) + 1) % 1;
+      const my =
+        (((m.y +
+          (this.opts.still
+            ? 0
+            : m.vy * t + 0.01 * Math.sin(t * 0.7 + m.phase))) %
+          1) +
+          1) %
+        1;
       const x = mx * W + windAt(mx * W, t) * 6 * gu;
       const y = hy - groundH * 0.1 + my * groundH * 0.95;
       const twinkle = night

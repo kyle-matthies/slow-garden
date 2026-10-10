@@ -3,7 +3,9 @@ import Link from "next/link";
 import { useId, useState, type ReactNode, type RefObject } from "react";
 import { isThoughtWritable } from "@/lib/garden/writable";
 import type { GardenData } from "@/lib/garden/types";
+import { PressedSpecimen } from "./scene/pressed-specimen";
 import "./returns.css";
+import "./cabinet-board.css";
 
 export type PassStatus =
   "queued" | "processing" | "complete" | "failed" | "cancelled" | "withdrawn";
@@ -436,6 +438,8 @@ function BloomSpecimen({
       setBusy(null);
     }
   }
+  const specimenSeed =
+    clippings.find((c) => c.source.seed_id)?.source.seed_id ?? bloom.id;
   return (
     <article
       className="cabinet-bloom"
@@ -443,57 +447,64 @@ function BloomSpecimen({
       data-freshness={freshness}
       aria-label={name}
     >
-      <header className="cabinet-bloom-header">
-        <p className="cabinet-bloom-kind">
-          <span className="cabinet-derived-mark" aria-hidden="true">
-            ❦
-          </span>{" "}
-          {label}
-          <span className="sr-only"> · AI-derived</span>
-        </p>
-        <p className="cabinet-bloom-state">
-          {withdrawn ? (
-            <span className="cabinet-badge" data-tone="withdrawn">
-              Withdrawn
-            </span>
-          ) : freshness === "historical" ? (
-            <span className="cabinet-badge" data-tone="stale">
-              Historical · a source has changed
-            </span>
-          ) : (
-            <span className="cabinet-badge" data-tone="current">
-              Sources unchanged
-            </span>
+      <div className="cabinet-board">
+        <div className="cabinet-specimen-frame">
+          <div className="cabinet-specimen-card">
+            <header className="cabinet-bloom-header">
+              <p className="cabinet-bloom-kind">
+                <span className="cabinet-derived-mark" aria-hidden="true">
+                  ❦
+                </span>{" "}
+                {label}
+                <span className="sr-only"> · AI-derived</span>
+              </p>
+              <p className="cabinet-bloom-state">
+                {withdrawn ? (
+                  <span className="cabinet-badge" data-tone="withdrawn">
+                    Withdrawn
+                  </span>
+                ) : freshness === "historical" ? (
+                  <span className="cabinet-badge" data-tone="stale">
+                    Historical · a source has changed
+                  </span>
+                ) : (
+                  <span className="cabinet-badge" data-tone="current">
+                    Sources unchanged
+                  </span>
+                )}
+              </p>
+            </header>
+            <p className="cabinet-interpretation">{bloom.interpretation}</p>
+            <PressedSpecimen seedId={specimenSeed} collected={bloom.created_at} />
+          </div>
+        </div>
+        <section
+          className="cabinet-clippings"
+          aria-labelledby={`${id}-clippings`}
+        >
+          <h4 id={`${id}-clippings`} className="cabinet-subheading">
+            Why this appeared ·{" "}
+            {clippings.length === 0
+              ? "no clippings were attached"
+              : `${clippings.length} exact ${clippings.length === 1 ? "clipping" : "clippings"} from your writing`}
+          </h4>
+          {clippings.length > 0 && (
+            <ol className="cabinet-clipping-list">
+              {clippings.map((c, i) => (
+                <li key={`${c.revision_id}-${i}`}>
+                  <ClippingCard
+                    clipping={c}
+                    onContinue={
+                      withdrawn ? undefined : () => onContinue(bloom, c)
+                    }
+                    disabled={disabled}
+                  />
+                </li>
+              ))}
+            </ol>
           )}
-        </p>
-      </header>
-      <p className="cabinet-interpretation">{bloom.interpretation}</p>
-      <section
-        className="cabinet-clippings"
-        aria-labelledby={`${id}-clippings`}
-      >
-        <h4 id={`${id}-clippings`} className="cabinet-subheading">
-          Why this appeared ·{" "}
-          {clippings.length === 0
-            ? "no clippings were attached"
-            : `${clippings.length} exact ${clippings.length === 1 ? "clipping" : "clippings"} from your writing`}
-        </h4>
-        {clippings.length > 0 && (
-          <ol className="cabinet-clipping-list">
-            {clippings.map((c, i) => (
-              <li key={`${c.revision_id}-${i}`}>
-                <ClippingCard
-                  clipping={c}
-                  onContinue={
-                    withdrawn ? undefined : () => onContinue(bloom, c)
-                  }
-                  disabled={disabled}
-                />
-              </li>
-            ))}
-          </ol>
-        )}
-      </section>
+        </section>
+      </div>
       <section
         className="cabinet-responses"
         aria-labelledby={`${id}-responses`}
@@ -655,6 +666,9 @@ function ClippingCard({
           .join(" · ");
   return (
     <figure className="cabinet-clipping" data-state={source.state}>
+      <svg className="cabinet-paperclip" viewBox="0 0 16 40" aria-hidden="true">
+        <path d="M11 9v20a4 4 0 0 1-8 0V7a5 5 0 0 1 10 0v21a2 2 0 0 1-4 0V10" />
+      </svg>
       <blockquote className="cabinet-clipping-body entry-body">
         {clipping.excerpt}
       </blockquote>

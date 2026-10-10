@@ -50,7 +50,11 @@ const LINES = [
 const iso = (base: number, days: number, hours = 9) =>
   new Date(base + days * 86400000 + hours * 3600000).toISOString();
 
-export function syntheticGarden(topics: number, thoughts: number, seed = 7): GardenData {
+export function syntheticGarden(
+  topics: number,
+  thoughts: number,
+  seed = 7,
+): GardenData {
   const random = seededRandom(seed);
   const gardenId = `00000000-0000-4000-8000-${String(seed).padStart(12, "0")}`;
   const base = Date.parse("2026-03-01T00:00:00Z");
@@ -74,13 +78,26 @@ export function syntheticGarden(topics: number, thoughts: number, seed = 7): Gar
       id,
       garden_id: gardenId,
       plot_id: plot.id,
-      title: THOUGHTS[i % THOUGHTS.length] + (i >= THOUGHTS.length ? ` (${Math.floor(i / THOUGHTS.length) + 1})` : ""),
+      title:
+        THOUGHTS[i % THOUGHTS.length] +
+        (i >= THOUGHTS.length
+          ? ` (${Math.floor(i / THOUGHTS.length) + 1})`
+          : ""),
       status: "active",
       created_at: iso(base, created),
     });
     // A spread of maturity: some just planted, some tended for months.
     const roll = random();
-    const count = roll < 0.12 ? 0 : roll < 0.3 ? 1 : roll < 0.5 ? 2 + Math.floor(random() * 2) : roll < 0.75 ? 4 + Math.floor(random() * 3) : 6 + Math.floor(random() * 8);
+    const count =
+      roll < 0.12
+        ? 0
+        : roll < 0.3
+          ? 1
+          : roll < 0.5
+            ? 2 + Math.floor(random() * 2)
+            : roll < 0.75
+              ? 4 + Math.floor(random() * 3)
+              : 6 + Math.floor(random() * 8);
     let day = created;
     for (let j = 0; j < count; j++) {
       day += Math.floor(random() * 9);
@@ -109,23 +126,46 @@ export function syntheticGarden(topics: number, thoughts: number, seed = 7): Gar
 }
 
 /** Tending fixtures shaped like ADR-008 output, citing the synthetic entries. */
-export function syntheticTending(data: GardenData, kinds: "catalog" | "full"): Tending {
+export function syntheticTending(
+  data: GardenData,
+  kinds: "catalog" | "full",
+): Tending {
   const bySeed = (id: string) => data.entries.filter((e) => e.seed_id === id);
   const written = data.seeds.filter((s) => bySeed(s.id).length > 0);
   const evidence = (seedId: string, n = 0) => {
     const e = bySeed(seedId)[n] ?? bySeed(seedId)[0];
-    return { revisionId: e.revision_id, seedId, excerpt: e.body.split(".")[0], writtenAt: e.created_at };
+    return {
+      revisionId: e.revision_id,
+      seedId,
+      excerpt: e.body.split(".")[0],
+      writtenAt: e.created_at,
+    };
   };
   const marks = written.slice(0, 6).map((s, i) => ({
     id: `mark-${i}`,
     passId: "pass-1",
     seedId: s.id,
-    kind: (["theme", "open_question", "theme", "unfinished", "theme", "theme"] as const)[i],
+    kind: (
+      [
+        "theme",
+        "open_question",
+        "theme",
+        "unfinished",
+        "theme",
+        "theme",
+      ] as const
+    )[i],
     label: ["slowness", "", "starting again", "", "attention", "slowness"][i],
     evidence: [evidence(s.id)],
     createdAt: "2026-09-30T02:10:00Z",
   }));
-  if (kinds === "catalog") return { marks, blooms: [], themes: [], lastTendedAt: "2026-09-30T02:10:00Z" };
+  if (kinds === "catalog")
+    return {
+      marks,
+      blooms: [],
+      themes: [],
+      lastTendedAt: "2026-09-30T02:10:00Z",
+    };
   const samePlot = written.filter((s) => s.plot_id === written[0]?.plot_id);
   const blooms = [
     samePlot.length > 1 && {
@@ -141,7 +181,8 @@ export function syntheticTending(data: GardenData, kinds: "catalog" | "full"): T
       id: "bloom-echo",
       passId: "pass-2",
       kind: "echo" as const,
-      interpretation: "A spring note about rushing sits close to this week's question about lightness.",
+      interpretation:
+        "A spring note about rushing sits close to this week's question about lightness.",
       evidence: [evidence(written[3].id), evidence(written[0].id, 1)],
       createdAt: "2026-10-08T02:20:00Z",
       isNew: true,
@@ -150,7 +191,8 @@ export function syntheticTending(data: GardenData, kinds: "catalog" | "full"): T
       id: "bloom-question",
       passId: "pass-2",
       kind: "question" as const,
-      interpretation: "What would you keep if this had to fit in one small step?",
+      interpretation:
+        "What would you keep if this had to fit in one small step?",
       evidence: [evidence(written[2].id)],
       createdAt: "2026-10-08T02:20:00Z",
       isNew: false,

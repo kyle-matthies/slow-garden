@@ -16,11 +16,12 @@ import { EntryEditor } from "./entry-editor";
 import { FirstRun } from "./first-run";
 import { setArchived, setPlotPermissions, signOut } from "./actions";
 import { NewArea } from "./new-area";
+import { GardenRing } from "./scene/garden-ring";
 import { GardenScene } from "./scene/garden-scene";
 import { ThoughtPlant, TopicPlants } from "./scene/thought-plant";
 
-/** "" is the living garden; "list" is the structured workspace. */
-type GardenView = LensView | "list";
+/** "" is the living garden, "gardens" the ring of all gardens, "list" the structured workspace. */
+type GardenView = LensView | "list" | "gardens";
 const VIEW_PREFERENCE = "slow-garden:garden-view";
 
 function readViewPreference(): "list" | "" {
@@ -163,7 +164,10 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
       ? "timeline"
       : listMode
         ? "list"
-        : "";
+        : requestedView === "gardens"
+          ? "gardens"
+          : "";
+  const ringMode = view === "gardens" && !firstRun && data.gardens.length > 0;
   // The living garden is the default overview; the list view, timeline and
   // archive keep the structured workspace.
   const sceneMode = view === "" && !!garden && !firstRun;
@@ -369,7 +373,7 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
     router.replace("/login");
     router.refresh();
   }
-  const sceneOverview = sceneMode && !seed;
+  const sceneOverview = (sceneMode && !seed) || ringMode;
   const activePlots = data.plots.filter((p) => !p.archived_at);
   return (
     <main
@@ -394,23 +398,20 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
           Slow Garden<span className="wordmark-dot">✳</span>
         </Link>
         <nav aria-label="Garden tools">
-          {sceneOverview && data.gardens.length > 1 && (
-            <label className="garden-switch">
-              <span className="visually-hidden">Your garden</span>
-              <select
-                value={data.gardenId}
-                onChange={(e) => router.push(`/garden?garden=${e.target.value}`)}
-              >
-                {data.gardens.map((g) => (
-                  <option key={g.id} value={g.id}>
-                    {g.name}
-                    {g.status === "archived" ? " · archived" : ""}
-                  </option>
-                ))}
-              </select>
-            </label>
+          {sceneMode && !seed && (
+            <button
+              type="button"
+              className="plain-button gardens-button"
+              onClick={() => navigate("", "", "gardens")}
+            >
+              All gardens
+              <span className="visually-hidden">
+                {" "}
+                ({data.gardens.length})
+              </span>
+            </button>
           )}
-          {garden && !firstRun && !archived && !timeline && (
+          {garden && !firstRun && !archived && !timeline && !ringMode && (
             <div className="view-toggle" role="group" aria-label="Garden view">
               <button
                 type="button"
@@ -500,7 +501,30 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
           </div>
         </section>
       )}
-      {sceneOverview && garden ? (
+      {ringMode ? (
+        <div id="garden-content" className="scene-host">
+          <GardenRing
+            gardens={data.gardens}
+            currentId={data.gardenId}
+            onEnter={(id) =>
+              id === data.gardenId
+                ? navigate("", "", "")
+                : router.push(`/garden?garden=${id}`)
+            }
+            onClose={() => navigate("", "", "")}
+            newGarden={
+              <NewArea
+                kind="garden"
+                parentId=""
+                onCreated={(id) => {
+                  router.push(`/garden?garden=${id}`);
+                  refresh();
+                }}
+              />
+            }
+          />
+        </div>
+      ) : sceneOverview && garden ? (
         <div id="garden-content" className="scene-host">
           <GardenScene
             garden={garden}
