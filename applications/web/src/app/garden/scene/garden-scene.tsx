@@ -94,6 +94,7 @@ export function GardenScene({
 }: GardenSceneProps) {
   const interactive = mode === "interactive";
   const root = useRef<HTMLElement>(null);
+  const far = useRef<HTMLCanvasElement>(null);
   const back = useRef<HTMLCanvasElement>(null);
   const front = useRef<HTMLCanvasElement>(null);
   const dock = useRef<HTMLElement>(null);
@@ -154,9 +155,9 @@ export function GardenScene({
   }, [size, beds.length, night, dockHeight, interactive]);
 
   useAtmosphere({
+    far,
     back,
     front,
-    windTarget: root,
     palette,
     seed: hashString(`garden:${garden.id}`),
     horizon: metrics ? metrics.horizonY / metrics.height : 0.42,
@@ -181,29 +182,34 @@ export function GardenScene({
       animate(zoom, nextZoom, { type: "spring", stiffness: 60, damping: 20 });
   }, [topicIndex, angles, theta, zoom, reduced, interactive]);
 
-  // Which beds to render follows the camera coarsely (every few degrees), so
-  // turning does not re-render React on every frame.
-  const [coarseTheta, setCoarseTheta] = useState(() => theta.get());
-  useMotionValueEvent(theta, "change", (t) => {
-    if (Math.abs(t - coarseTheta) > 3) setCoarseTheta(t);
-  });
-  const visible = useMemo(
-    () =>
+  // Which beds to render follows the camera, but React re-renders only when a
+  // bed enters or leaves the view, not as the camera turns.
+  const visibleAt = useCallback(
+    (t: number) =>
       metrics
-        ? beds
-            .map((b, i) =>
-              isVisible(
-                b.angle,
-                coarseTheta,
-                metrics.fov,
-                metrics.bedWidthDeg * 0.7 + 4,
-              )
-                ? i
-                : -1,
-            )
-            .filter((i) => i >= 0)
+        ? beds.flatMap((b, i) =>
+            isVisible(b.angle, t, metrics.fov, metrics.bedWidthDeg * 0.7 + 4)
+              ? [i]
+              : [],
+          )
         : [],
-    [beds, metrics, coarseTheta],
+    [beds, metrics],
+  );
+  const [coarseTheta, setCoarseTheta] = useState(() => theta.get());
+  const visible = useMemo(
+    () => visibleAt(coarseTheta),
+    [visibleAt, coarseTheta],
+  );
+  useMotionValueEvent(theta, "change", (t) => {
+    const next = visibleAt(t);
+    if (next.length !== visible.length || next.some((i, k) => i !== visible[k]))
+      setCoarseTheta(t);
+  });
+  // Stable handlers keep memoised beds from re-rendering with the camera.
+  const onPlant = useCallback((id: string) => onFocus?.(id), [onFocus]);
+  const onSign = useCallback(
+    (id: string) => onTopic?.(id === topicId ? "" : id),
+    [onTopic, topicId],
   );
 
   const [settled, setSettled] = useState(true);
@@ -234,10 +240,17 @@ export function GardenScene({
     t: number;
     v: number;
   } | null>(null);
+  // A drag that ends on a plant or sign must not also open it.
+  const dragged = useRef(false);
   function onPointerDown(event: React.PointerEvent) {
+    // Any new press starts clean, so a stale drag never swallows a real click.
+    dragged.current = false;
     if (!interactive || !metrics || event.button !== 0) return;
     const target = event.target as HTMLElement;
+    // Plants and signs cover much of a dense meadow, so a swipe may start on
+    // one; other controls and panels keep their own gestures.
     if (
+      !target.closest(".scene-plant, .bed-sign") &&
       target.closest(
         "button, a, input, textarea, select, .plant-focus, .scene-panel",
       )
@@ -260,11 +273,18 @@ export function GardenScene({
     if (!d.moved)
       (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
     d.moved = true;
+    dragged.current = true;
     const next = d.theta - dx / metrics.ppd;
     const dt = Math.max(1, event.timeStamp - d.t);
     d.v = (next - theta.get()) / dt;
     d.t = event.timeStamp;
     theta.set(next);
+  }
+  function onClickCapture(event: React.MouseEvent) {
+    if (!dragged.current) return;
+    dragged.current = false;
+    event.preventDefault();
+    event.stopPropagation();
   }
   function onPointerUp() {
     const d = drag.current;
@@ -282,6 +302,7 @@ export function GardenScene({
   }
 
   function onKeyDown(event: React.KeyboardEvent) {
+    dragged.current = false;
     if (!interactive) return;
     const target = event.target as HTMLElement;
     if (target.closest("input, textarea, select, [contenteditable='true']"))
@@ -341,6 +362,7 @@ export function GardenScene({
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
+        onClickCapture={onClickCapture}
         onKeyDown={onKeyDown}
         style={
           {
@@ -358,6 +380,7 @@ export function GardenScene({
           <span className="scene-clouds" />
         </div>
         <SceneWorld zoom={zoom} metrics={metrics}>
+          <canvas ref={far} className="scene-canvas" aria-hidden="true" />
           <canvas ref={back} className="scene-canvas" aria-hidden="true" />
           {metrics &&
             visible.map((i) => (
@@ -370,7 +393,7 @@ export function GardenScene({
                 interactive={interactive}
                 showThreads={settled && beds[i].plot.id === topicId}
                 tending={tending}
-                onPlant={(id) => onFocus?.(id)}
+                onPlant={onPlant}
               />
             ))}
           <canvas
@@ -387,7 +410,7 @@ export function GardenScene({
                 metrics={metrics}
                 current={beds[i].plot.id === topicId}
                 interactive={interactive}
-                onSelect={(id) => onTopic?.(id === topicId ? "" : id)}
+                onSelect={onSign}
               />
             ))}
         </SceneWorld>

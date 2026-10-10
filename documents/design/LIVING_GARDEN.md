@@ -105,7 +105,7 @@ Rules:
 | Rotate ring/meadow | Spring camera pan with layered parallax, ~600 ms | Crossfade to the new bed/garden, 150 ms |
 | Enter garden | Ring diorama scales up into the meadow | Crossfade |
 | Focus plant | Plant rises and scales; slips drift in on staggered springs | Plant and slips appear in place |
-| Wind | Grass bends in a noise field; plants sway 1–3°; pollen drifts | One static frame, no sway |
+| Wind | Grass bends in a noise field; plants sway 1–3° in a gust that travels across the meadow (compositor-only CSS, phased by each plant's place); pollen drifts | One static frame, no sway |
 | Growth change | Stem lengthens and leaves unfurl over ~1.2 s, after saving and returning | New stage shown directly |
 | Write | Page rises; scene blurs and stops completely | Page appears; scene is already static |
 | Bloom reveal | Bud opens over ~1.5 s, once, the first time the garden is seen after a return | Open flower shown with "New" in its label |

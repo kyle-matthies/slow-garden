@@ -23,7 +23,9 @@ Only the Supabase publishable key belongs in this application. Never add a secre
 Supabase env, renders synthetic garden fixtures through `/dev/axe-fixtures`
 (only when `GARDEN_AXE_FIXTURES=1`; the route 404s otherwise), and checks
 light/dark, 390px and 1280px, overflow, a 200% zoom proxy, and contrast. See
-`accessibility/README.md`; receipts live in `documents/initiatives/receipts/08/`.
+`accessibility/README.md`; receipts live in `documents/initiatives/receipts/08/`
+and, for the living garden, `documents/initiatives/receipts/living-garden/`, which
+also holds the performance receipt from `accessibility/perf-check.mjs`.
 Colours are tokens in `src/app/globals.css` with dark values under
 `prefers-color-scheme: dark`; add new colours as tokens in both blocks.
 ## Garden lenses

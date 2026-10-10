@@ -16,10 +16,9 @@ export type Genome = {
   leafCount: number;
   /** Extra flowering stems for a mature plant. */
   branches: number;
-  /** Sway timing, so neighbouring plants never move in lockstep. */
-  swaySeconds: number;
+  /** Small per-plant offset (seconds) on the meadow-wide gust. */
   swayDelay: number;
-  /** How much the plant leans with wind gusts. */
+  /** How supple the plant is in the wind. */
   flex: number;
 };
 
@@ -45,8 +44,8 @@ export function genomeFor(id: string): Genome {
     tilt: (random() - 0.5) * 36,
     leafCount: 4 + Math.floor(random() * 4),
     branches: 1 + Math.floor(random() * 3),
-    swaySeconds: 4.5 + random() * 3,
-    swayDelay: -random() * 6,
+    // Formerly a per-plant sway period; still drawn so later traits stay stable.
+    swayDelay: (random(), -random() * 6),
     flex: 0.6 + random() * 0.8,
   };
 }

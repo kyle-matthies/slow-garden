@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "axe": "node axe-check.mjs"
+    "axe": "node axe-check.mjs",
+    "perf": "node perf-check.mjs"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.13.0",
