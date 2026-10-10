@@ -22,6 +22,7 @@ import {
 } from "./actions";
 import { TendingSettings } from "./tending-settings";
 import { NewArea } from "./new-area";
+import { ToolsMenu } from "./tools-menu";
 import { GardenRing } from "./scene/garden-ring";
 import { GardenScene } from "./scene/garden-scene";
 import { ThoughtPlant, TopicPlants } from "./scene/thought-plant";
@@ -405,19 +406,6 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
           Slow Garden<span className="wordmark-dot">✳</span>
         </Link>
         <nav aria-label="Garden tools">
-          {sceneMode && !seed && (
-            <button
-              type="button"
-              className="plain-button gardens-button"
-              onClick={() => navigate("", "", "gardens")}
-            >
-              All gardens
-              <span className="visually-hidden">
-                {" "}
-                ({data.gardens.length})
-              </span>
-            </button>
-          )}
           {garden && !firstRun && !archived && !timeline && !ringMode && (
             <div className="view-toggle" role="group" aria-label="Garden view">
               <button
@@ -436,20 +424,50 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
               </button>
             </div>
           )}
-          <button
-            className="plain-button"
-            onClick={() => setSettings(!settings)}
-          >
-            {settings ? "Close settings" : "Settings & export"}
-          </button>
-          <button
-            className="plain-button"
-            onClick={() => {
-              navigate("", "", archived ? readViewPreference() : "archive");
-            }}
-          >
-            {archived ? "Back to garden" : "Archive"}
-          </button>
+          <ToolsMenu>
+            {(close) => (
+              <>
+                {sceneMode && !seed && (
+                  <button
+                    type="button"
+                    className="plain-button gardens-button"
+                    onClick={() => {
+                      close();
+                      navigate("", "", "gardens");
+                    }}
+                  >
+                    All gardens
+                    <span className="visually-hidden">
+                      {" "}
+                      ({data.gardens.length})
+                    </span>
+                  </button>
+                )}
+                <button
+                  className="plain-button"
+                  onClick={() => {
+                    close();
+                    setSettings(!settings);
+                  }}
+                >
+                  {settings ? "Close settings" : "Settings & export"}
+                </button>
+                <button
+                  className="plain-button"
+                  onClick={() => {
+                    close();
+                    navigate(
+                      "",
+                      "",
+                      archived ? readViewPreference() : "archive",
+                    );
+                  }}
+                >
+                  {archived ? "Back to garden" : "Archive"}
+                </button>
+              </>
+            )}
+          </ToolsMenu>
         </nav>
       </header>
       {settings && (

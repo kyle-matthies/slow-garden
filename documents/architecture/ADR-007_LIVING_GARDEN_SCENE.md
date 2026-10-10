@@ -92,6 +92,13 @@ only as a separate prototype.
 
 - p95 frame time ≤ 20 ms during a 10 s rotation at 1280 px, and ≤ 33 ms at 390 px with
   4× CPU throttle.
+  - Measured by `applications/web/accessibility/perf-check.mjs` as main-thread frame
+    cost from a trace. In a container without a GPU, Chromium rasterises 2D canvas on
+    the main thread; that share is reported separately and excluded from the budget,
+    because a GPU does it off the main thread on real devices.
+  - Real-device frame pacing on a mid-range phone remains an owner check before the
+    phone budget is called met. See
+    `documents/initiatives/receipts/living-garden/PERFORMANCE.md`.
 - Garden route images ≤ 350 KB on phone before interaction. Off-arc beds load lazily.
 - At most about 24 interactive plants rendered per bed. Older resting thoughts become
   background meadow density but remain reachable from the list view and search.

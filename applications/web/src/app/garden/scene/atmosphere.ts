@@ -4,13 +4,16 @@ import type { Palette } from "@/lib/garden/scene/palette";
 
 /**
  * The living backdrop: hills, ground, a dense meadow, wind in the near grass,
- * small wildflowers, and pollen by day or fireflies by night. It uses two
- * canvases, one behind and one in front of the plants, and no library.
+ * small wildflowers, and pollen by day or fireflies by night. It uses three
+ * canvases and no library: the far layer (hills and meadow strips) and the
+ * live grass behind the plants, and the near grass in front of them.
  *
  * The far meadow is pre-rendered once into wrapping strips and only slides
- * with parallax. Only the nearer grass is redrawn with wind each frame. The
- * loop pauses whenever the page is hidden, the scene is off screen, the person
- * is writing, or reduced motion is requested; it then draws one still frame.
+ * with parallax; its canvas is redrawn only when the camera turns, and the
+ * ground beneath it is a CSS gradient. Only the nearer grass is redrawn with
+ * wind each frame. The loop pauses whenever the page is hidden, the scene is
+ * off screen, the person is writing, or reduced motion is requested; it then
+ * draws one still frame.
  */
 export type AtmosphereOptions = {
   palette: Palette;
@@ -21,8 +24,6 @@ export type AtmosphereOptions = {
   fov: number;
   still: boolean;
   getTheta: () => number;
-  /** Sampled wind (-1..1) for plant sway. */
-  onWind?: (wind: number) => void;
 };
 
 type Blade = {
@@ -152,8 +153,10 @@ function rosette(
 }
 
 export class GardenAtmosphere {
+  private far: HTMLCanvasElement;
   private back: HTMLCanvasElement;
   private front: HTMLCanvasElement;
+  private actx: CanvasRenderingContext2D;
   private bctx: CanvasRenderingContext2D;
   private fctx: CanvasRenderingContext2D;
   private opts: AtmosphereOptions;
@@ -169,20 +172,29 @@ export class GardenAtmosphere {
   private frame = 0;
   private running = false;
   private visible = true;
-  private lastWind = 0;
-  private windTick = 0;
   private quality = 1;
+  /** Backing-store resolution multiplier, lowered only after quality bottoms out. */
+  private resolution = 1;
   private frameTimes: number[] = [];
+  private intervals: number[] = [];
+  private lastFrame = 0;
+  private windowStart = 0;
+  /** Camera angle the far layer was last drawn at; NaN forces a redraw. */
+  private farTheta = NaN;
+  private groundCss = "";
   private start = performance.now();
   private observer: IntersectionObserver | null = null;
 
   constructor(
+    far: HTMLCanvasElement,
     back: HTMLCanvasElement,
     front: HTMLCanvasElement,
     opts: AtmosphereOptions,
   ) {
+    this.far = far;
     this.back = back;
     this.front = front;
+    this.actx = far.getContext("2d", { alpha: true })!;
     this.bctx = back.getContext("2d", { alpha: true })!;
     this.fctx = front.getContext("2d", { alpha: true })!;
     this.opts = opts;
@@ -200,6 +212,7 @@ export class GardenAtmosphere {
   update(next: Partial<AtmosphereOptions>) {
     const reseed = next.seed !== undefined && next.seed !== this.opts.seed;
     this.opts = { ...this.opts, ...next };
+    this.farTheta = NaN;
     if (reseed) this.generate();
     this.sync();
     if (!this.running) this.draw(this.time());
@@ -209,18 +222,23 @@ export class GardenAtmosphere {
     if (width === this.width && height === this.height) return;
     this.width = width;
     this.height = height;
+    this.size();
+    this.sync();
+    this.draw(this.time());
+  }
+
+  private size() {
+    const { width, height } = this;
     const ideal = Math.min(window.devicePixelRatio || 1, 2);
     // Keep the backing store near 4.5 megapixels on very large screens.
-    this.dpr = Math.min(
-      ideal,
-      Math.sqrt(4_500_000 / Math.max(1, width * height)),
-    );
-    for (const canvas of [this.back, this.front]) {
+    this.dpr =
+      Math.min(ideal, Math.sqrt(4_500_000 / Math.max(1, width * height))) *
+      this.resolution;
+    for (const canvas of [this.far, this.back, this.front]) {
       canvas.width = Math.round(width * this.dpr);
       canvas.height = Math.round(height * this.dpr);
     }
-    this.sync();
-    this.draw(this.time());
+    this.farTheta = NaN;
   }
 
   /** Redraw now, e.g. while the camera moves during a still or paused state. */
@@ -249,34 +267,61 @@ export class GardenAtmosphere {
       document.visibilityState === "visible";
     if (shouldRun && !this.running) {
       this.running = true;
+      this.lastFrame = 0;
       this.frame = requestAnimationFrame(this.loop);
     } else if (!shouldRun && this.running) {
       this.running = false;
       cancelAnimationFrame(this.frame);
-      if (this.opts.still) this.opts.onWind?.(0);
       this.draw(this.time());
     }
   }
 
   private loop = (now: number) => {
     if (!this.running) return;
+    const interval = this.lastFrame ? now - this.lastFrame : 0;
+    this.lastFrame = now;
     const before = performance.now();
     this.draw((now - this.start) / 1000);
-    this.adapt(performance.now() - before);
+    this.adapt(performance.now() - before, interval);
     this.frame = requestAnimationFrame(this.loop);
   };
 
-  /** Thin the live grass if drawing stays slow; restore it with headroom. */
-  private adapt(cost: number) {
+  /**
+   * Thin the live grass, then soften the canvas resolution, while drawing or
+   * frame pacing stays slow (rasterising happens after draw(), so the frame
+   * interval is the honest signal); restore both with headroom.
+   */
+  private adapt(cost: number, interval: number) {
+    const now = performance.now();
+    if (!this.frameTimes.length) this.windowStart = now;
     this.frameTimes.push(cost);
-    if (this.frameTimes.length < 90) return;
-    const sorted = [...this.frameTimes].sort((a, b) => a - b);
-    const p90 = sorted[Math.floor(sorted.length * 0.9)];
+    // Ignore pauses such as a backgrounded tab or a long route change.
+    if (interval > 0 && interval < 250) this.intervals.push(interval);
+    // Decide every 60 frames, or every second on a device too slow to reach 60.
+    const enough =
+      this.frameTimes.length >= 60 ||
+      (this.frameTimes.length >= 10 && now - this.windowStart >= 1000);
+    if (!enough) return;
+    const p90 = (list: number[]) =>
+      [...list].sort((a, b) => a - b)[Math.floor(list.length * 0.9)] ?? 0;
+    const cost90 = p90(this.frameTimes);
+    const pace90 = p90(this.intervals);
     this.frameTimes = [];
-    if (p90 > 8 && this.quality > 0.35)
-      this.quality = Math.max(0.35, this.quality * 0.75);
-    else if (p90 < 3.5 && this.quality < 1)
-      this.quality = Math.min(1, this.quality * 1.15);
+    this.intervals = [];
+    if (cost90 > 8 || pace90 > 24) {
+      if (this.quality > 0.35)
+        this.quality = Math.max(0.35, this.quality * 0.7);
+      else if (this.resolution > 0.5) {
+        this.resolution = Math.max(0.5, this.resolution * 0.75);
+        this.size();
+      }
+    } else if (cost90 < 3.5 && pace90 < 18) {
+      if (this.resolution < 1) {
+        this.resolution = Math.min(1, this.resolution / 0.75);
+        this.size();
+      } else if (this.quality < 1)
+        this.quality = Math.min(1, this.quality * 1.15);
+    }
   }
 
   private generate() {
@@ -306,6 +351,7 @@ export class GardenAtmosphere {
     near.sort((a, b) => a.depth - b.depth);
     this.near = near;
     this.stripKey = "";
+    this.farTheta = NaN;
     const motes = seededRandom(this.opts.seed ^ 0x51ed);
     this.motes = Array.from({ length: 36 }, () => ({
       x: motes(),
@@ -416,62 +462,57 @@ export class GardenAtmosphere {
     });
   }
 
-  private draw(t: number) {
+  /** Hills and the far meadow strips: they move only when the camera turns. */
+  private drawFar(theta: number) {
     const { width: W, height: H } = this;
-    if (!W || !H) return;
-    this.ensureStrips();
-    const { palette, fov } = this.opts;
-    const g = this.geometry();
-    const { hy, groundH, ppd, scale } = g;
-    const theta = this.opts.getTheta();
-    const gu = this.opts.still ? 0.4 : gust(t);
-    const b = this.bctx;
-    const f = this.fctx;
-    b.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
-    f.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
-    b.clearRect(0, 0, W, H);
-    f.clearRect(0, 0, W, H);
+    const { palette, horizon } = this.opts;
+    const { hy, groundH, ppd } = this.geometry();
+    const a = this.actx;
+    a.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    a.clearRect(0, 0, W, H);
+
+    // Ground: a CSS gradient under this canvas, continuing the nearest ridge's
+    // colour so there is no seam. It never needs repainting per frame.
+    const h = horizon * 100;
+    const ground = `linear-gradient(transparent ${h}%, ${palette.near} ${h}%, ${palette.groundTop} ${h + 0.18 * (100 - h)}%, ${palette.groundBottom})`;
+    if (ground !== this.groundCss) {
+      this.groundCss = ground;
+      this.far.style.background = ground;
+    }
 
     // Hills, far to near, each with its own parallax.
     const hillStyles = [palette.far, palette.treeline, palette.near];
     const factors = [0.08, 0.16, 0.26];
     const heights = [0.2, 0.13, 0.08];
-    this.hills.forEach((h, i) => {
+    this.hills.forEach((hill, i) => {
       const shift = mod360(theta * factors[i]);
-      b.beginPath();
-      b.moveTo(0, hy + 2);
+      a.beginPath();
+      a.moveTo(0, hy + 2);
       for (let x = 0; x <= W + 8; x += 8) {
         const deg = shift + (x - W / 2) / ppd;
         let y =
           hy -
-          groundH * (h.base + heights[i] * (0.55 + 0.45 * hillHeight(h, deg)));
+          groundH *
+            (hill.base + heights[i] * (0.55 + 0.45 * hillHeight(hill, deg)));
         if (i === 1) {
           const crown =
             Math.abs(Math.sin((deg * Math.PI) / 4.5)) *
             Math.abs(Math.sin((deg * Math.PI) / 11));
           y -= crown * groundH * 0.03;
         }
-        b.lineTo(x, y);
+        a.lineTo(x, y);
       }
-      b.lineTo(W, hy + 2);
-      b.closePath();
-      b.fillStyle = hillStyles[i];
-      b.fill();
+      a.lineTo(W, hy + 2);
+      a.closePath();
+      a.fillStyle = hillStyles[i];
+      a.fill();
       if (i < 2) {
-        b.fillStyle = palette.haze;
-        b.globalAlpha = i === 0 ? 0.55 : 0.3;
-        b.fill();
-        b.globalAlpha = 1;
+        a.fillStyle = palette.haze;
+        a.globalAlpha = i === 0 ? 0.55 : 0.3;
+        a.fill();
+        a.globalAlpha = 1;
       }
     });
-
-    // Ground: continues the nearest ridge's colour so there is no seam.
-    const ground = b.createLinearGradient(0, hy, 0, H);
-    ground.addColorStop(0, palette.near);
-    ground.addColorStop(0.18, palette.groundTop);
-    ground.addColorStop(1, palette.groundBottom);
-    b.fillStyle = ground;
-    b.fillRect(0, hy, W, groundH);
 
     // Far meadow strips slide with parallax.
     for (const strip of this.strips) {
@@ -481,8 +522,29 @@ export class GardenAtmosphere {
       const sw = strip.canvas.width / strip.scale;
       const sh = strip.canvas.height / strip.scale;
       for (let x = ox; x < W; x += period)
-        b.drawImage(strip.canvas, x, strip.top, sw, sh);
+        a.drawImage(strip.canvas, x, strip.top, sw, sh);
     }
+  }
+
+  private draw(t: number) {
+    const { width: W, height: H } = this;
+    if (!W || !H) return;
+    this.ensureStrips();
+    const { palette, fov } = this.opts;
+    const g = this.geometry();
+    const { hy, groundH, ppd, scale } = g;
+    const theta = this.opts.getTheta();
+    const gu = this.opts.still ? 0.4 : gust(t);
+    if (theta !== this.farTheta) {
+      this.drawFar(theta);
+      this.farTheta = theta;
+    }
+    const b = this.bctx;
+    const f = this.fctx;
+    b.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    f.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    b.clearRect(0, 0, W, H);
+    f.clearRect(0, 0, W, H);
 
     // Live grass with wind, batched by tone.
     const tones = palette.grass;
@@ -544,7 +606,9 @@ export class GardenAtmosphere {
     // Foreground grass in front of the plants.
     const nearPath = new Path2D();
     const nearDark = new Path2D();
-    for (const blade of this.near) {
+    const nearStride = this.quality < 0.5 ? 2 : 1;
+    for (let i = 0; i < this.near.length; i += nearStride) {
+      const blade = this.near[i];
       const rel = wrap(blade.angle - theta * (1.25 + (blade.depth - 1) * 0.8));
       if (Math.abs(rel) > fov / 2 + 4) continue;
       const x = W / 2 + rel * ppd;
@@ -592,15 +656,5 @@ export class GardenAtmosphere {
       }
     }
     f.globalAlpha = 1;
-
-    // Plants lean with the same gusts, sampled about 30 times a second.
-    this.windTick = (this.windTick + 1) % 2;
-    if (this.windTick === 0 || this.opts.still) {
-      const wind = this.opts.still ? 0 : gu * windAt(W / 2, t);
-      if (Math.abs(wind - this.lastWind) > 0.004 || this.opts.still) {
-        this.lastWind = wind;
-        this.opts.onWind?.(wind);
-      }
-    }
   }
 }

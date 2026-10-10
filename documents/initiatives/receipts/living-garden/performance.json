@@ -1,0 +1,156 @@
+{
+  "content_free_note": "Synthetic fixtures only; no journal content.",
+  "method": "Production build (next start), headless Chromium in a 4-vCPU container without a GPU. While dragging the meadow for 10 s: frame cost is the duration of each main-thread task containing BeginMainFrame from a devtools.timeline trace, with 2D canvas rasterisation (done on the main thread here, by a GPU on real devices) split out and excluded from the budget; rAF intervals are recorded as environment-bound context. CPU throttling via CDP Emulation.setCPUThrottlingRate. Image bytes are resource transferSize after network idle. Real-device frame pacing remains an owner check.",
+  "budgets": {
+    "p95_ms_1280": 20,
+    "p95_ms_390_4x": 33,
+    "phone_image_kb": 350
+  },
+  "results": [
+    {
+      "route": "garden-100",
+      "device": "1280",
+      "cpu_throttle": 1,
+      "interactive_plants_rendered": 50,
+      "traced_frames": 250,
+      "frame_cost_ms": {
+        "p50": 7.5,
+        "p95": 13.2,
+        "max": 35.4
+      },
+      "frame_cost_with_canvas_raster_ms": {
+        "p50": 12.4,
+        "p95": 19.6
+      },
+      "canvas_raster_share_pct": 38,
+      "longest_task_excluding_canvas_raster_ms": 35.4,
+      "p95_budget_ms": 20,
+      "raf_frames": 249,
+      "raf_interval_ms": {
+        "p50": 33.4,
+        "p95": 83.3,
+        "p99": 83.4,
+        "max": 116.7
+      },
+      "long_tasks": 0,
+      "main_thread_busy_still_pct": 25.1,
+      "main_thread_busy_still_reduced_motion_pct": 0.1,
+      "image_bytes": 0,
+      "image_files": [],
+      "script_bytes": 228128,
+      "style_bytes": 16315,
+      "document_bytes": 15278,
+      "p95_ok": true,
+      "image_ok": true
+    },
+    {
+      "route": "garden-100",
+      "device": "390",
+      "cpu_throttle": 4,
+      "interactive_plants_rendered": 50,
+      "traced_frames": 242,
+      "frame_cost_ms": {
+        "p50": 22,
+        "p95": 49,
+        "max": 172.7
+      },
+      "frame_cost_with_canvas_raster_ms": {
+        "p50": 39.1,
+        "p95": 83.3
+      },
+      "canvas_raster_share_pct": 43.7,
+      "longest_task_excluding_canvas_raster_ms": 172.7,
+      "p95_budget_ms": 33,
+      "raf_frames": 242,
+      "raf_interval_ms": {
+        "p50": 49.9,
+        "p95": 100,
+        "p99": 250,
+        "max": 316.6
+      },
+      "long_tasks": 87,
+      "main_thread_busy_still_pct": 94.4,
+      "main_thread_busy_still_reduced_motion_pct": 0.3,
+      "image_bytes": 0,
+      "image_files": [],
+      "script_bytes": 228128,
+      "style_bytes": 16315,
+      "document_bytes": 15278,
+      "p95_ok": false,
+      "image_ok": true
+    },
+    {
+      "route": "garden-1000",
+      "device": "1280",
+      "cpu_throttle": 1,
+      "interactive_plants_rendered": 72,
+      "traced_frames": 195,
+      "frame_cost_ms": {
+        "p50": 11.1,
+        "p95": 19.9,
+        "max": 50.3
+      },
+      "frame_cost_with_canvas_raster_ms": {
+        "p50": 15.9,
+        "p95": 25.9
+      },
+      "canvas_raster_share_pct": 29.9,
+      "longest_task_excluding_canvas_raster_ms": 60.6,
+      "p95_budget_ms": 20,
+      "raf_frames": 194,
+      "raf_interval_ms": {
+        "p50": 50,
+        "p95": 100,
+        "p99": 133.3,
+        "max": 166.7
+      },
+      "long_tasks": 2,
+      "main_thread_busy_still_pct": 19.6,
+      "main_thread_busy_still_reduced_motion_pct": 0.1,
+      "image_bytes": 0,
+      "image_files": [],
+      "script_bytes": 228128,
+      "style_bytes": 16315,
+      "document_bytes": 93462,
+      "p95_ok": true,
+      "image_ok": true
+    },
+    {
+      "route": "garden-1000",
+      "device": "390",
+      "cpu_throttle": 4,
+      "interactive_plants_rendered": 72,
+      "traced_frames": 164,
+      "frame_cost_ms": {
+        "p50": 24,
+        "p95": 53.7,
+        "max": 206.6
+      },
+      "frame_cost_with_canvas_raster_ms": {
+        "p50": 42.4,
+        "p95": 85.3
+      },
+      "canvas_raster_share_pct": 39.3,
+      "longest_task_excluding_canvas_raster_ms": 206.6,
+      "p95_budget_ms": 33,
+      "raf_frames": 164,
+      "raf_interval_ms": {
+        "p50": 50.1,
+        "p95": 100,
+        "p99": 133.3,
+        "max": 316.7
+      },
+      "long_tasks": 76,
+      "main_thread_busy_still_pct": 89.1,
+      "main_thread_busy_still_reduced_motion_pct": 39.9,
+      "image_bytes": 0,
+      "image_files": [],
+      "script_bytes": 228128,
+      "style_bytes": 16315,
+      "document_bytes": 93462,
+      "p95_ok": false,
+      "image_ok": true
+    }
+  ],
+  "ok": false
+}

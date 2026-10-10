@@ -127,34 +127,83 @@
 .plant-art {
   position: absolute;
   pointer-events: none;
-  transform-origin: 50% 96.4%;
-  transform: rotate(calc(var(--wind, 0) * var(--flex, 1) * 2.4deg));
 }
+/*
+ * Wind on the plants is a compositor-only gust: one shared period, phased by
+ * each plant's place in the meadow so gusts travel across it, with three
+ * amplitudes for stiff, ordinary and supple plants. Nothing runs on the main
+ * thread per frame.
+ */
 .plant-art > svg {
   display: block;
   width: 100%;
   height: 100%;
   overflow: visible;
   transform-origin: 50% 96.4%;
-  animation: plant-sway var(--sway, 6s) ease-in-out var(--sway-delay, 0s) infinite alternate;
+  animation: var(--sway-name, plant-sway) var(--sway, 7s) ease-in-out
+    var(--sway-delay, 0s) infinite;
 }
 @keyframes plant-sway {
-  from {
-    transform: rotate(-1.1deg);
+  0%,
+  100% {
+    transform: rotate(-0.8deg);
   }
-  to {
+  38% {
+    transform: rotate(2.2deg);
+  }
+  62% {
+    transform: rotate(0.6deg);
+  }
+  80% {
     transform: rotate(1.3deg);
   }
 }
-.scene-plant:hover .plant-art,
+@keyframes plant-sway-stiff {
+  0%,
+  100% {
+    transform: rotate(-0.5deg);
+  }
+  38% {
+    transform: rotate(1.3deg);
+  }
+  62% {
+    transform: rotate(0.4deg);
+  }
+  80% {
+    transform: rotate(0.8deg);
+  }
+}
+@keyframes plant-sway-supple {
+  0%,
+  100% {
+    transform: rotate(-1.1deg);
+  }
+  38% {
+    transform: rotate(3.1deg);
+  }
+  62% {
+    transform: rotate(0.8deg);
+  }
+  80% {
+    transform: rotate(1.8deg);
+  }
+}
 .scene-plant:focus-visible .plant-art,
 .scene-plant.is-focused .plant-art {
   filter: drop-shadow(0 0 10px rgba(255, 248, 220, 0.9));
 }
-.palette-night .scene-plant:hover .plant-art,
 .palette-night .scene-plant:focus-visible .plant-art,
 .palette-night .scene-plant.is-focused .plant-art {
   filter: drop-shadow(0 0 10px rgba(200, 230, 255, 0.6));
+}
+/* Only real hover gets the glow: on touch it would stick after a tap. */
+@media (hover: hover) {
+  .scene-plant:hover .plant-art {
+    filter: drop-shadow(0 0 10px rgba(255, 248, 220, 0.9));
+  }
+  .palette-night .scene-plant:hover .plant-art {
+    filter: drop-shadow(0 0 10px rgba(200, 230, 255, 0.6));
+  }
 }
 /* A small vellum tag tied to the plant by a thread: tending was here. */
 .plant-tend {
@@ -167,7 +216,7 @@
   opacity: 0.85;
   pointer-events: none;
   transform-origin: 50% 0;
-  transform: rotate(calc(-14deg + var(--wind, 0) * 6deg));
+  transform: rotate(-14deg);
 }
 .plant-tend span {
   position: absolute;
@@ -799,6 +848,9 @@
   background: var(--sheet);
 }
 @media (max-width: 760px) {
+  .scene-mode .garden-top {
+    padding-block: 8px;
+  }
   .over-scene .garden-frame {
     margin-top: 0;
     border-radius: 0;

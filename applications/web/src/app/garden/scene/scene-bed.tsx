@@ -5,6 +5,7 @@ import { plantY, rowParallax, wrap } from "@/lib/garden/scene/camera";
 import { describeGrowth } from "@/lib/garden/scene/growth";
 import type { SceneBedModel, ScenePlantModel } from "@/lib/garden/scene/model";
 import { plantShape, type PlantShape } from "@/lib/garden/scene/plant-geometry";
+import { swayStyle } from "@/lib/garden/scene/sway";
 import { threadsFor, type Tending } from "@/lib/garden/scene/tending";
 import { LivingPlant } from "./living-plant";
 
@@ -81,12 +82,15 @@ function plantLabel(plant: ScenePlantModel) {
 
 const ScenePlant = memo(function ScenePlant({
   plant,
+  angle,
   metrics,
   focused,
   interactive,
   onSelect,
 }: {
   plant: ScenePlantModel;
+  /** The bed's angle, to place this plant in the meadow-wide gust. */
+  angle: number;
   metrics: SceneMetrics;
   focused: boolean;
   interactive: boolean;
@@ -110,9 +114,12 @@ const ScenePlant = memo(function ScenePlant({
     width: (bounds.right - bounds.left) * k,
     height: (-bounds.top + 6) * k,
     zIndex: Math.round(slot.depth * 1000),
-    "--flex": genome.flex.toFixed(2),
-    "--sway": `${genome.swaySeconds.toFixed(2)}s`,
-    "--sway-delay": `${genome.swayDelay.toFixed(2)}s`,
+    // A little per-plant jitter keeps neighbours from moving in lockstep.
+    ...swayStyle(
+      angle + slot.u * metrics.bedWidthDeg,
+      genome.flex,
+      genome.swayDelay * 0.08,
+    ),
   } as React.CSSProperties;
   const art = (
     <span
@@ -256,6 +263,7 @@ export const SceneBed = memo(function SceneBed({
             <ScenePlant
               key={p.seed.id}
               plant={p}
+              angle={bed.angle}
               metrics={metrics}
               focused={focusId === p.seed.id}
               interactive={interactive}
