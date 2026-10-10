@@ -57,6 +57,16 @@
       transparent 65%
     ),
     linear-gradient(#f8f9ef, #e9efdf);
+  /* Living garden paper and tending materials (D-022). */
+  --sheet: #fbf7ec;
+  --sheet-ink: #26392f;
+  --sheet-muted: #4f6257;
+  --sheet-edge: rgba(74, 62, 38, 0.18);
+  --sheet-shadow: 0 10px 28px rgba(32, 44, 26, 0.22);
+  --vellum: #eef0e6;
+  --vellum-ink: #333f39;
+  --tend: #9e4632;
+  --scene-scrim: rgba(18, 28, 22, 0.32);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -109,6 +119,15 @@
       rgba(0, 0, 0, 0.25) 100%
     );
     --meadow-bg: linear-gradient(160deg, #121a16, #151f19 46%, #101a15);
+    --sheet: #1e2823;
+    --sheet-ink: #e7eee8;
+    --sheet-muted: #b2c2b8;
+    --sheet-edge: rgba(0, 0, 0, 0.45);
+    --sheet-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+    --vellum: #27312c;
+    --vellum-ink: #dee6df;
+    --tend: #f2a990;
+    --scene-scrim: rgba(0, 0, 0, 0.48);
   }
 }
 

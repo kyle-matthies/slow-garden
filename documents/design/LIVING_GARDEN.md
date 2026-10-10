@@ -16,7 +16,7 @@ extends [Meadow and Cabinet](MEADOW_AND_CABINET.md) and activates the
 | Topic | A bed or clearing on an arc around the viewer. |
 | Thought | One plant. Species, hue and form come from its ID and never change. |
 | Entry | A paper slip in the person's serif hand. Slips drift forward when the plant is focused. |
-| Bloom | A flower opening on the plant it cites, with a tied label slip naming its kind in words. A bloom citing several plants is drawn as a thread between them. |
+| Bloom | A vellum tag tied to the plant it cites, naming its kind in words, with a soft glow while it is new. A bloom citing several plants is drawn as a thread between them. Blooms are tending material, never botanical growth. |
 | Tending marks | Graphite-on-vellum field tags, coral wind threads, resurfaced slips and question notes. Each one carries a text label ("Tended", "Noticed", "Question from tending"). |
 
 ## Depth levels
@@ -28,10 +28,11 @@ extends [Meadow and Cabinet](MEADOW_AND_CABINET.md) and activates the
    bed to bed with parallax: near grass moves faster than the far hills.
 3. **Bed** (`topic=`). The camera moves closer to one bed and its plants become
    focusable.
-4. **Plant focus** (`thought=`). The plant comes forward and its latest slips drift in.
-   Tending marks appear here, quietly. "Write" opens the page.
-5. **Writing page**. A paper page rises over a blurred, completely still scene. The
-   canvas, sway and drift all stop. The existing editor is used unchanged.
+4. **Plant focus** (`focus=`). The plant comes forward as a specimen and its latest
+   slips drift in. Tending marks appear here, quietly. "Write" opens the page.
+5. **Writing page** (`thought=`, unchanged deep links). A paper page rises over a
+   blurred, completely still scene. The canvas, sway and drift all stop. The
+   existing editor is used unchanged.
 6. **Cabinet clipping**. A bloom's flower gathers, flattens and settles into a pressed
    specimen. Its source slips collect into deckled clippings joined by dashed
    provenance connectors.
@@ -48,15 +49,22 @@ frequency.
 |---|---|
 | Seed | Thought exists, no saved entry |
 | Sprout | 1 entry |
-| Leafing | 2–3 entries, or written on 2 distinct days |
-| Budding | 4+ entries written on 3+ distinct days, or 6+ entries |
-| Full plant | 8+ entries on 5+ distinct days, or 12+ entries/revisions |
+| Leafing | 2 entries, 2 contributions (an entry revised once), or 2 distinct days |
+| Budding | 3+ entries on 2+ distinct days, or 5+ contributions |
+| Flowering | 5+ entries on 3+ distinct days, or 8+ contributions |
+
+A contribution is an entry or a later revision of one. Flower count and side
+stems keep growing gently with further contributions.
 
 - Growth is monotonic. A thought never wilts, shrinks or decays when left alone.
-- A resting thought sits quieter, further back in its bed.
+- Recency is not encoded. A resting thought looks the same as one written today.
 - Archive removes a plant from the scene; Restore returns it to its original slot.
-- Only blooms (AI returns) add open flowers. A full plant without a bloom has buds
-  and foliage, never a flower.
+- Flowers belong to the person: a thought flowers from its own tending, so a garden
+  with AI off is still in bloom. Tending output never adds botanical growth; it
+  arrives as vellum tags, threads, notes and resurfaced slips (see below).
+  Implementation decision, 2026-10-10: the earlier draft reserved flowers for AI
+  blooms, which would leave every no-AI garden without a single flower and blur the
+  rule that AI never grows a plant.
 - Size, colour, species and motion never encode mood, confidence, importance or
   engagement.
 
