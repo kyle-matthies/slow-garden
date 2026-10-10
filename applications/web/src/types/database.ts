@@ -14,18 +14,24 @@ export type Database = {
           created_at: string
           display_name: string | null
           id: string
+          tend_overnight: boolean
+          timezone: string
           updated_at: string
         }
         Insert: {
           created_at?: string
           display_name?: string | null
           id?: string
+          tend_overnight?: boolean
+          timezone?: string
           updated_at?: string
         }
         Update: {
           created_at?: string
           display_name?: string | null
           id?: string
+          tend_overnight?: boolean
+          timezone?: string
           updated_at?: string
         }
         Relationships: []
@@ -152,8 +158,10 @@ export type Database = {
           id: string
           no_output_reason: string | null
           plot_ids: string[]
+          scope_key: string | null
           status: string
           tenant_id: string
+          trigger: string
         }
         Insert: {
           created_at?: string
@@ -162,8 +170,10 @@ export type Database = {
           id: string
           no_output_reason?: string | null
           plot_ids: string[]
+          scope_key?: string | null
           status?: string
           tenant_id?: string
+          trigger?: string
         }
         Update: {
           created_at?: string
@@ -172,8 +182,10 @@ export type Database = {
           id?: string
           no_output_reason?: string | null
           plot_ids?: string[]
+          scope_key?: string | null
           status?: string
           tenant_id?: string
+          trigger?: string
         }
         Relationships: [
           {
@@ -375,6 +387,89 @@ export type Database = {
           },
         ]
       }
+      tending_mark_responses: {
+        Row: {
+          created_at: string
+          id: string
+          mark_id: string
+          response: string
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string
+          id: string
+          mark_id: string
+          response: string
+          tenant_id?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          mark_id?: string
+          response?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tending_mark_responses_mark_id_tenant_id_fkey"
+            columns: ["mark_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tending_marks"
+            referencedColumns: ["id", "tenant_id"]
+          },
+        ]
+      }
+      tending_marks: {
+        Row: {
+          created_at: string
+          evidence: Json
+          garden_id: string
+          id: string
+          kind: string
+          label: string
+          pass_id: string
+          seed_id: string
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string
+          evidence: Json
+          garden_id: string
+          id?: string
+          kind: string
+          label: string
+          pass_id: string
+          seed_id: string
+          tenant_id: string
+        }
+        Update: {
+          created_at?: string
+          evidence?: Json
+          garden_id?: string
+          id?: string
+          kind?: string
+          label?: string
+          pass_id?: string
+          seed_id?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tending_marks_pass_id_tenant_id_garden_id_fkey"
+            columns: ["pass_id", "tenant_id", "garden_id"]
+            isOneToOne: false
+            referencedRelation: "garden_passes"
+            referencedColumns: ["id", "tenant_id", "garden_id"]
+          },
+          {
+            foreignKeyName: "tending_marks_seed_id_tenant_id_garden_id_fkey"
+            columns: ["seed_id", "tenant_id", "garden_id"]
+            isOneToOne: false
+            referencedRelation: "seeds"
+            referencedColumns: ["id", "tenant_id", "garden_id"]
+          },
+        ]
+      }
     }
     Views: {
       current_entries: {
@@ -406,6 +501,18 @@ export type Database = {
             referencedColumns: ["id", "tenant_id", "garden_id"]
           },
         ]
+      }
+      garden_themes: {
+        Row: {
+          days: number | null
+          first_at: string | null
+          garden_id: string | null
+          label: string | null
+          last_at: string | null
+          seed_ids: string[] | null
+          tenant_id: string | null
+        }
+        Relationships: []
       }
     }
     Functions: {
@@ -593,3 +700,4 @@ export const Constants = {
     },
   },
 } as const
+

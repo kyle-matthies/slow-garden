@@ -1,7 +1,8 @@
 # Evaluation packet
 
-Synthetic-only, 48 distinct cases. No private inputs or provider calls occur anywhere in
-this folder. Every body in `corpus.mjs` was written for the corpus; real personal material
+Synthetic-only: 48 connect-v2 cases and 30 tend-connect-v3 cases. No private inputs occur
+anywhere in this folder, and no provider call happens except through the explicitly
+owner-approved `run-model.mjs`. Every body in `corpus.mjs` was written for the corpus; real personal material
 stays outside Git under an explicit private study flag.
 
 ## Files
@@ -13,6 +14,15 @@ stays outside Git under an explicit private study flag.
   ignored folder: `node services/garden-worker/evaluation/prepare.mjs artifacts/generated/<name>`.
   Exit code is non-zero when the report status is `packet-invalid`.
 - `tests/evaluation/corpus.test.mjs` — the gate: `node --test tests/evaluation/corpus.test.mjs`.
+- `corpus-v3.mjs`, `evaluate-v3.mjs` — the tend-connect-v3 packet (ADR-008): 30 cases across
+  catalog, recurrence, resurface, question and brevity. Each case has a reference
+  tend/connect output and rejected outputs. Most rejections must be refused by
+  `validateTend`/`validateConnect`; six are marked `validatorRejects: false` because they
+  have a valid shape and only blind human review can reject them (coincidence, invented
+  premise, first-person voice, prescriptive wording). Gate:
+  `node --test tests/evaluation/corpus-v3.test.mjs`.
+- `run-model.mjs` — runs a packet through a candidate model for blind review. It refuses to
+  start without `--owner-approved`, `--model` and an API key, and it never runs in CI.
 
 ## Families
 
