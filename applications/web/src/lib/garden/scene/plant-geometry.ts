@@ -8,7 +8,12 @@ import type { FlowerForm, LeafForm } from "./species";
  * the stem and whose y axis points down (so the plant grows into negative y).
  * Rendering lives in app/garden/scene/living-plant.tsx.
  */
-export const PLANT_VIEWBOX = { x: -120, y: -320, width: 240, height: 332 } as const;
+export const PLANT_VIEWBOX = {
+  x: -120,
+  y: -320,
+  width: 240,
+  height: 332,
+} as const;
 export const MAX_STEM = 280;
 
 const r1 = (n: number) => Math.round(n * 10) / 10;
@@ -66,21 +71,41 @@ export type PlantShape = {
 function cubic(p0: Pt, p1: Pt, p2: Pt, p3: Pt, t: number): Pt {
   const u = 1 - t;
   return [
-    u * u * u * p0[0] + 3 * u * u * t * p1[0] + 3 * u * t * t * p2[0] + t * t * t * p3[0],
-    u * u * u * p0[1] + 3 * u * u * t * p1[1] + 3 * u * t * t * p2[1] + t * t * t * p3[1],
+    u * u * u * p0[0] +
+      3 * u * u * t * p1[0] +
+      3 * u * t * t * p2[0] +
+      t * t * t * p3[0],
+    u * u * u * p0[1] +
+      3 * u * u * t * p1[1] +
+      3 * u * t * t * p2[1] +
+      t * t * t * p3[1],
   ];
 }
 
 function cubicTangent(p0: Pt, p1: Pt, p2: Pt, p3: Pt, t: number): Pt {
   const u = 1 - t;
-  const x = 3 * u * u * (p1[0] - p0[0]) + 6 * u * t * (p2[0] - p1[0]) + 3 * t * t * (p3[0] - p2[0]);
-  const y = 3 * u * u * (p1[1] - p0[1]) + 6 * u * t * (p2[1] - p1[1]) + 3 * t * t * (p3[1] - p2[1]);
+  const x =
+    3 * u * u * (p1[0] - p0[0]) +
+    6 * u * t * (p2[0] - p1[0]) +
+    3 * t * t * (p3[0] - p2[0]);
+  const y =
+    3 * u * u * (p1[1] - p0[1]) +
+    6 * u * t * (p2[1] - p1[1]) +
+    3 * t * t * (p3[1] - p2[1]);
   const len = Math.hypot(x, y) || 1;
   return [x / len, y / len];
 }
 
 /** A tapered ribbon along a cubic curve, filled rather than stroked. */
-function ribbon(p0: Pt, p1: Pt, p2: Pt, p3: Pt, w0: number, w1: number, steps = 18) {
+function ribbon(
+  p0: Pt,
+  p1: Pt,
+  p2: Pt,
+  p3: Pt,
+  w0: number,
+  w1: number,
+  steps = 18,
+) {
   const left: string[] = [];
   const right: string[] = [];
   for (let i = 0; i <= steps; i++) {
@@ -94,7 +119,12 @@ function ribbon(p0: Pt, p1: Pt, p2: Pt, p3: Pt, w0: number, w1: number, steps = 
   return `M${left.join("L")}L${right.reverse().join("L")}Z`;
 }
 
-function leafPath(kind: LeafForm, length: number, width: number, random: () => number) {
+function leafPath(
+  kind: LeafForm,
+  length: number,
+  width: number,
+  random: () => number,
+) {
   const L = length;
   const W = width;
   switch (kind) {
@@ -169,7 +199,8 @@ export function plantShape(
 ): PlantShape {
   const random = seededRandom(genome.seed ^ 0x9e3779b9);
   const { species } = genome;
-  const height = MAX_STEM * genome.height * STAGE_HEIGHT[stage] * (0.94 + 0.06 * vigor);
+  const height =
+    MAX_STEM * genome.height * STAGE_HEIGHT[stage] * (0.94 + 0.06 * vigor);
   const lean = genome.lean;
   const p0: Pt = [0, 0];
   const p1: Pt = [lean * 6, -height * 0.34];
@@ -222,19 +253,30 @@ export function plantShape(
   );
   const isGrass = species.leaf === "grass";
   for (let i = 0; i < count; i++) {
-    const t = isGrass ? 0.01 + random() * 0.05 : lerp(0.1, 0.66, (i + random() * 0.5) / count);
+    const t = isGrass
+      ? 0.01 + random() * 0.05
+      : lerp(0.1, 0.66, (i + random() * 0.5) / count);
     const at = cubic(p0, p1, p2, p3, t);
     const side = i % 2 === 0 ? 1 : -1;
     const length = isGrass
       ? height * (0.45 + random() * 0.35)
-      : (species.leaf === "trifoliate" ? 34 : species.leaf === "palmate" ? 46 : 44) *
+      : (species.leaf === "trifoliate"
+          ? 34
+          : species.leaf === "palmate"
+            ? 46
+            : 44) *
         formScale *
         (1 - t * 0.45) *
         (0.85 + random() * 0.3);
-    const width = isGrass ? 4 + random() * 2 : length * (species.leaf === "lance" ? 0.32 : 0.36);
+    const width = isGrass
+      ? 4 + random() * 2
+      : length * (species.leaf === "lance" ? 0.32 : 0.36);
     const angle = isGrass
       ? side * (6 + random() * 16)
-      : side * (species.leaf === "trifoliate" || species.leaf === "palmate" ? 48 : 40 + random() * 22);
+      : side *
+        (species.leaf === "trifoliate" || species.leaf === "palmate"
+          ? 48
+          : 40 + random() * 22);
     const { d, rib } = leafPath(species.leaf, length, width, random);
     leaves.push({ kind: species.leaf, at, angle, length, width, d, rib });
     grow(at[0] + side * Math.sin((Math.abs(angle) * Math.PI) / 180) * length);
@@ -285,10 +327,16 @@ export function plantShape(
       form: species.form,
       at: p3,
       tilt: tipTilt + genome.tilt,
-      foreshorten: species.form === "ray" || species.form === "cup" ? 0.62 + random() * 0.26 : 1,
+      foreshorten:
+        species.form === "ray" || species.form === "cup"
+          ? 0.62 + random() * 0.26
+          : 1,
       radius: radius * (0.94 + 0.12 * vigor),
       spine: isRaceme
-        ? { from: cubic(p0, p1, p2, p3, species.form === "spike" ? 0.5 : 0.68), to: p3 }
+        ? {
+            from: cubic(p0, p1, p2, p3, species.form === "spike" ? 0.5 : 0.68),
+            to: p3,
+          }
         : undefined,
     });
     // Side stems: more as the thought is tended further; a bud on the last.
@@ -303,17 +351,25 @@ export function plantShape(
       const to: Pt = [from[0] + side * len * 0.42, from[1] - len * 0.86];
       const c1: Pt = [from[0] + side * len * 0.08, from[1] - len * 0.35];
       const c2: Pt = [to[0] - side * len * 0.12, to[1] + len * 0.25];
-      branches.push(ribbon(from, c1, c2, to, stemWidth * 0.7, stemWidth * 0.35, 10));
+      branches.push(
+        ribbon(from, c1, c2, to, stemWidth * 0.7, stemWidth * 0.35, 10),
+      );
       const isBud = i === extra;
       heads.push({
         kind: isBud ? "bud" : "flower",
         form: species.form,
         at: to,
         tilt: side * (14 + random() * 18),
-        foreshorten: species.form === "ray" || species.form === "cup" ? 0.55 + random() * 0.3 : 1,
+        foreshorten:
+          species.form === "ray" || species.form === "cup"
+            ? 0.55 + random() * 0.3
+            : 1,
         radius: radius * (isBud ? 0.38 : 0.78),
         spine: isRaceme
-          ? { from: [lerp(from[0], to[0], 0.45), lerp(from[1], to[1], 0.45)], to }
+          ? {
+              from: [lerp(from[0], to[0], 0.45), lerp(from[1], to[1], 0.45)],
+              to,
+            }
           : undefined,
       });
       grow(to[0] + side * radius);

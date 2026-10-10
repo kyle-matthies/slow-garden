@@ -30,11 +30,36 @@ const bloom = (over: Partial<TendingBloom>): TendingBloom => ({
 
 const tending: Tending = {
   marks: [
-    { id: "m1", passId: "p", seedId: "a", kind: "theme", label: "slowness", evidence: [], createdAt: "" },
-    { id: "m2", passId: "p", seedId: "a", kind: "theme", label: "wrong", evidence: [], createdAt: "", response: "prune" },
+    {
+      id: "m1",
+      passId: "p",
+      seedId: "a",
+      kind: "theme",
+      label: "slowness",
+      evidence: [],
+      createdAt: "",
+    },
+    {
+      id: "m2",
+      passId: "p",
+      seedId: "a",
+      kind: "theme",
+      label: "wrong",
+      evidence: [],
+      createdAt: "",
+      response: "prune",
+    },
   ],
   blooms: [bloom({}), bloom({ id: "pruned", response: "prune" })],
-  themes: [{ label: "rest", seedIds: ["a", "b", "c"], days: 4, firstAt: "2026-05-02T00:00:00Z", lastAt: "2026-10-01T00:00:00Z" }],
+  themes: [
+    {
+      label: "rest",
+      seedIds: ["a", "b", "c"],
+      days: 4,
+      firstAt: "2026-05-02T00:00:00Z",
+      lastAt: "2026-10-01T00:00:00Z",
+    },
+  ],
 };
 
 describe("tending contract", () => {
@@ -54,8 +79,14 @@ describe("tending contract", () => {
 
   it("states echo distance and theme recurrence in words from data", () => {
     expect(monthsApart(bloom({}).evidence)).toBe(8);
-    expect(bloomHeadline(bloom({ kind: "echo" }))).toBe("Echo · 8 months apart");
-    expect(bloomHeadline(bloom({ kind: "question" }))).toBe("Question from tending");
-    expect(themeSentence(tending.themes[0])).toBe("Noticed · returned to rest on 4 days since May");
+    expect(bloomHeadline(bloom({ kind: "echo" }))).toBe(
+      "Echo · 8 months apart",
+    );
+    expect(bloomHeadline(bloom({ kind: "question" }))).toBe(
+      "Question from tending",
+    );
+    expect(themeSentence(tending.themes[0])).toBe(
+      "Noticed · returned to rest on 4 days since May",
+    );
   });
 });

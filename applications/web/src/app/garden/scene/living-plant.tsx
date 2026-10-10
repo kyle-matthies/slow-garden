@@ -24,13 +24,18 @@ import type { HSL } from "@/lib/garden/scene/species";
 
 type Tone = (c: HSL, dl?: number, ds?: number, alpha?: number) => string;
 
-function toneFor(night: boolean): Tone {
+function toneFor(night: boolean, pressed: boolean): Tone {
   return ([h, s, l], dl = 0, ds = 0, alpha = 1) => {
     let light = Math.max(0, Math.min(100, l + dl));
     let sat = Math.max(0, Math.min(100, s + ds));
     if (night) {
       light *= 0.6;
       sat *= 0.62;
+    }
+    if (pressed) {
+      // Dried pigment: a little duller, a little warmer.
+      sat *= 0.72;
+      light = light * 0.94 + 4;
     }
     return `hsl(${h.toFixed(0)} ${sat.toFixed(0)}% ${light.toFixed(0)}%${alpha < 1 ? ` / ${alpha}` : ""})`;
   };
@@ -51,6 +56,7 @@ export const LivingPlant = memo(function LivingPlant({
   detail = true,
   shape: given,
   fit = false,
+  pressed = false,
 }: {
   genome: Genome;
   stage: GrowthStage;
@@ -62,6 +68,8 @@ export const LivingPlant = memo(function LivingPlant({
   shape?: PlantShape;
   /** Crop the view to the plant itself, as for a specimen. */
   fit?: boolean;
+  /** Flattened, face-on and dried, as a pressed specimen in the Cabinet. */
+  pressed?: boolean;
 }) {
   const raw = useId();
   const id = `p${raw.replace(/[^a-zA-Z0-9_-]/g, "")}`;
@@ -71,7 +79,7 @@ export const LivingPlant = memo(function LivingPlant({
     [given, genome, stage, vigorStep],
   );
   const shape = given ?? computed!;
-  const tone = toneFor(night);
+  const tone = toneFor(night, pressed);
   const { species, colour } = genome;
   const stemC = species.stem;
   const pale = colour[2] > 88;
@@ -92,7 +100,10 @@ export const LivingPlant = memo(function LivingPlant({
     >
       <defs>
         <radialGradient id={`${id}-shadow`}>
-          <stop offset="0" stopColor={night ? "rgba(0,0,0,.45)" : "rgba(28,40,18,.34)"} />
+          <stop
+            offset="0"
+            stopColor={night ? "rgba(0,0,0,.45)" : "rgba(28,40,18,.34)"}
+          />
           <stop offset="1" stopColor="rgba(28,40,18,0)" />
         </radialGradient>
         <linearGradient id={`${id}-stem`} x1="0" x2="1" y1="0" y2="0">
@@ -106,7 +117,10 @@ export const LivingPlant = memo(function LivingPlant({
           <stop offset="1" stopColor={tone(stemC, -14, 2)} />
         </linearGradient>
         <radialGradient id={`${id}-petal`} cx=".5" cy="1" fx=".5" fy="1" r="1">
-          <stop offset="0" stopColor={pale ? tone([52, 46, 82]) : tone(colour, -16, 8)} />
+          <stop
+            offset="0"
+            stopColor={pale ? tone([52, 46, 82]) : tone(colour, -16, 8)}
+          />
           <stop offset=".34" stopColor={tone(colour, -3)} />
           <stop offset="1" stopColor={tone(colour, pale ? 1 : 6, -4)} />
         </radialGradient>
@@ -134,22 +148,48 @@ export const LivingPlant = memo(function LivingPlant({
               seed={genome.seed % 997}
               result="n"
             />
-            <feDisplacementMap in="SourceGraphic" in2="n" scale="1.4" xChannelSelector="R" yChannelSelector="G" />
+            <feDisplacementMap
+              in="SourceGraphic"
+              in2="n"
+              scale="1.4"
+              xChannelSelector="R"
+              yChannelSelector="G"
+            />
           </filter>
         )}
       </defs>
-      <ellipse cx="0" cy="2" rx={shape.shadow} ry={shape.shadow * 0.24} fill={`url(#${id}-shadow)`} />
+      <ellipse
+        cx="0"
+        cy="2"
+        rx={shape.shadow}
+        ry={shape.shadow * 0.24}
+        fill={`url(#${id}-shadow)`}
+      />
       {stage === "seed" && (
-        <ellipse cx="0" cy="1" rx="9" ry="3.2" fill={tone([30, 26, 34], 0)} opacity=".7" />
+        <ellipse
+          cx="0"
+          cy="1"
+          rx="9"
+          ry="3.2"
+          fill={tone([30, 26, 34], 0)}
+          opacity=".7"
+        />
       )}
       <g className="plant-leaves">
         {shape.leaves.map((leaf, i) => (
-          <g key={i} transform={`translate(${round1(leaf.at[0])} ${round1(leaf.at[1])}) rotate(${round1(leaf.angle)})`}>
+          <g
+            key={i}
+            transform={`translate(${round1(leaf.at[0])} ${round1(leaf.at[1])}) rotate(${round1(leaf.angle)})`}
+          >
             <path d={leaf.d} fill={`url(#${id}-leaf)`} />
             <path
               d={leaf.rib}
               fill="none"
-              stroke={leaf.kind === "pinnate" ? tone(stemC, -8) : tone(stemC, 18, 0, 0.55)}
+              stroke={
+                leaf.kind === "pinnate"
+                  ? tone(stemC, -8)
+                  : tone(stemC, 18, 0, 0.55)
+              }
               strokeWidth={leaf.kind === "pinnate" ? 0.9 : 0.7}
               strokeLinecap="round"
             />
@@ -162,7 +202,19 @@ export const LivingPlant = memo(function LivingPlant({
       <path d={shape.stem} fill={`url(#${id}-stem)`} />
       <g filter={detail ? `url(#${id}-tex)` : undefined}>
         {shape.heads.map((head, i) => (
-          <HeadShape key={i} head={head} genome={genome} id={id} tone={tone} index={i} detail={detail} />
+          <HeadShape
+            key={i}
+            head={
+              pressed
+                ? { ...head, foreshorten: 1, tilt: head.tilt * 0.25 }
+                : head
+            }
+            genome={genome}
+            id={id}
+            tone={tone}
+            index={i}
+            detail={detail}
+          />
         ))}
       </g>
     </svg>
@@ -191,7 +243,11 @@ function HeadShape({
 
   if (head.kind === "bud") {
     if (head.spine) {
-      const points = racemePoints(head.spine.from, head.spine.to, species.form === "plume" ? 1 : 8);
+      const points = racemePoints(
+        head.spine.from,
+        head.spine.to,
+        species.form === "plume" ? 1 : 8,
+      );
       if (species.form === "plume")
         return (
           <path
@@ -242,20 +298,33 @@ function HeadShape({
       const veins = petalVeins(R, width);
       const disk = R * (narrow ? 0.32 : 0.22);
       return (
-        <g transform={`${at} rotate(${round1(head.tilt)}) scale(1 ${round1(head.foreshorten)})`}>
+        <g
+          transform={`${at} rotate(${round1(head.tilt)}) scale(1 ${round1(head.foreshorten)})`}
+        >
           {ordered.map((a, i) => {
             const back = Math.cos((a * Math.PI) / 180) > 0.25;
             return (
               <g key={i} transform={`rotate(${a})`}>
                 <path d={petal} fill={`url(#${id}-petal)`} />
                 {detail && !narrow && (
-                  <path d={veins} fill="none" stroke={tone(colour, -24, 0, 0.22)} strokeWidth=".5" />
+                  <path
+                    d={veins}
+                    fill="none"
+                    stroke={tone(colour, -24, 0, 0.22)}
+                    strokeWidth=".5"
+                  />
                 )}
                 {back && <path d={petal} fill="rgba(30,30,20,.07)" />}
               </g>
             );
           })}
-          <ellipse cx="0" cy={narrow ? -disk * 0.25 : 0} rx={disk} ry={disk * (narrow ? 1.05 : 1)} fill={`url(#${id}-disk)`} />
+          <ellipse
+            cx="0"
+            cy={narrow ? -disk * 0.25 : 0}
+            rx={disk}
+            ry={disk * (narrow ? 1.05 : 1)}
+            fill={`url(#${id}-disk)`}
+          />
           {detail &&
             Array.from({ length: 14 }, (_, i) => {
               const a = (i / 14) * Math.PI * 2;
@@ -263,7 +332,9 @@ function HeadShape({
                 <circle
                   key={i}
                   cx={round1(Math.cos(a) * disk * 0.66)}
-                  cy={round1(Math.sin(a) * disk * 0.66 - (narrow ? disk * 0.25 : 0))}
+                  cy={round1(
+                    Math.sin(a) * disk * 0.66 - (narrow ? disk * 0.25 : 0),
+                  )}
                   r={round1(disk * 0.11)}
                   fill={tone(species.centre, -22)}
                 />
@@ -280,13 +351,33 @@ function HeadShape({
       );
       const petal = cupPetal(R, !poppy);
       return (
-        <g transform={`${at} rotate(${round1(head.tilt)}) scale(1 ${round1(head.foreshorten)})`}>
+        <g
+          transform={`${at} rotate(${round1(head.tilt)}) scale(1 ${round1(head.foreshorten)})`}
+        >
           {ordered.map((a, i) => (
-            <g key={i} transform={`rotate(${a}) scale(${round1(Math.cos((a * Math.PI) / 180) > 0.2 ? 1.06 : 0.96)})`}>
+            <g
+              key={i}
+              transform={`rotate(${a}) scale(${round1(Math.cos((a * Math.PI) / 180) > 0.2 ? 1.06 : 0.96)})`}
+            >
               <path d={petal} fill={`url(#${id}-petal)`} fillOpacity=".94" />
-              <path d={petal} fill="none" stroke={tone(colour, 12, 0, 0.3)} strokeWidth=".6" />
-              {poppy && <ellipse cx="0" cy={-R * 0.12} rx={R * 0.2} ry={R * 0.14} fill={tone([250, 30, 12], 0, 0, 0.85)} />}
-              {Math.cos((a * Math.PI) / 180) > 0.2 && <path d={petal} fill="rgba(40,10,10,.08)" />}
+              <path
+                d={petal}
+                fill="none"
+                stroke={tone(colour, 12, 0, 0.3)}
+                strokeWidth=".6"
+              />
+              {poppy && (
+                <ellipse
+                  cx="0"
+                  cy={-R * 0.12}
+                  rx={R * 0.2}
+                  ry={R * 0.14}
+                  fill={tone([250, 30, 12], 0, 0, 0.85)}
+                />
+              )}
+              {Math.cos((a * Math.PI) / 180) > 0.2 && (
+                <path d={petal} fill="rgba(40,10,10,.08)" />
+              )}
             </g>
           ))}
           {poppy ? (
@@ -304,7 +395,11 @@ function HeadShape({
             </>
           ) : (
             <>
-              <circle r={R * 0.3} fill={tone(species.centre, 4)} opacity=".95" />
+              <circle
+                r={R * 0.3}
+                fill={tone(species.centre, 4)}
+                opacity=".95"
+              />
               {Array.from({ length: 22 }, (_, i) => {
                 const a = (i / 22) * Math.PI * 2;
                 return (
@@ -324,11 +419,21 @@ function HeadShape({
       );
     }
     case "fringed": {
-      const angles = Array.from({ length: genome.petals }, (_, i) => -100 + (200 * i) / (genome.petals - 1) + (random() - 0.5) * 10);
+      const angles = Array.from(
+        { length: genome.petals },
+        (_, i) =>
+          -100 + (200 * i) / (genome.petals - 1) + (random() - 0.5) * 10,
+      );
       const floret = fringedFloret(R);
       return (
         <g transform={`${at} rotate(${round1(head.tilt * 0.6)})`}>
-          <ellipse cx="0" cy={R * 0.28} rx={R * 0.38} ry={R * 0.46} fill={tone(species.stem, -4, -6)} />
+          <ellipse
+            cx="0"
+            cy={R * 0.28}
+            rx={R * 0.38}
+            ry={R * 0.46}
+            fill={tone(species.stem, -4, -6)}
+          />
           {detail &&
             Array.from({ length: 4 }, (_, i) => (
               <path
@@ -340,10 +445,20 @@ function HeadShape({
               />
             ))}
           {angles.map((a, i) => (
-            <path key={`b${i}`} d={floret} transform={`rotate(${round1(a * 0.7)}) scale(.82)`} fill={tone(colour, -14)} />
+            <path
+              key={`b${i}`}
+              d={floret}
+              transform={`rotate(${round1(a * 0.7)}) scale(.82)`}
+              fill={tone(colour, -14)}
+            />
           ))}
           {angles.map((a, i) => (
-            <path key={i} d={floret} transform={`rotate(${round1(a)})`} fill={`url(#${id}-petal)`} />
+            <path
+              key={i}
+              d={floret}
+              transform={`rotate(${round1(a)})`}
+              fill={`url(#${id}-petal)`}
+            />
           ))}
           <circle cy={-R * 0.05} r={R * 0.2} fill={tone(species.centre, 0)} />
         </g>
@@ -353,7 +468,13 @@ function HeadShape({
       const cy = -R * 0.85;
       return (
         <g transform={`${at} rotate(${round1(head.tilt * 0.4)})`}>
-          <ellipse cx="0" cy={cy} rx={R} ry={R * 1.12} fill={`url(#${id}-petal)`} />
+          <ellipse
+            cx="0"
+            cy={cy}
+            rx={R}
+            ry={R * 1.12}
+            fill={`url(#${id}-petal)`}
+          />
           {Array.from({ length: detail ? 40 : 18 }, (_, i) => {
             const a = random() * Math.PI * 2;
             const d = Math.sqrt(random()) * 0.85;
@@ -372,7 +493,11 @@ function HeadShape({
               />
             );
           })}
-          <path d={sepalPath(R * 0.7)} transform={`translate(0 ${round1(R * 0.1)})`} fill={tone(species.stem, -8)} />
+          <path
+            d={sepalPath(R * 0.7)}
+            transform={`translate(0 ${round1(R * 0.1)})`}
+            fill={tone(species.stem, -8)}
+          />
         </g>
       );
     }
@@ -385,14 +510,29 @@ function HeadShape({
             const y = -R * 0.5 - (1 - (x / R) ** 2) * R * 0.28;
             return (
               <g key={i}>
-                <path d={`M0,0Q${round1(x * 0.4)},${round1(y * 0.7)} ${round1(x)},${round1(y)}`} fill="none" stroke={tone(species.stem, 4)} strokeWidth=".9" />
+                <path
+                  d={`M0,0Q${round1(x * 0.4)},${round1(y * 0.7)} ${round1(x)},${round1(y)}`}
+                  fill="none"
+                  stroke={tone(species.stem, 4)}
+                  strokeWidth=".9"
+                />
                 {Array.from({ length: 6 }, (_, j) => {
                   const fx = x + (random() - 0.5) * 7;
                   const fy = y - random() * 4;
                   return (
                     <g key={j}>
-                      <circle cx={round1(fx)} cy={round1(fy)} r="2.4" fill={tone(colour, (random() - 0.5) * 6)} />
-                      <circle cx={round1(fx)} cy={round1(fy)} r=".7" fill={tone(species.centre, -18)} />
+                      <circle
+                        cx={round1(fx)}
+                        cy={round1(fy)}
+                        r="2.4"
+                        fill={tone(colour, (random() - 0.5) * 6)}
+                      />
+                      <circle
+                        cx={round1(fx)}
+                        cy={round1(fy)}
+                        r=".7"
+                        fill={tone(species.centre, -18)}
+                      />
                     </g>
                   );
                 })}
@@ -406,7 +546,9 @@ function HeadShape({
       const foxglove = species.id === "foxglove";
       const spine = head.spine!;
       const side = genome.seed & 1 ? 1 : -1;
-      const n = foxglove ? Math.max(9, genome.petals) : Math.max(16, genome.petals + 4);
+      const n = foxglove
+        ? Math.max(9, genome.petals)
+        : Math.max(16, genome.petals + 4);
       // Draw from the tip down so lower florets overlap the ones above them.
       const points = racemePoints(spine.from, spine.to, n).reverse();
       return (
@@ -427,14 +569,40 @@ function HeadShape({
                   />
                 );
               return (
-                <g key={i} transform={`translate(${round1(p[0] + side * size * 0.18)} ${p[1]}) rotate(${round1(side * (34 + random() * 14))})`}>
+                <g
+                  key={i}
+                  transform={`translate(${round1(p[0] + side * size * 0.18)} ${p[1]}) rotate(${round1(side * (34 + random() * 14))})`}
+                >
                   <path d={bellFloret(size)} fill={`url(#${id}-bell)`} />
-                  <path d={bellFloret(size)} fill="none" stroke={tone(colour, -18, 0, 0.35)} strokeWidth=".5" />
-                  <ellipse cx="0" cy={round1(size * 0.88)} rx={round1(size * 0.44)} ry={round1(size * 0.13)} fill={tone(colour, -28, 4)} />
-                  <ellipse cx="0" cy={round1(size * 0.86)} rx={round1(size * 0.36)} ry={round1(size * 0.08)} fill={tone(colour, 24, -16)} />
+                  <path
+                    d={bellFloret(size)}
+                    fill="none"
+                    stroke={tone(colour, -18, 0, 0.35)}
+                    strokeWidth=".5"
+                  />
+                  <ellipse
+                    cx="0"
+                    cy={round1(size * 0.88)}
+                    rx={round1(size * 0.44)}
+                    ry={round1(size * 0.13)}
+                    fill={tone(colour, -28, 4)}
+                  />
+                  <ellipse
+                    cx="0"
+                    cy={round1(size * 0.86)}
+                    rx={round1(size * 0.36)}
+                    ry={round1(size * 0.08)}
+                    fill={tone(colour, 24, -16)}
+                  />
                   {detail &&
                     [0.3, 0.5, 0.7].map((f) => (
-                      <circle key={f} cx={round1((f - 0.5) * size * 0.5)} cy={round1(size * 0.84)} r=".8" fill={tone(colour, -38)} />
+                      <circle
+                        key={f}
+                        cx={round1((f - 0.5) * size * 0.5)}
+                        cy={round1(size * 0.84)}
+                        r=".8"
+                        fill={tone(colour, -38)}
+                      />
                     ))}
                 </g>
               );
@@ -443,17 +611,36 @@ function HeadShape({
             const spread = size * 0.55;
             if (!open)
               return (
-                <ellipse key={i} cx={p[0]} cy={p[1]} rx={size * 0.5} ry={size * 0.42} fill={t > 0.9 ? `url(#${id}-bud)` : tone(colour, -14, -8)} />
+                <ellipse
+                  key={i}
+                  cx={p[0]}
+                  cy={p[1]}
+                  rx={size * 0.5}
+                  ry={size * 0.42}
+                  fill={t > 0.9 ? `url(#${id}-bud)` : tone(colour, -14, -8)}
+                />
               );
             return (
               <g key={i} transform={`translate(${p[0]} ${p[1]})`}>
                 {[-1, 1].map((k) => (
-                  <g key={k} transform={`translate(${round1(k * spread)} ${round1(size * 0.1)}) rotate(${k * 38})`}>
+                  <g
+                    key={k}
+                    transform={`translate(${round1(k * spread)} ${round1(size * 0.1)}) rotate(${k * 38})`}
+                  >
                     <path d={peaFloret(size)} fill={tone(colour, 4 - t * 14)} />
-                    <path d={peaFloret(size * 0.62)} transform={`translate(0 ${round1(-size * 0.42)})`} fill={tone(colour, 26 - t * 10, -18)} />
+                    <path
+                      d={peaFloret(size * 0.62)}
+                      transform={`translate(0 ${round1(-size * 0.42)})`}
+                      fill={tone(colour, 26 - t * 10, -18)}
+                    />
                   </g>
                 ))}
-                {i % 2 === 0 && <path d={peaFloret(size * 0.9)} fill={tone(colour, -2 - t * 14)} />}
+                {i % 2 === 0 && (
+                  <path
+                    d={peaFloret(size * 0.9)}
+                    fill={tone(colour, -2 - t * 14)}
+                  />
+                )}
               </g>
             );
           })}

@@ -29,7 +29,8 @@ function distance(a: PlantSlot, b: PlantSlot) {
 
 export function byCreation<T extends Placeable>(items: readonly T[]): T[] {
   return [...items].sort(
-    (a, b) => a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id),
+    (a, b) =>
+      a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id),
   );
 }
 
@@ -38,7 +39,9 @@ export function byCreation<T extends Placeable>(items: readonly T[]): T[] {
  * A stored position wins when present: position_x is read as u in -0.5..0.5
  * and position_y as depth in 0..1.
  */
-export function placePlants(items: readonly Placeable[]): Map<string, PlantSlot> {
+export function placePlants(
+  items: readonly Placeable[],
+): Map<string, PlantSlot> {
   const placed = new Map<string, PlantSlot>();
   for (const item of byCreation(items)) {
     if (
@@ -57,7 +60,8 @@ export function placePlants(items: readonly Placeable[]): Map<string, PlantSlot>
     for (let attempt = 0; attempt < ATTEMPTS; attempt++) {
       const candidate = { u: random() - 0.5, depth: 0.08 + random() * 0.84 };
       let gap = Infinity;
-      for (const other of placed.values()) gap = Math.min(gap, distance(candidate, other));
+      for (const other of placed.values())
+        gap = Math.min(gap, distance(candidate, other));
       if (gap >= MIN_GAP) {
         best = candidate;
         break;

@@ -107,7 +107,7 @@ export function ReturnsPreview() {
 
   return (
     <main className="garden-shell" style={{ padding: "24px" }}>
-      <p className="cabinet-kicker" style={{ color: "#b9563f" }}>
+      <p className="cabinet-kicker" style={{ color: "var(--tend)" }}>
         Development fixture preview · synthetic data only · never served in
         production
       </p>

@@ -46,7 +46,8 @@ export function useAtmosphere({
       fov,
       still,
       getTheta: () => theta.get(),
-      onWind: (wind) => windTarget.current?.style.setProperty("--wind", wind.toFixed(3)),
+      onWind: (wind) =>
+        windTarget.current?.style.setProperty("--wind", wind.toFixed(3)),
     });
     engine.current = atmosphere;
     atmosphere.resize(width, height);

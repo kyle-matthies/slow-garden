@@ -34,6 +34,8 @@ const STATES = [
   ["garden-topic-list", `/dev/axe-fixtures?topic=${PLOT}&view=list`],
   ["garden-thought", `/dev/axe-fixtures?topic=${PLOT}&thought=${SEED}`],
   ["garden-archive", "/dev/axe-fixtures?view=archive"],
+  ["garden-ring", "/dev/axe-fixtures?view=gardens"],
+  ["cabinet", "/garden/returns-preview?scene=three-blooms"],
 ];
 // Findings reported as warnings instead of failures. Keep empty unless a finding is
 // tracked in an initiative record with an owner.
@@ -46,6 +48,8 @@ const SHOT_STATES = new Set([
   "garden-focus",
   "garden-list",
   "garden-thought",
+  "garden-ring",
+  "cabinet",
   "error",
 ]);
 const SCHEMES = ["light", "dark"];
@@ -107,6 +111,23 @@ const CONTRAST = [
       ".bed-sign-count",
       ".dock-chip",
       ".view-toggle button",
+    ],
+  },
+  {
+    state: "garden-ring",
+    url: "/dev/axe-fixtures?view=gardens",
+    token: "--sheet",
+    selectors: [".ring-title h1", ".ring-name", ".ring-meta"],
+  },
+  {
+    state: "cabinet",
+    url: "/garden/returns-preview?scene=three-blooms",
+    token: "--cabinet-bg",
+    selectors: [
+      ".cabinet-interpretation",
+      ".cabinet-clipping-body",
+      ".cabinet-clipping-caption",
+      ".pressed-specimen figcaption",
     ],
   },
   {

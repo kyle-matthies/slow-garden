@@ -252,6 +252,69 @@
     "passesAA": true
   },
   {
+    "state": "garden-ring",
+    "scheme": "light",
+    "selector": ".ring-title h1",
+    "fg": "rgb(38, 57, 47)",
+    "bg": "rgb(251,247,236)",
+    "ratio": 11.48,
+    "passesAA": true
+  },
+  {
+    "state": "garden-ring",
+    "scheme": "light",
+    "selector": ".ring-name",
+    "fg": "rgb(38, 57, 47)",
+    "bg": "rgb(251,247,236)",
+    "ratio": 11.48,
+    "passesAA": true
+  },
+  {
+    "state": "garden-ring",
+    "scheme": "light",
+    "selector": ".ring-meta",
+    "fg": "rgb(79, 98, 87)",
+    "bg": "rgb(251,247,236)",
+    "ratio": 6.1,
+    "passesAA": true
+  },
+  {
+    "state": "cabinet",
+    "scheme": "light",
+    "selector": ".cabinet-interpretation",
+    "fg": "rgb(23, 60, 50)",
+    "bg": "rgb(255,250,240)",
+    "ratio": 11.68,
+    "passesAA": true
+  },
+  {
+    "state": "cabinet",
+    "scheme": "light",
+    "selector": ".cabinet-clipping-body",
+    "fg": "rgb(23, 60, 50)",
+    "bg": "rgb(255,254,249)",
+    "ratio": 12.03,
+    "passesAA": true
+  },
+  {
+    "state": "cabinet",
+    "scheme": "light",
+    "selector": ".cabinet-clipping-caption",
+    "fg": "rgb(95, 111, 104)",
+    "bg": "rgb(255,254,249)",
+    "ratio": 5.25,
+    "passesAA": true
+  },
+  {
+    "state": "cabinet",
+    "scheme": "light",
+    "selector": ".pressed-specimen figcaption",
+    "fg": "rgb(95, 111, 104)",
+    "bg": "rgb(255,250,240)",
+    "ratio": 5.1,
+    "passesAA": true
+  },
+  {
     "state": "garden-focus",
     "scheme": "light",
     "selector": ".focus-body h2",
@@ -537,6 +600,69 @@
     "fg": "rgb(15, 22, 18)",
     "bg": "rgb(159,212,184)",
     "ratio": 11,
+    "passesAA": true
+  },
+  {
+    "state": "garden-ring",
+    "scheme": "dark",
+    "selector": ".ring-title h1",
+    "fg": "rgb(231, 238, 232)",
+    "bg": "rgb(30,40,35)",
+    "ratio": 12.87,
+    "passesAA": true
+  },
+  {
+    "state": "garden-ring",
+    "scheme": "dark",
+    "selector": ".ring-name",
+    "fg": "rgb(231, 238, 232)",
+    "bg": "rgb(30,40,35)",
+    "ratio": 12.87,
+    "passesAA": true
+  },
+  {
+    "state": "garden-ring",
+    "scheme": "dark",
+    "selector": ".ring-meta",
+    "fg": "rgb(178, 194, 184)",
+    "bg": "rgb(30,40,35)",
+    "ratio": 8.17,
+    "passesAA": true
+  },
+  {
+    "state": "cabinet",
+    "scheme": "dark",
+    "selector": ".cabinet-interpretation",
+    "fg": "rgb(230, 239, 230)",
+    "bg": "rgb(29,37,30)",
+    "ratio": 13.37,
+    "passesAA": true
+  },
+  {
+    "state": "cabinet",
+    "scheme": "dark",
+    "selector": ".cabinet-clipping-body",
+    "fg": "rgb(230, 239, 230)",
+    "bg": "rgb(26,35,30)",
+    "ratio": 13.7,
+    "passesAA": true
+  },
+  {
+    "state": "cabinet",
+    "scheme": "dark",
+    "selector": ".cabinet-clipping-caption",
+    "fg": "rgb(169, 191, 178)",
+    "bg": "rgb(26,35,30)",
+    "ratio": 8.27,
+    "passesAA": true
+  },
+  {
+    "state": "cabinet",
+    "scheme": "dark",
+    "selector": ".pressed-specimen figcaption",
+    "fg": "rgb(169, 191, 178)",
+    "bg": "rgb(29,37,30)",
+    "ratio": 8.07,
     "passesAA": true
   },
   {

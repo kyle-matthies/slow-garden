@@ -89,7 +89,10 @@ export function bloomSeeds(bloom: TendingBloom): string[] {
   return [...new Set(bloom.evidence.map((e) => e.seedId))];
 }
 
-export function bloomsForSeed(tending: Tending, seedId: string): TendingBloom[] {
+export function bloomsForSeed(
+  tending: Tending,
+  seedId: string,
+): TendingBloom[] {
   return active(tending.blooms).filter((b) => bloomSeeds(b).includes(seedId));
 }
 
@@ -102,7 +105,10 @@ export type Thread = {
   label: string;
 };
 
-export function threadsFor(tending: Tending, visible: ReadonlySet<string>): Thread[] {
+export function threadsFor(
+  tending: Tending,
+  visible: ReadonlySet<string>,
+): Thread[] {
   const threads: Thread[] = [];
   for (const bloom of active(tending.blooms)) {
     const seeds = bloomSeeds(bloom).filter((s) => visible.has(s));
@@ -132,7 +138,9 @@ export function threadsFor(tending: Tending, visible: ReadonlySet<string>): Thre
 /** Whole months between the oldest and newest evidence, for echo cues. */
 export function monthsApart(evidence: readonly Evidence[]): number {
   if (evidence.length < 2) return 0;
-  const times = evidence.map((e) => Date.parse(e.writtenAt)).sort((a, b) => a - b);
+  const times = evidence
+    .map((e) => Date.parse(e.writtenAt))
+    .sort((a, b) => a - b);
   return Math.floor((times[times.length - 1] - times[0]) / (30.44 * 86400000));
 }
 

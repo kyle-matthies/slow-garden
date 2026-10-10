@@ -44,14 +44,27 @@ describe("buildBeds", () => {
   it("keeps an archived thought's slot for when it is restored", () => {
     const seeds = [seed(0), seed(1, "p1", "archived"), seed(2)];
     const [withArchived] = buildBeds([plot("p1")], seeds, [], EMPTY_TENDING);
-    const restored = buildBeds([plot("p1")], seeds.map((s) => ({ ...s, status: "active" })), [], EMPTY_TENDING)[0];
-    expect(withArchived.plants.map((p) => p.seed.id)).toEqual(expect.not.arrayContaining(["s1"]));
-    const slot = (bed: typeof withArchived, id: string) => bed.plants.find((p) => p.seed.id === id)?.slot;
+    const restored = buildBeds(
+      [plot("p1")],
+      seeds.map((s) => ({ ...s, status: "active" })),
+      [],
+      EMPTY_TENDING,
+    )[0];
+    expect(withArchived.plants.map((p) => p.seed.id)).toEqual(
+      expect.not.arrayContaining(["s1"]),
+    );
+    const slot = (bed: typeof withArchived, id: string) =>
+      bed.plants.find((p) => p.seed.id === id)?.slot;
     expect(slot(restored, "s2")).toEqual(slot(withArchived, "s2"));
   });
 
   it("places beds around the ring", () => {
-    const beds = buildBeds([plot("a"), plot("b"), plot("c")], [], [], EMPTY_TENDING);
+    const beds = buildBeds(
+      [plot("a"), plot("b"), plot("c")],
+      [],
+      [],
+      EMPTY_TENDING,
+    );
     expect(beds.map((b) => b.angle)).toEqual([0, 120, 240]);
   });
 });

@@ -8,7 +8,9 @@ describe("genomeFor", () => {
   });
 
   it("uses every species across many thoughts", () => {
-    const seen = new Set(Array.from({ length: 400 }, (_, i) => genomeFor(`t-${i}`).species.id));
+    const seen = new Set(
+      Array.from({ length: 400 }, (_, i) => genomeFor(`t-${i}`).species.id),
+    );
     expect(seen.size).toBe(SPECIES.length);
   });
 

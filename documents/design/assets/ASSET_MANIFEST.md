@@ -8,7 +8,8 @@ licence. Personal or private imagery never belongs in this library.
 | Path | Subject | Source | Generator or licence | Date | Dimensions | Notes |
 |---|---|---|---|---|---|---|
 | `applications/web/public/meadow-background.png` | Meadow field, portrait | Generated reference set for the H1 prototype (`prototypes/mobile-h1`, bf3bfda) | Owner-run image generation (Codex), owner-held rights | 2026-08-25 | 853 × 1844 | Landing and login only; too narrow for desktop scene layers |
-| `prototypes/mobile-h1/public/assets/slow-garden/pressed-cosmos.png` | Pressed white cosmos on paper with tape | Generated reference set for the H1 prototype | Owner-run image generation (Codex), owner-held rights | 2026-08-25 | 971 × 1619, RGB | Source for `public/garden/specimens/cosmos-*.webp`; paper background, use with multiply blend |
+| `prototypes/mobile-h1/public/assets/slow-garden/pressed-cosmos.png` | Pressed white cosmos on paper with tape | Generated reference set for the H1 prototype | Owner-run image generation (Codex), owner-held rights | 2026-08-25 | 971 × 1619, RGB | Source for the WebP specimens below |
+| `applications/web/public/garden/specimens/cosmos-{320,640,971}.webp` | Pressed white cosmos (Cabinet specimen for the cosmos species) | Lanczos-resized, WebP q82 from the PNG above | Same as source | 2026-10-10 | 320 × 534 (9 KB), 640 × 1067 (31 KB), 971 × 1619 (64 KB) | Paper background; shown with multiply blend. Other species use the procedural pressed rendering until photographed |
 
 ## Library requirements (from the scrapbook roadmap, gate 2)
 
