@@ -57,8 +57,9 @@ watch mode; CI runs the single-run test suite.
 `next.config.ts` sends an enforced Content Security Policy, HSTS, frame, referrer,
 permissions, and cross-origin isolation headers on every route. `connect-src`
 allows only the origin in `NEXT_PUBLIC_SUPABASE_URL` at build time, so build with
-the same Supabase environment the deployment will use. CI fails on
-`npm audit --audit-level=high`. Rationale, receipts, and open gaps are in
+the same Supabase environment the deployment will use. CI fails on any high or
+critical `npm audit` advisory through `scripts/audit-gate.mjs`. Its only
+exceptions are advisories with no patched release, and each exception expires. Rationale, receipts, and open gaps are in
 [`documents/operations/SECURITY_REVIEW_2026-09.md`](../../documents/operations/SECURITY_REVIEW_2026-09.md).
 
 ## Production promotion

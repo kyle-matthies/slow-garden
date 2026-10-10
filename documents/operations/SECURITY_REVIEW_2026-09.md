@@ -105,6 +105,19 @@ Receipt (local, 2026-09-10, lockfile at this commit): `npm audit --audit-level=h
 → `found 0 vulnerabilities` across 358 audited packages. No findings to fix or
 document.
 
+Update 2026-10-09: new advisories made `npm audit --audit-level=high` fail on
+`main`. They included critical Next.js advisories for 16.0.0–16.3.7, such as
+GHSA-4jqv-mc3x-m676. Next and `eslint-config-next` move to 16.3.8, and
+`npm audit fix` patches `brace-expansion`, `sharp` and `source-map-js`. One
+high advisory has no patched release: GHSA-vfj7-8cjw-p6xm (`braces` ≤3.0.3). It
+is reached only through the dev-only lint chain `eslint-config-next` →
+`@next/eslint-plugin-next` → `fast-glob` → `micromatch`. CI now runs
+`applications/web/scripts/audit-gate.mjs`. That gate still fails on every high or
+critical advisory except listed exceptions. Each exception names its reason and
+expires. The `braces` exception expires on 2026-11-09, after which CI fails again
+until it is reviewed. Production dependencies have no high or critical advisory:
+`npm audit --omit=dev --audit-level=high` reports 0 vulnerabilities.
+
 Not covered: the Edge Function (`supabase/functions/garden-worker`) imports Deno
 modules with no lockfile-based audit; the worker evaluation scripts under
 `services/garden-worker` have no third-party dependencies. See follow-up F-3.
