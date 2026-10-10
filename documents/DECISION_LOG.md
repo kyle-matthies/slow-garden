@@ -210,3 +210,40 @@ The local proof of concept remains valid evidence, but it is no longer the produ
 - Evidence: [Initiative wave plan](operations/INITIATIVE_WAVE_2026-09.md).
 - Revisit when: Two or more initiatives conflict in review, or dogfood evidence
   reprioritizes the no-AI garden versus activation work.
+
+## D-022: Living garden is the primary surface; tending is first-class
+
+- Status: Accepted; implementation authorized 2026-10-09. Activation still follows the
+  AI activation runbook.
+- Date: 2026-10-09
+- Decision: The web garden becomes a living, animated 2.5D garden. Gardens sit on a
+  ring, topics are beds, thoughts are plants that grow from the person's own tending,
+  and entries are slips that drift forward. This is the default `/garden` view. The
+  September card/list workspace stays as `view=list`. This lifts D-020's deferral of
+  the realistic botanical aesthetic, motion and spatial navigation. The layered 2.5D
+  scene, the `motion` dependency, the assets and the budgets are recorded in
+  [ADR-007](architecture/ADR-007_LIVING_GARDEN_SCENE.md). The design is in
+  [LIVING_GARDEN.md](design/LIVING_GARDEN.md).
+- Decision: AI knowledge tending is a central product capability, delivered in three
+  tiers that unlock from accumulated evidence: catalogue, notice, resurface. See
+  [ADR-008](architecture/ADR-008_TENDING_TIERS.md). Returns stay small and brief. A
+  bloom is one sentence of at most 280 characters. The three-bloom cap applies per
+  garden per tending cycle. Catalogue marks are bounded Observations, not blooms.
+- Decision: Tending may run nightly, and only when writing in scope changed. It is
+  opt-in per account and ships disabled. The work is built up to the activation gate.
+  Hosted migrations, provider terms, worker deployment, canaries and enabling each
+  need an explicit owner go/no-go through the runbook.
+- Decision: Growth reflects stewardship and never frequency. It is monotonic, never
+  wilts, is never driven by AI, and encodes no mood, confidence or importance. Plant
+  positions are stable and the garden is never automatically rearranged.
+- Rationale: The writing release proved the foundation. What makes Slow Garden
+  distinctive is the combination of a beautiful place that holds unfinished thought
+  and a background gardener that returns, over time, with small grounded
+  observations, echoes and questions.
+- Evidence: Owner direction and five explicit planning choices in the 2026-10-09
+  session. These were: layered 2.5D; hybrid procedural and photographic imagery;
+  building in the web app; tending as first-class; build to the gate; and nightly
+  cadence when writing changed.
+- Revisit when: Frame-time or accessibility receipts fail their budgets, comprehension
+  testing shows tending marks blur source and derived material, or evaluation shows a
+  tier cannot meet its thresholds.

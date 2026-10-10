@@ -4,6 +4,31 @@ Status: Web-first delivery authorized by ADR-006; local implementation in progre
 Planning model: Evidence-gated horizons, not date commitments
 Primary rule: Do not advance a horizon because code exists; advance when its exit evidence exists.
 
+## Current web priority — 2026-10-09 living garden and first-class tending
+
+Status: Authorized by D-022, [ADR-007](architecture/ADR-007_LIVING_GARDEN_SCENE.md)
+and [ADR-008](architecture/ADR-008_TENDING_TIERS.md). Design:
+[LIVING_GARDEN.md](design/LIVING_GARDEN.md). Each item is one reviewable PR. Activation
+stays gated by the [runbook](operations/AI_ACTIVATION_RUNBOOK.md).
+
+- [ ] PR 0 · Decisions, ADRs, living-garden spec, asset manifest and prompt pack.
+- [ ] A1 · Scene foundation: `motion`, camera, layers, palettes, atmosphere canvas, growth/layout/genome/species modules.
+- [ ] B2 · Web tending contract and synthetic fixtures.
+- [ ] A2 · Living plants, beds, plant focus, writing page that stills the scene.
+- [ ] A5 · Tending surfaces and `/garden/meadow-preview` synthetic scenes.
+- [ ] A3 · Garden ring for many gardens.
+- [ ] A4 · Cabinet clipping board and press transition.
+- [ ] B3 · `tending_tiers` migration with pgTAP tests (local only; hosted apply is an owner gate).
+- [ ] B4 · `tend-connect-v3` two-stage worker.
+- [ ] B5 · Evaluation families, thresholds and a synthetic-only model-run harness.
+- [ ] B6 · Nightly scheduler and "Tend overnight" setting (ships off).
+- [ ] B7 · Live tending wiring in the scene and list.
+- [ ] A6 · Accessibility, performance and visual receipts.
+- [ ] Gate · Owner go/no-go through runbook phases 0.4 → 4b.
+
+This section supersedes the "botanical scrapbook" and "scheduled tending" deferrals
+below. Explore mode, native iOS and team features remain deferred.
+
 ## Current web priority — 2026-09-10 initiative wave
 
 Status 2026-09-27: PRs #6–#16 merged on September 11 into `db83d5a`.

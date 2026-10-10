@@ -29,3 +29,7 @@ No production migration should be added until the owning decision is accepted an
 - [ADR-002: Async control plane](ADR-002_ASYNC_CONTROL_PLANE.md)
 - [ADR-003: Data and trust boundary](ADR-003_DATA_AND_TRUST_BOUNDARY.md)
 - [ADR-004: Model and evaluation](ADR-004_MODEL_AND_EVALUATION.md)
+- [ADR-005: Personal secure multi-tenant product](ADR-005_PERSONAL_MULTI_TENANT.md)
+- [ADR-006: Web thinking garden and permissioned returns](ADR-006_WEB_THINKING_GARDEN.md)
+- [ADR-007: Living garden scene on the web](ADR-007_LIVING_GARDEN_SCENE.md)
+- [ADR-008: Tending tiers and nightly tending](ADR-008_TENDING_TIERS.md)

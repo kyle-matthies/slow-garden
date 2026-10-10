@@ -109,6 +109,23 @@ accepted as residual risk in the decision log.
 6. Record the activation receipt: date, model, workflow, rates, caps, scheduler, and
    the first pass's state sequence (states only).
 
+### Phase 4b — Nightly tending (ADR-008), only after Phase 4 has a receipt
+
+1. Confirm that the `tending_tiers` migration has been applied through its own
+   reviewed hosted go/no-go, and that the `tend-connect-v3` evaluation receipt
+   exists (tiers 1–3 thresholds in `EVALUATION_ARCHITECTURE.md`).
+2. Confirm that the `pg_cron` jobs for `private.enqueue_nightly_passes()` and the
+   worker tick exist and are unscheduled or idle.
+3. Set `accounts.tend_overnight=true` and `accounts.timezone` for the dogfood account
+   only.
+4. Observe one night. Expect one pass per permission scope with changed writing, and
+   none for unchanged scopes. Each garden gets at most three blooms. No body text
+   appears in logs.
+5. Record the nightly receipt as states, counts and costs only.
+
+Rollback: set `accounts.tend_overnight=false`. Passes already queued drain normally,
+and disabling the runtime follows the order below.
+
 ## Ongoing go/no-go (checked weekly during dogfood)
 
 | Check | No-go action |
