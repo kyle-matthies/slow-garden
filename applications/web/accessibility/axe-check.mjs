@@ -12,7 +12,10 @@ import { AxeBuilder } from "@axe-core/playwright";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const webDir = path.resolve(here, "..");
-const receipts = path.resolve(here, "../../../documents/initiatives/receipts/08");
+// AXE_RECEIPTS writes a new receipt set elsewhere instead of replacing 08's.
+const receipts = process.env.AXE_RECEIPTS
+  ? path.resolve(process.env.AXE_RECEIPTS)
+  : path.resolve(here, "../../../documents/initiatives/receipts/08");
 const BASE = "http://localhost:3211";
 const PLOT = "00000000-0000-4000-8000-000000000100";
 const SEED = "00000000-0000-4000-8000-000000001000";
@@ -22,8 +25,13 @@ const STATES = [
   ["login", "/login"],
   ["error", "/dev/axe-fixtures?state=error"],
   ["loading", "/dev/axe-fixtures?state=loading"],
+  // The living garden scene (D-022) is the default overview.
   ["garden-overview", "/dev/axe-fixtures"],
   ["garden-topic", `/dev/axe-fixtures?topic=${PLOT}`],
+  ["garden-focus", `/dev/axe-fixtures?focus=${SEED}`],
+  // The structured list view keeps the September workspace.
+  ["garden-list", "/dev/axe-fixtures?view=list"],
+  ["garden-topic-list", `/dev/axe-fixtures?topic=${PLOT}&view=list`],
   ["garden-thought", `/dev/axe-fixtures?topic=${PLOT}&thought=${SEED}`],
   ["garden-archive", "/dev/axe-fixtures?view=archive"],
 ];
@@ -35,6 +43,8 @@ const SHOT_STATES = new Set([
   "landing",
   "login",
   "garden-overview",
+  "garden-focus",
+  "garden-list",
   "garden-thought",
   "error",
 ]);
@@ -81,10 +91,29 @@ const CONTRAST = [
     ],
   },
   {
-    state: "garden-overview",
-    url: "/dev/axe-fixtures",
+    state: "garden-list",
+    url: "/dev/axe-fixtures?view=list",
     token: "--garden-bg",
     selectors: [".plant-label", ".seed-plant small"],
+  },
+  {
+    state: "garden-overview",
+    url: "/dev/axe-fixtures",
+    token: "--sheet",
+    selectors: [
+      ".scene-title h1",
+      ".scene-kicker",
+      ".bed-sign-name",
+      ".bed-sign-count",
+      ".dock-chip",
+      ".view-toggle button",
+    ],
+  },
+  {
+    state: "garden-focus",
+    url: `/dev/axe-fixtures?focus=${SEED}`,
+    token: "--sheet",
+    selectors: [".focus-body h2", ".focus-meta", ".slip p", ".slip time"],
   },
 ];
 
@@ -137,7 +166,10 @@ const contrastRows = [];
 
 try {
   await waitForServer();
-  const browser = await chromium.launch();
+  // AXE_CHROMIUM points at a preinstalled browser when Playwright's own is absent.
+  const browser = await chromium.launch(
+    process.env.AXE_CHROMIUM ? { executablePath: process.env.AXE_CHROMIUM } : {},
+  );
 
   const overflowCheck = async (page, label) => {
     const over = await page.evaluate(

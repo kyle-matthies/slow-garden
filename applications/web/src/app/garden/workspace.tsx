@@ -1,12 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import {
-  useEffect,
-  useRef,
-  useState,
-  type FormEvent,
-} from "react";
+import { useEffect, useState } from "react";
 import type { GardenData, Entry, ActionResult } from "@/lib/garden/types";
 import {
   broadcastDraftsCleared,
@@ -19,149 +14,28 @@ import { ChronologyLens, GardenSearch, type LensView } from "./chronology";
 import { EntryTime } from "./entry-time";
 import { EntryEditor } from "./entry-editor";
 import { FirstRun } from "./first-run";
-import {
-  createArea,
-  setArchived,
-  setPlotPermissions,
-  signOut,
-} from "./actions";
+import { setArchived, setPlotPermissions, signOut } from "./actions";
+import { NewArea } from "./new-area";
+import { GardenScene } from "./scene/garden-scene";
+import { ThoughtPlant, TopicPlants } from "./scene/thought-plant";
 
-function Plant({ identity = "garden" }: { identity?: string }) {
-  const variant = Array.from(identity).reduce(
-    (hash, char) => (hash * 31 + char.charCodeAt(0)) >>> 0,
-    0,
-  );
-  return (
-    <svg className="plant-drawing" viewBox="0 0 120 130" aria-hidden="true">
-      <path
-        d="M60 118 Q55 78 65 32"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-      />
-      <path
-        d="M61 92 C23 94 25 63 58 81 M61 73 C94 76 100 43 64 60 M64 51 C39 45 39 24 65 36"
-        fill="currentColor"
-        opacity=".65"
-      />
-      {variant % 2 === 0 ? (
-        <g fill={`hsl(${variant % 360} 32% 58%)`}>
-          <ellipse cx="66" cy="25" rx="8" ry="17" />
-          <ellipse
-            cx="66"
-            cy="25"
-            rx="8"
-            ry="17"
-            transform="rotate(60 66 25)"
-          />
-          <ellipse
-            cx="66"
-            cy="25"
-            rx="8"
-            ry="17"
-            transform="rotate(120 66 25)"
-          />
-          <circle cx="66" cy="25" r="5" fill="#f1d990" />
-        </g>
-      ) : (
-        <path
-          d="M65 32 Q41 17 59 6 Q84 10 65 32"
-          fill={`hsl(${variant % 360} 32% 58%)`}
-        />
-      )}
-      <path
-        d="M40 119 Q60 113 80 119"
-        fill="none"
-        stroke="currentColor"
-        opacity=".4"
-      />
-    </svg>
-  );
-}
-function NewArea({
-  kind,
-  parentId,
-  onCreated,
-}: {
-  kind: "garden" | "plot" | "seed";
-  parentId: string;
-  onCreated: (id: string) => void;
-}) {
-  const [open, setOpen] = useState(false),
-    [name, setName] = useState(""),
-    [pending, setPending] = useState(false),
-    [error, setError] = useState("");
-  const requestId = useRef<string | null>(null);
-  async function submit(e: FormEvent) {
-    e.preventDefault();
-    setPending(true);
-    requestId.current ??= crypto.randomUUID();
-    try {
-      const result = await createArea(kind, name, parentId, requestId.current);
-      if (!result.ok) {
-        setError(result.message);
-        return;
-      }
-      setName("");
-      setOpen(false);
-      requestId.current = null;
-      onCreated(result.id!);
-    } catch {
-      setError("Could not save. Please retry.");
-    } finally {
-      setPending(false);
-    }
+/** "" is the living garden; "list" is the structured workspace. */
+type GardenView = LensView | "list";
+const VIEW_PREFERENCE = "slow-garden:garden-view";
+
+function readViewPreference(): "list" | "" {
+  try {
+    return localStorage.getItem(VIEW_PREFERENCE) === "list" ? "list" : "";
+  } catch {
+    return "";
   }
-  if (!open)
-    return (
-      <button className="secondary-button" onClick={() => setOpen(true)}>
-        ＋{" "}
-        {kind === "seed"
-          ? "New thought"
-          : `New ${kind === "plot" ? "topic" : kind}`}
-      </button>
-    );
-  return (
-    <form className="new-area" onSubmit={submit}>
-      <label htmlFor={`new-${kind}`}>
-        {kind === "seed"
-          ? "Name your thought"
-          : `Name your ${kind === "plot" ? "topic" : kind}`}
-      </label>
-      <p>
-        {kind === "plot"
-          ? "A topic groups related thoughts in this garden."
-          : kind === "seed"
-            ? "A thought is a named thread. Add dated entries whenever you return."
-            : "A garden is a separate space containing topics and thoughts."}
-      </p>
-      <input
-        id={`new-${kind}`}
-        value={name}
-        onChange={(e) => {
-          setName(e.target.value);
-          requestId.current = null;
-        }}
-        maxLength={kind === "seed" ? 160 : 120}
-        required
-        autoFocus
-        disabled={pending}
-      />
-      <div className="action-row">
-        <button className="primary-button" disabled={pending}>
-          {pending ? "Saving…" : "Create"}
-        </button>
-        <button
-          type="button"
-          className="plain-button"
-          onClick={() => setOpen(false)}
-        >
-          Cancel
-        </button>
-      </div>
-      <p role="status">{error}</p>
-    </form>
-  );
+}
+function writeViewPreference(view: "list" | "") {
+  try {
+    localStorage.setItem(VIEW_PREFERENCE, view || "garden");
+  } catch {
+    // The choice is a convenience; the URL still carries the view.
+  }
 }
 
 function EntryCard({
@@ -279,33 +153,95 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
   const seedId =
     data.seeds.find((s) => s.id === requestedThought && s.plot_id === plotId)
       ?.id ?? "";
-  const archived = params.get("view") === "archive";
-  const timeline = params.get("view") === "timeline";
-  const view: LensView = archived ? "archive" : timeline ? "timeline" : "";
+  const requestedView = params.get("view") ?? "";
+  const archived = requestedView === "archive";
+  const timeline = requestedView === "timeline";
+  const listMode = requestedView === "list";
+  const view: GardenView = archived
+    ? "archive"
+    : timeline
+      ? "timeline"
+      : listMode
+        ? "list"
+        : "";
+  // The living garden is the default overview; the list view, timeline and
+  // archive keep the structured workspace.
+  const sceneMode = view === "" && !!garden && !firstRun;
+  const requestedFocus = params.get("focus") ?? "";
+  const focusId =
+    sceneMode && !requestedThought
+      ? (data.seeds.find(
+          (s) =>
+            s.id === requestedFocus &&
+            s.status === "active" &&
+            (!plotId || s.plot_id === plotId),
+        )?.id ?? "")
+      : "";
   const invalidLocation =
     (!!requestedTopic && !plotId) ||
     (!!requestedThought && !seedId) ||
+    (!!requestedFocus && sceneMode && !requestedThought && !focusId) ||
     (!!params.get("garden") && params.get("garden") !== data.gardenId);
-  function navigate(
-    topic = "",
-    thought = "",
-    nextView: LensView = view,
+  function gardenUrl(
+    topic: string,
+    thought: string,
+    nextView: GardenView,
     entry = "",
+    focus = "",
   ) {
     const query = new URLSearchParams();
     if (data.gardenId) query.set("garden", data.gardenId);
     if (topic) query.set("topic", topic);
     if (thought) query.set("thought", thought);
+    if (focus) query.set("focus", focus);
     if (nextView) query.set("view", nextView);
+    return `/garden?${query}${entry ? `#entry-${entry}` : ""}`;
+  }
+  function navigate(
+    topic = "",
+    thought = "",
+    nextView: GardenView = view,
+    entry = "",
+    focus = "",
+  ) {
     window.history.pushState(
       null,
       "",
-      `/garden?${query}${entry ? `#entry-${entry}` : ""}`,
+      gardenUrl(topic, thought, nextView, entry, focus),
     );
     setSearch("");
     setSavedEntry("");
     setQuietPage(false);
   }
+  /** Lenses return to "" for the overview; honour the remembered view. */
+  const navigateFromLens = (
+    topic: string,
+    thought: string,
+    nextView: LensView,
+    entry?: string,
+  ) => navigate(topic, thought, nextView || readViewPreference(), entry);
+  function chooseView(next: "list" | "") {
+    writeViewPreference(next);
+    navigate(plotId, seedId, next);
+  }
+  // Return to the list view on later visits if that was the last choice.
+  useEffect(() => {
+    if (!params.get("view") && readViewPreference() === "list")
+      window.history.replaceState(
+        null,
+        "",
+        gardenUrl(
+          plotId,
+          seedId,
+          "list",
+          window.location.hash.startsWith("#entry-")
+            ? window.location.hash.slice(7)
+            : "",
+        ),
+      );
+    // Only on arrival; later navigation carries the view in the URL.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const setPlotId = (id: string) => navigate(id);
   const setSeedId = (id: string) =>
     navigate(data.seeds.find((s) => s.id === id)?.plot_id ?? plotId, id);
@@ -433,16 +369,65 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
     router.replace("/login");
     router.refresh();
   }
+  const sceneOverview = sceneMode && !seed;
+  const activePlots = data.plots.filter((p) => !p.archived_at);
   return (
-    <main className="thinking-garden">
+    <main
+      className={`thinking-garden${sceneOverview ? " scene-mode" : ""}${sceneMode && seed ? " over-scene" : ""}`}
+    >
       <a className="skip-link" href="#garden-content">
         Skip to your thoughts
       </a>
+      {sceneMode && seed && garden && (
+        <GardenScene
+          garden={garden}
+          plots={activePlots}
+          seeds={data.seeds}
+          entries={data.entries}
+          topicId={seed.plot_id}
+          focusId=""
+          mode="backdrop"
+        />
+      )}
       <header className="garden-top">
         <Link href={`/garden?garden=${data.gardenId}`} className="wordmark">
           Slow Garden<span className="wordmark-dot">✳</span>
         </Link>
         <nav aria-label="Garden tools">
+          {sceneOverview && data.gardens.length > 1 && (
+            <label className="garden-switch">
+              <span className="visually-hidden">Your garden</span>
+              <select
+                value={data.gardenId}
+                onChange={(e) => router.push(`/garden?garden=${e.target.value}`)}
+              >
+                {data.gardens.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {g.name}
+                    {g.status === "archived" ? " · archived" : ""}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          {garden && !firstRun && !archived && !timeline && (
+            <div className="view-toggle" role="group" aria-label="Garden view">
+              <button
+                type="button"
+                aria-pressed={view === ""}
+                onClick={() => chooseView("")}
+              >
+                Garden
+              </button>
+              <button
+                type="button"
+                aria-pressed={view === "list"}
+                onClick={() => chooseView("list")}
+              >
+                List
+              </button>
+            </div>
+          )}
           <button
             className="plain-button"
             onClick={() => setSettings(!settings)}
@@ -452,7 +437,7 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
           <button
             className="plain-button"
             onClick={() => {
-              navigate("", "", archived ? "" : "archive");
+              navigate("", "", archived ? readViewPreference() : "archive");
             }}
           >
             {archived ? "Back to garden" : "Archive"}
@@ -515,6 +500,50 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
           </div>
         </section>
       )}
+      {sceneOverview && garden ? (
+        <div id="garden-content" className="scene-host">
+          <GardenScene
+            garden={garden}
+            plots={activePlots}
+            seeds={data.seeds}
+            entries={data.entries}
+            topicId={plotId}
+            focusId={focusId}
+            canWrite={garden.status === "active"}
+            onTopic={(id) => navigate(id, "", "")}
+            onFocus={(id) => navigate(plotId, "", "", "", id)}
+            onOpenThought={(id) => setSeedId(id)}
+            onListView={(id) => navigate(id, "", "list")}
+            newTopic={
+              <NewArea
+                kind="plot"
+                parentId={data.gardenId}
+                onCreated={(id) => {
+                  navigate(id, "", "");
+                  refresh();
+                }}
+              />
+            }
+            newThought={(pid) => (
+              <NewArea
+                kind="seed"
+                parentId={pid}
+                onCreated={(id) => {
+                  navigate(pid, id, "");
+                  refresh();
+                }}
+              />
+            )}
+          />
+          {(notice || invalidLocation) && (
+            <p className="scene-status" role="status">
+              {invalidLocation
+                ? "That location is no longer available. Showing its nearest available parent."
+                : notice}
+            </p>
+          )}
+        </div>
+      ) : (
       <div className={`garden-frame${quietPage ? " quiet-page" : ""}`}>
         <aside className="plot-rail">
           <label className="panel-kicker" htmlFor="garden-choice">
@@ -668,7 +697,7 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
               data={data}
               plotId={plotId}
               archived={archived}
-              onNavigate={navigate}
+              onNavigate={navigateFromLens}
             />
           ) : seed ? (
             <>
@@ -687,7 +716,7 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
                     return.
                   </p>
                 </div>
-                <Plant identity={seed.id} />
+                <ThoughtPlant seedId={seed.id} entries={data.entries} />
               </div>
               <a className="text-link" href="#saved-entries">
                 View {entries.length} saved{" "}
@@ -776,7 +805,7 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
                   archived={archived}
                   query={search}
                   onQueryChange={setSearch}
-                  onNavigate={navigate}
+                  onNavigate={navigateFromLens}
                 />
                 {plot &&
                   garden.status === "active" &&
@@ -800,7 +829,12 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
                       key={p.id}
                       onClick={() => setPlotId(p.id)}
                     >
-                      <Plant identity={p.id} />
+                      <TopicPlants
+                        seedIds={data.seeds
+                          .filter((s) => s.plot_id === p.id && s.status === "active")
+                          .map((s) => s.id)}
+                        entries={data.entries}
+                      />
                       <p className="panel-kicker">
                         Topic{p.archived_at ? " · archived" : ""}
                       </p>
@@ -829,7 +863,7 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
                       navigate(s.plot_id, s.id);
                     }}
                   >
-                    <Plant identity={s.id} />
+                    <ThoughtPlant seedId={s.id} entries={data.entries} />
                     <small>
                       Thought{s.status === "archived" ? " · archived" : ""}
                     </small>
@@ -1024,9 +1058,12 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
           </p>
         </section>
       </div>
-      <footer className="garden-foot">
-        Yours to write. Yours to leave unfinished.
-      </footer>
+      )}
+      {!sceneOverview && (
+        <footer className="garden-foot">
+          Yours to write. Yours to leave unfinished.
+        </footer>
+      )}
     </main>
   );
 }

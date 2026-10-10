@@ -234,8 +234,11 @@ The local proof of concept remains valid evidence, but it is no longer the produ
   Hosted migrations, provider terms, worker deployment, canaries and enabling each
   need an explicit owner go/no-go through the runbook.
 - Decision: Growth reflects stewardship and never frequency. It is monotonic, never
-  wilts, is never driven by AI, and encodes no mood, confidence or importance. Plant
-  positions are stable and the garden is never automatically rearranged.
+  wilts, is never driven by AI, and encodes no mood, confidence or importance. A
+  well-tended thought flowers from the person's own writing. Tending output stays in
+  its own vellum material (tags, threads, notes, resurfaced slips) and never adds
+  botanical growth. Plant positions are stable and the garden is never automatically
+  rearranged.
 - Rationale: The writing release proved the foundation. What makes Slow Garden
   distinctive is the combination of a beautiful place that holds unfinished thought
   and a background gardener that returns, over time, with small grounded

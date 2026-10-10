@@ -53,8 +53,9 @@ only as a separate prototype.
   by deterministic probing in creation order. Existing plants never move when
   another is planted. Stored `seeds.position_x/position_y` win when present.
 - **Growth:** a pure function of the person's own history: entries, revisions, and
-  distinct days written. It is monotonic and never wilts. Only AI returns add
-  flowers. See [LIVING_GARDEN.md](../design/LIVING_GARDEN.md).
+  distinct days written. It is monotonic and never wilts, and a well-tended thought
+  flowers. AI returns never add growth; they arrive as vellum tending material. See
+  [LIVING_GARDEN.md](../design/LIVING_GARDEN.md).
 - **Assets:** hybrid. Living plants are procedural. Pressed specimens are
   photographic when a licensed or generated asset exists, otherwise a procedural
   pressed rendering. Environment layers are painted. Every asset is recorded in

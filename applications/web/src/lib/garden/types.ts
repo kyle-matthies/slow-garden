@@ -15,6 +15,9 @@ export type Seed = {
   title: string;
   status: string;
   created_at: string;
+  /** Optional stored placement within its bed (see lib/garden/scene/layout). */
+  position_x?: number | null;
+  position_y?: number | null;
 };
 export type Entry = {
   entry_id: string;
