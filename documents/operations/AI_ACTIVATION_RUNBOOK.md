@@ -114,8 +114,32 @@ accepted as residual risk in the decision log.
 1. Confirm that the `tending_tiers` migration has been applied through its own
    reviewed hosted go/no-go, and that the `tend-connect-v3` evaluation receipt
    exists (tiers 1–3 thresholds in `EVALUATION_ARCHITECTURE.md`).
-2. Confirm that the `pg_cron` jobs for `private.enqueue_nightly_passes()` and the
-   worker tick exist and are unscheduled or idle.
+2. Create, review and apply a scheduling migration through the usual
+   `supabase migration new` flow. This is the only step that installs `pg_cron` and
+   `pg_net`, and it schedules nothing until the hosted go/no-go:
+
+   ```sql
+   create extension if not exists pg_cron;
+   create extension if not exists pg_net with schema extensions;
+   -- Worker tick: reads its URL and secret from Vault; idle while the gate is closed.
+   create function private.tick_garden_worker() returns bigint language plpgsql
+   security definer set search_path='' as $$
+   declare url text; secret text;
+   begin
+     if not (select enabled from private.ai_runtime where singleton) then return null; end if;
+     select decrypted_secret into url from vault.decrypted_secrets where name='garden_worker_url';
+     select decrypted_secret into secret from vault.decrypted_secrets where name='garden_worker_secret';
+     if url is null or secret is null then return null; end if;
+     return net.http_post(url:=url, headers:=jsonb_build_object('Authorization','Bearer '||secret,
+       'Content-Type','application/json'), body:='{}'::jsonb);
+   end $$;
+   revoke all on function private.tick_garden_worker() from public, anon, authenticated;
+   select cron.schedule('slow-garden-nightly', '7 * * * *', 'select private.enqueue_nightly_passes()');
+   select cron.schedule('slow-garden-worker', '*/5 * * * *', 'select private.tick_garden_worker()');
+   ```
+
+   Store `garden_worker_url` and `garden_worker_secret` in Vault first. Confirm that
+   one tick while the runtime is disabled returns null and makes no request.
 3. Set `accounts.tend_overnight=true` and `accounts.timezone` for the dogfood account
    only.
 4. Observe one night. Expect one pass per permission scope with changed writing, and
