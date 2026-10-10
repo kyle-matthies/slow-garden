@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import type { GardenData } from "./types";
+import { loadTending } from "./tending-data";
 
 // Read every page explicitly: PostgREST's server row cap is not an export limit.
 export async function allRows<T>(
@@ -65,6 +66,23 @@ export async function loadGarden(
         ),
       ])
     : [[], [], []];
+  const [tending, account] = await Promise.all([
+    gardenId
+      ? loadTending(db, gardenId, entries as GardenData["entries"])
+      : undefined,
+    db
+      .from("accounts")
+      .select("tend_overnight,timezone")
+      .eq("id", tenantId)
+      .maybeSingle()
+      .then(
+        ({ data, error }) =>
+          !error && data
+            ? { tendOvernight: data.tend_overnight, timezone: data.timezone }
+            : undefined,
+        () => undefined,
+      ),
+  ]);
   return {
     tenantId,
     gardens,
@@ -73,5 +91,7 @@ export async function loadGarden(
     seeds,
     entries: entries as GardenData["entries"],
     aiAvailable: process.env.GARDEN_AI_ENABLED === "true",
+    tending,
+    account,
   };
 }

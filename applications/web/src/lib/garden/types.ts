@@ -1,3 +1,4 @@
+import type { Tending } from "./scene/tending";
 export type Garden = { id: string; name: string; status: string };
 export type Plot = {
   id: string;
@@ -37,6 +38,10 @@ export type GardenData = {
   seeds: Seed[];
   entries: Entry[];
   aiAvailable: boolean;
+  /** Derived tending for this garden; absent before the tending migration. */
+  tending?: Tending;
+  /** Overnight tending preferences; absent before the tending migration. */
+  account?: { tendOvernight: boolean; timezone: string };
 };
 export type ActionResult =
   | { ok: true; id?: string }

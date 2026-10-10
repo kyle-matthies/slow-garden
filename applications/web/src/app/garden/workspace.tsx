@@ -14,7 +14,13 @@ import { ChronologyLens, GardenSearch, type LensView } from "./chronology";
 import { EntryTime } from "./entry-time";
 import { EntryEditor } from "./entry-editor";
 import { FirstRun } from "./first-run";
-import { setArchived, setPlotPermissions, signOut } from "./actions";
+import {
+  respondToMark,
+  setArchived,
+  setPlotPermissions,
+  signOut,
+} from "./actions";
+import { TendingSettings } from "./tending-settings";
 import { NewArea } from "./new-area";
 import { GardenRing } from "./scene/garden-ring";
 import { GardenScene } from "./scene/garden-scene";
@@ -390,6 +396,7 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
           entries={data.entries}
           topicId={seed.plot_id}
           focusId=""
+          tending={data.tending}
           mode="backdrop"
         />
       )}
@@ -487,6 +494,13 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
             AI-derived blooms kept in a separate section from your own words.
             Unsaved drafts stay privately in this browser until saved or discarded.
           </p>
+          {data.account && (
+            <TendingSettings
+              account={data.account}
+              aiAvailable={data.aiAvailable}
+              onSaved={refresh}
+            />
+          )}
           <p>
             You stay signed in on this browser between visits, until you sign
             out or the session expires.
@@ -533,7 +547,22 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
             entries={data.entries}
             topicId={plotId}
             focusId={focusId}
+            tending={data.tending}
             canWrite={garden.status === "active"}
+            onRespondMark={async (markId, response) => {
+              try {
+                const result = await respondToMark(
+                  crypto.randomUUID(),
+                  markId,
+                  response,
+                );
+                if (!result.ok) return result.message;
+                refresh();
+                return null;
+              } catch {
+                return "Could not save your response. Please retry.";
+              }
+            }}
             onTopic={(id) => navigate(id, "", "")}
             onFocus={(id) => navigate(plotId, "", "", "", id)}
             onOpenThought={(id) => setSeedId(id)}

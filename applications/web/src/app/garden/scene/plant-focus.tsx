@@ -1,6 +1,6 @@
 "use client";
 import { m } from "motion/react";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Entry, Seed } from "@/lib/garden/types";
 import { describeGrowth } from "@/lib/garden/scene/growth";
 import type { ScenePlantModel } from "@/lib/garden/scene/model";
@@ -34,6 +34,8 @@ export function PlantFocus({
   canWrite,
   onWrite,
   onClose,
+  onRespondMark,
+  onReviewBlooms,
 }: {
   plant: ScenePlantModel;
   topicName: string;
@@ -44,7 +46,21 @@ export function PlantFocus({
   canWrite: boolean;
   onWrite: () => void;
   onClose: () => void;
+  /** Keep or prune a tending mark; resolves with an error message, if any. */
+  onRespondMark?: (markId: string, response: "keep" | "prune") => Promise<string | null>;
+  /** Open the Cabinet where blooms are reviewed in full. */
+  onReviewBlooms?: () => void;
 }) {
+  const [status, setStatus] = useState("");
+  const [pending, setPending] = useState<string | null>(null);
+  async function respond(markId: string, response: "keep" | "prune") {
+    if (!onRespondMark) return;
+    setPending(markId);
+    setStatus("");
+    const error = await onRespondMark(markId, response);
+    setPending(null);
+    setStatus(error ?? (response === "prune" ? "Pruned. It won't be suggested again." : "Kept."));
+  }
   const heading = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
     heading.current?.focus({ preventScroll: true });
@@ -150,6 +166,32 @@ export function PlantFocus({
                     ) : (
                       <q>{mark.evidence[0]?.excerpt ?? mark.label}</q>
                     )}
+                    {mark.response === "keep" ? (
+                      <span className="tag-kept">Kept</span>
+                    ) : (
+                      onRespondMark && (
+                        <span className="tag-actions">
+                          <button
+                            type="button"
+                            className="tag-action"
+                            disabled={pending === mark.id}
+                            aria-label={`Keep ${MARK_LABEL[mark.kind].toLowerCase()} ${mark.label}`.trim()}
+                            onClick={() => respond(mark.id, "keep")}
+                          >
+                            Keep
+                          </button>
+                          <button
+                            type="button"
+                            className="tag-action"
+                            disabled={pending === mark.id}
+                            aria-label={`Prune ${MARK_LABEL[mark.kind].toLowerCase()} ${mark.label}`.trim()}
+                            onClick={() => respond(mark.id, "prune")}
+                          >
+                            Prune
+                          </button>
+                        </span>
+                      )
+                    )}
                   </li>
                 ))}
               </ul>
@@ -162,6 +204,18 @@ export function PlantFocus({
                 seedsById={seedsById}
               />
             ))}
+            {blooms.length > 0 && onReviewBlooms && (
+              <button
+                type="button"
+                className="plain-button review-cabinet"
+                onClick={onReviewBlooms}
+              >
+                Review clippings in the Cabinet
+              </button>
+            )}
+            <p className="tending-status" role="status">
+              {status}
+            </p>
           </section>
         )}
         <div className="focus-actions">
