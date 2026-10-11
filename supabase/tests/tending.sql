@@ -77,6 +77,9 @@ select throws_ok(format('select public.finish_garden_pass(%L::uuid,%L::uuid,%L::
 select throws_ok(format('select public.finish_garden_pass(%L::uuid,%L::uuid,%L::jsonb,10,10,false)',:'job'::jsonb->>'id',:'job'::jsonb->>'token',
   '{"blooms":[],"marks":[{"seed_id":"cccccccc-cccc-4ccc-8ccc-ccccccccccc1","kind":"theme","label":"room","evidence":[{"revision_id":"eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1","excerpt":"room"}]},{"seed_id":"cccccccc-cccc-4ccc-8ccc-ccccccccccc1","kind":"theme","label":"naming","evidence":[{"revision_id":"eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1","excerpt":"naming"}]},{"seed_id":"cccccccc-cccc-4ccc-8ccc-ccccccccccc1","kind":"theme","label":"garden","evidence":[{"revision_id":"eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1","excerpt":"garden"}]}]}'),
   'P0001','too many marks for one thought','at most two theme labels per thought');
+select throws_ok(format('select public.finish_garden_pass(%L::uuid,%L::uuid,%L::jsonb,10,10,false)',:'job'::jsonb->>'id',:'job'::jsonb->>'token',
+  '{"blooms":[{"kind":"echo","interpretation":"Two recent walks sit side by side.","evidence":[{"revision_id":"eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee5","excerpt":"Walking without a plan"},{"revision_id":"eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee6","excerpt":"Naming came easier"}]}]}'),
+  'P0001','echo needs older writing beside new','an echo spans at least four weeks of writing');
 select lives_ok(format('select public.finish_garden_pass(%L::uuid,%L::uuid,%L::jsonb,100,40,false)',:'job'::jsonb->>'id',:'job'::jsonb->>'token',
   '{"blooms":[{"kind":"echo","interpretation":"A spring note about leaving room sits beside this week''s easier naming.","evidence":[{"revision_id":"eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1","excerpt":"Leaving room before naming"},{"revision_id":"eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee6","excerpt":"once there was room"}]}],
     "marks":[{"seed_id":"cccccccc-cccc-4ccc-8ccc-ccccccccccc1","kind":"theme","label":"Room","evidence":[{"revision_id":"eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1","excerpt":"Leaving room"}]},
@@ -86,8 +89,8 @@ select lives_ok(format('select public.finish_garden_pass(%L::uuid,%L::uuid,%L::j
     "no_output_reason":null}'),
   'a validated catalogue and echo land');
 reset role;
--- Treat the pass as finished a minute ago, so later writing in this test is new.
-update public.garden_passes set finished_at=now()-interval '1 minute' where id='ffffffff-ffff-4fff-8fff-fffffffffff1';
+-- The pass froze its snapshot two minutes ago and finished one minute ago.
+update public.garden_passes set created_at=now()-interval '2 minutes',finished_at=now()-interval '1 minute' where id='ffffffff-ffff-4fff-8fff-fffffffffff1';
 
 set local role authenticated;
 select set_config('request.jwt.claim.sub','11111111-1111-4111-8111-111111111111',true);
@@ -99,6 +102,14 @@ select lives_ok($$insert into public.tending_mark_responses(id,mark_id,response)
 select is((select count(*) from public.garden_themes where label='room'),0::bigint,'a pruned label leaves the theme');
 select throws_ok($$insert into public.garden_passes(id,garden_id,plot_ids) values('ffffffff-ffff-4fff-8fff-fffffffffff3','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',array['bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1']::uuid[])$$,'22023','nothing new to tend since the last return','unchanged writing is not tended again');
 select public.save_entry('cccccccc-cccc-4ccc-8ccc-ccccccccccc1','dddddddd-dddd-4ddd-8ddd-ddddddddddd8','eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee8','Room again today, and the naming waited for it.');
+reset role;
+-- Written while the first pass was still in flight: after its snapshot, before it finished.
+alter table public.seed_revisions disable trigger seed_revisions_reject_update;
+update public.entries set created_at=now()-interval '90 seconds' where id='dddddddd-dddd-4ddd-8ddd-ddddddddddd8';
+update public.seed_revisions set created_at=now()-interval '90 seconds' where entry_id='dddddddd-dddd-4ddd-8ddd-ddddddddddd8';
+alter table public.seed_revisions enable trigger seed_revisions_reject_update;
+set local role authenticated;
+select set_config('request.jwt.claim.sub','11111111-1111-4111-8111-111111111111',true);
 select lives_ok($$insert into public.garden_passes(id,garden_id,plot_ids) values('ffffffff-ffff-4fff-8fff-fffffffffff3','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',array['bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1']::uuid[])$$,'new writing can be tended');
 reset role;
 select is((select count(*) from private.pass_inputs i,jsonb_array_elements(i.snapshot) s where i.pass_id='ffffffff-ffff-4fff-8fff-fffffffffff3' and s->>'role'='changed'),1::bigint,'only the new entry is changed');
