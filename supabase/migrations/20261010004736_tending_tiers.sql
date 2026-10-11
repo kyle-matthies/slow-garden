@@ -247,8 +247,11 @@ begin
       if jsonb_typeof(b->'evidence') is distinct from 'array' or jsonb_array_length(b->'evidence')<1 then raise exception 'evidence required'; end if;
       if not v3 and b->>'kind' in('pattern','echo') then raise exception 'kind requires tend-connect-v3'; end if;
       if v3 and char_length(b->>'interpretation')>280 then raise exception 'interpretation too long'; end if;
-      if v3 and b->>'kind'='pattern' and not coalesce((j.context#>>'{tiers,notice}')::boolean,false) then raise exception 'tier not unlocked'; end if;
-      if v3 and b->>'kind'='echo' and not coalesce((j.context#>>'{tiers,resurface}')::boolean,false) then raise exception 'tier not unlocked'; end if;
+      -- The finalizer is the second boundary: every v3 kind must belong to an unlocked tier
+      -- (mirrors allowedKinds() in the worker), whatever the worker's schema allowed.
+      if v3 and coalesce(b->>'kind','') not in('connection','tension','change','pattern','question','echo') then raise exception 'invalid bloom kind'; end if;
+      if v3 and b->>'kind' in('connection','tension','change','pattern') and not coalesce((j.context#>>'{tiers,notice}')::boolean,false) then raise exception 'tier not unlocked'; end if;
+      if v3 and b->>'kind' in('question','echo') and not coalesce((j.context#>>'{tiers,resurface}')::boolean,false) then raise exception 'tier not unlocked'; end if;
       for e in select value from jsonb_array_elements(b->'evidence') loop
         if not exists(select 1 from jsonb_array_elements(j.snapshot) s where s->>'revision_id'=e->>'revision_id' and length(e->>'excerpt')>0 and position(e->>'excerpt' in s->>'body')>0) then raise exception 'invalid source evidence'; end if;
       end loop;

@@ -96,6 +96,10 @@ lexical recall is measured on the evaluation corpus.
 - When one stage fails validation, the other may still land, and the pass records a
   partial result.
 - The connect stage only runs the kinds its unlocked tiers allow.
+- `finish_garden_pass` is the second boundary and enforces the same rule without
+  trusting the worker: v3 accepts only `connection`, `tension`, `change`, `pattern`,
+  `question` and `echo`; the first four need the notice tier, `question` and `echo`
+  need the resurface tier. Catalogue marks are always allowed.
 
 ### Scheduling
 
@@ -164,7 +168,8 @@ Changes to existing tables:
 - **Acceptance (repository):**
   - Runtime tests cover both stages, partial completion, skip-when-unchanged, and scope
     fan-out.
-  - pgTAP tests cover RLS isolation, cross-off isolation, caps, and invalidation.
+  - pgTAP tests cover RLS isolation, cross-off isolation, caps, invalidation, and
+    every bloom kind rejected while its tier is locked.
   - The evaluation packet passes its deterministic checks.
 - **Acceptance (activation):** the runbook phases in order, each an explicit owner
   go/no-go:

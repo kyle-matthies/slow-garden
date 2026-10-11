@@ -116,6 +116,26 @@ select throws_ok(format('insert into public.tending_mark_responses(id,mark_id,re
 reset role;
 select throws_ok($$insert into public.tending_mark_responses(id,tenant_id,mark_id,response) select '99999999-9999-4999-8999-999999999993','22222222-2222-4222-8222-222222222222',id,'keep' from public.tending_marks limit 1$$,'23503',null,'a response cannot cross tenants');
 
+-- Locked tiers: the finalizer rejects every kind whose tier the snapshot did not unlock.
+-- Pass 2 (one entry) has neither notice nor resurface; evidence is valid and in-snapshot.
+update private.pass_inputs set next_attempt_at=now()-interval '1 hour' where pass_id='ffffffff-ffff-4fff-8fff-fffffffffff2';
+set local role service_role;
+select public.claim_garden_pass() as locked \gset
+select is(:'locked'::jsonb->>'id','ffffffff-ffff-4fff-8fff-fffffffffff2','worker claims the locked-tier pass');
+select throws_ok(format('select public.finish_garden_pass(%L::uuid,%L::uuid,%L::jsonb,10,10,false)',:'locked'::jsonb->>'id',:'locked'::jsonb->>'token',
+  jsonb_build_object('blooms',jsonb_build_array(jsonb_build_object('kind',k,'interpretation','Morning light keeps returning.','evidence',jsonb_build_array(jsonb_build_object('revision_id','eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee7','excerpt','Morning light'))))))::text,
+  'P0001','tier not unlocked',k||' needs the notice tier') from unnest(array['connection','tension','change','pattern']) k;
+select throws_ok(format('select public.finish_garden_pass(%L::uuid,%L::uuid,%L::jsonb,10,10,false)',:'locked'::jsonb->>'id',:'locked'::jsonb->>'token',
+  jsonb_build_object('blooms',jsonb_build_array(jsonb_build_object('kind',k,'interpretation','Morning light keeps returning?','evidence',jsonb_build_array(jsonb_build_object('revision_id','eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee7','excerpt','Morning light'))))))::text,
+  'P0001','tier not unlocked',k||' needs the resurface tier') from unnest(array['question','echo']) k;
+select throws_ok(format('select public.finish_garden_pass(%L::uuid,%L::uuid,%L::jsonb,10,10,false)',:'locked'::jsonb->>'id',:'locked'::jsonb->>'token',
+  jsonb_build_object('blooms',jsonb_build_array(jsonb_build_object('kind','insight','interpretation','Morning light keeps returning.','evidence',jsonb_build_array(jsonb_build_object('revision_id','eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee7','excerpt','Morning light'))))))::text,
+  'P0001','invalid bloom kind','v3 accepts only known bloom kinds');
+select lives_ok(format('select public.finish_garden_pass(%L::uuid,%L::uuid,%L::jsonb,10,10,false)',:'locked'::jsonb->>'id',:'locked'::jsonb->>'token',
+  '{"blooms":[],"marks":[{"seed_id":"cccccccc-cccc-4ccc-8ccc-ccccccccccc3","kind":"theme","label":"light","evidence":[{"revision_id":"eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee7","excerpt":"Morning light"}]}],"no_output_reason":null}'),
+  'catalogue marks still land while higher tiers are locked');
+reset role;
+
 -- Nightly enqueue: opted-in accounts, 02:00 local time, scopes with new writing.
 update public.garden_passes set status='cancelled' where id in('ffffffff-ffff-4fff-8fff-fffffffffff2','ffffffff-ffff-4fff-8fff-fffffffffff3');
 select is(private.enqueue_nightly_passes('2026-10-10 12:00:00+00'),0,'nothing is enqueued outside the night hour');
