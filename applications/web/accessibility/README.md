@@ -43,6 +43,8 @@ cd accessibility && npm run perf
 synthetic tended garden (100 and 1,000 thoughts) round for 10 s at 1280 and at 390
 with 4× CPU throttling and touch input. It traces main-thread frame cost (with 2D
 canvas rasterisation reported separately), rAF intervals, image weight, and idle
-busy time with and without reduced motion, against the ADR-007 budgets. Results go
-to `documents/initiatives/receipts/living-garden/performance.json`
-(`PERF_RECEIPTS` overrides the folder); exits non-zero when a budget is missed.
+busy time with and without reduced motion, against the ADR-007 budgets. Each run
+writes its own `documents/initiatives/receipts/living-garden/performance-<run>.json`
+(name it with `PERF_RUN`; `PERF_RECEIPTS` overrides the folder) recording the commit,
+Node and Chromium versions and harness settings, and exits non-zero when a budget is
+missed. A 24-garden ring is measured alongside the meadow.

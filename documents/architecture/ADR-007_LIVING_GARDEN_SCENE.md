@@ -100,8 +100,9 @@ only as a separate prototype.
     phone budget is called met. See
     `documents/initiatives/receipts/living-garden/PERFORMANCE.md`.
 - Garden route images ≤ 350 KB on phone before interaction. Off-arc beds load lazily.
-- At most about 24 interactive plants rendered per bed. Older resting thoughts become
-  background meadow density but remain reachable from the list view and search.
+- At most about 24 interactive plants rendered per bed (14 when the scene is ≤ 480 px
+  wide). Older resting thoughts become background meadow density but remain reachable
+  from the list view and search, and the bed sign says how many.
 
 ## Accessibility contract
 

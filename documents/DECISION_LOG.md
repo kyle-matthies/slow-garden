@@ -250,3 +250,9 @@ The local proof of concept remains valid evidence, but it is no longer the produ
 - Revisit when: Frame-time or accessibility receipts fail their budgets, comprehension
   testing shows tending marks blur source and derived material, or evaluation shows a
   tier cannot meet its thresholds.
+
+**Addendum (2026-10-11, owner-approved during A6 review).** To meet the phone frame
+budget without relaxing it, beds render at most 14 plants when the scene is ≤ 480 px
+wide (24 otherwise). The most recently tended thoughts are shown; the rest stay in
+List and search, and the bed sign shows "+N more in List". Plants also hold their sway
+while the camera turns.

@@ -1,0 +1,287 @@
+{
+  "content_free_note": "Synthetic fixtures only; no journal content.",
+  "run": "4d84d8b-run2",
+  "recorded_at": "2026-10-11T05:54:11.562Z",
+  "commit": "4d84d8bdd6890448cf5d1fe847a7a9e63d371b90",
+  "working_tree_clean": true,
+  "node": "v22.22.0",
+  "chromium": "141.0.7390.37",
+  "settings": {
+    "rotate_ms": 10000,
+    "idle_ms": 5000,
+    "settle_ms": 3000,
+    "trace_categories": [
+      "devtools.timeline",
+      "disabled-by-default-devtools.timeline",
+      "cc",
+      "blink"
+    ],
+    "routes": [
+      {
+        "name": "garden-100",
+        "url": "/dev/axe-fixtures?state=scale&thoughts=100",
+        "target": ".garden-scene"
+      },
+      {
+        "name": "garden-1000",
+        "url": "/dev/axe-fixtures?state=scale&thoughts=1000",
+        "target": ".garden-scene"
+      },
+      {
+        "name": "ring-24",
+        "url": "/dev/axe-fixtures?state=scale&thoughts=100&gardens=24&view=gardens",
+        "target": ".garden-ring"
+      }
+    ],
+    "devices": [
+      {
+        "name": "1280",
+        "viewport": {
+          "width": 1280,
+          "height": 800
+        },
+        "deviceScaleFactor": 1,
+        "isMobile": false,
+        "throttle": 1,
+        "p95Budget": 20
+      },
+      {
+        "name": "390",
+        "viewport": {
+          "width": 390,
+          "height": 844
+        },
+        "deviceScaleFactor": 2,
+        "isMobile": true,
+        "hasTouch": true,
+        "throttle": 4,
+        "p95Budget": 33
+      }
+    ]
+  },
+  "method": "Production build (next start), headless Chromium in a 4-vCPU container without a GPU. While dragging (touch on the phone profile) for 10 s: frame cost is the duration of each main-thread task containing BeginMainFrame from a trace, with 2D canvas rasterisation (done on the main thread here, by a GPU on real devices) split out and excluded from the budget; rAF intervals are recorded as environment-bound context. CPU throttling via CDP Emulation.setCPUThrottlingRate. Image bytes are resource transferSize after network idle.",
+  "budgets": {
+    "p95_ms_1280": 20,
+    "p95_ms_390_4x": 33,
+    "phone_image_kb": 350
+  },
+  "results": [
+    {
+      "route": "garden-100",
+      "device": "1280",
+      "cpu_throttle": 1,
+      "interactive_plants_rendered": 50,
+      "traced_frames": 411,
+      "frame_cost_ms": {
+        "p50": 4,
+        "p95": 8.2,
+        "max": 22.9
+      },
+      "frame_cost_with_canvas_raster_ms": {
+        "p50": 7.6,
+        "p95": 14.3
+      },
+      "canvas_raster_share_pct": 46.5,
+      "longest_task_excluding_canvas_raster_ms": 22.9,
+      "p95_budget_ms": 20,
+      "raf_frames": 411,
+      "raf_interval_ms": {
+        "p50": 33.3,
+        "p95": 50,
+        "p99": 50,
+        "max": 83.3
+      },
+      "long_tasks": 0,
+      "main_thread_busy_still_pct": 51.4,
+      "main_thread_busy_still_reduced_motion_pct": 0,
+      "image_bytes": 0,
+      "image_files": [],
+      "script_bytes": 228282,
+      "style_bytes": 16372,
+      "document_bytes": 15281,
+      "p95_ok": true,
+      "image_ok": true
+    },
+    {
+      "route": "garden-100",
+      "device": "390",
+      "cpu_throttle": 4,
+      "interactive_plants_rendered": 42,
+      "traced_frames": 348,
+      "frame_cost_ms": {
+        "p50": 12,
+        "p95": 29.4,
+        "max": 86.3
+      },
+      "frame_cost_with_canvas_raster_ms": {
+        "p50": 24.9,
+        "p95": 53.3
+      },
+      "canvas_raster_share_pct": 48.6,
+      "longest_task_excluding_canvas_raster_ms": 90.2,
+      "p95_budget_ms": 33,
+      "raf_frames": 348,
+      "raf_interval_ms": {
+        "p50": 33.3,
+        "p95": 50.1,
+        "p99": 133.4,
+        "max": 200
+      },
+      "long_tasks": 31,
+      "main_thread_busy_still_pct": 99.4,
+      "main_thread_busy_still_reduced_motion_pct": 0.3,
+      "image_bytes": 0,
+      "image_files": [],
+      "script_bytes": 228282,
+      "style_bytes": 16372,
+      "document_bytes": 15281,
+      "p95_ok": true,
+      "image_ok": true
+    },
+    {
+      "route": "garden-1000",
+      "device": "1280",
+      "cpu_throttle": 1,
+      "interactive_plants_rendered": 72,
+      "traced_frames": 297,
+      "frame_cost_ms": {
+        "p50": 5.8,
+        "p95": 9.9,
+        "max": 53
+      },
+      "frame_cost_with_canvas_raster_ms": {
+        "p50": 9.2,
+        "p95": 14
+      },
+      "canvas_raster_share_pct": 34.1,
+      "longest_task_excluding_canvas_raster_ms": 53,
+      "p95_budget_ms": 20,
+      "raf_frames": 296,
+      "raf_interval_ms": {
+        "p50": 33.3,
+        "p95": 66.6,
+        "p99": 83.3,
+        "max": 83.4
+      },
+      "long_tasks": 1,
+      "main_thread_busy_still_pct": 18.6,
+      "main_thread_busy_still_reduced_motion_pct": 0.1,
+      "image_bytes": 0,
+      "image_files": [],
+      "script_bytes": 228282,
+      "style_bytes": 16372,
+      "document_bytes": 93467,
+      "p95_ok": true,
+      "image_ok": true
+    },
+    {
+      "route": "garden-1000",
+      "device": "390",
+      "cpu_throttle": 4,
+      "interactive_plants_rendered": 42,
+      "traced_frames": 338,
+      "frame_cost_ms": {
+        "p50": 13.5,
+        "p95": 29.3,
+        "max": 106.8
+      },
+      "frame_cost_with_canvas_raster_ms": {
+        "p50": 28.4,
+        "p95": 51
+      },
+      "canvas_raster_share_pct": 48.7,
+      "longest_task_excluding_canvas_raster_ms": 149.5,
+      "p95_budget_ms": 33,
+      "raf_frames": 338,
+      "raf_interval_ms": {
+        "p50": 33.3,
+        "p95": 66.6,
+        "p99": 166.7,
+        "max": 266.7
+      },
+      "long_tasks": 25,
+      "main_thread_busy_still_pct": 97,
+      "main_thread_busy_still_reduced_motion_pct": 18.6,
+      "image_bytes": 0,
+      "image_files": [],
+      "script_bytes": 228282,
+      "style_bytes": 16372,
+      "document_bytes": 93467,
+      "p95_ok": true,
+      "image_ok": true
+    },
+    {
+      "route": "ring-24",
+      "device": "1280",
+      "cpu_throttle": 1,
+      "interactive_plants_rendered": 0,
+      "traced_frames": 609,
+      "frame_cost_ms": {
+        "p50": 2.9,
+        "p95": 4.8,
+        "max": 15.3
+      },
+      "frame_cost_with_canvas_raster_ms": {
+        "p50": 2.9,
+        "p95": 4.8
+      },
+      "canvas_raster_share_pct": 0,
+      "longest_task_excluding_canvas_raster_ms": 20.8,
+      "p95_budget_ms": 20,
+      "raf_frames": 608,
+      "raf_interval_ms": {
+        "p50": 16.7,
+        "p95": 33.3,
+        "p99": 33.4,
+        "max": 50
+      },
+      "long_tasks": 0,
+      "main_thread_busy_still_pct": 0.1,
+      "main_thread_busy_still_reduced_motion_pct": 0,
+      "image_bytes": 0,
+      "image_files": [],
+      "script_bytes": 228282,
+      "style_bytes": 16372,
+      "document_bytes": 35614,
+      "p95_ok": true,
+      "image_ok": true
+    },
+    {
+      "route": "ring-24",
+      "device": "390",
+      "cpu_throttle": 4,
+      "interactive_plants_rendered": 0,
+      "traced_frames": 601,
+      "frame_cost_ms": {
+        "p50": 12.8,
+        "p95": 21,
+        "max": 60.5
+      },
+      "frame_cost_with_canvas_raster_ms": {
+        "p50": 12.8,
+        "p95": 21
+      },
+      "canvas_raster_share_pct": 0,
+      "longest_task_excluding_canvas_raster_ms": 71,
+      "p95_budget_ms": 33,
+      "raf_frames": 600,
+      "raf_interval_ms": {
+        "p50": 16.7,
+        "p95": 16.8,
+        "p99": 50,
+        "max": 116.6
+      },
+      "long_tasks": 4,
+      "main_thread_busy_still_pct": 0.4,
+      "main_thread_busy_still_reduced_motion_pct": 0.1,
+      "image_bytes": 0,
+      "image_files": [],
+      "script_bytes": 228282,
+      "style_bytes": 16372,
+      "document_bytes": 35614,
+      "p95_ok": true,
+      "image_ok": true
+    }
+  ],
+  "ok": true
+}

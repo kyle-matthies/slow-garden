@@ -118,8 +118,12 @@ away from writing, and it stops entirely while writing.
 
 ## Density
 
-- At most about 24 interactive plants are rendered per bed. Older resting thoughts
-  become background meadow density but stay reachable through the list and search.
+- At most about 24 interactive plants are rendered per bed, and 14 on phones
+  (scene ≤ 480 px wide). Older resting thoughts become background meadow density but
+  stay reachable through the list and search; a bed holding some back shows a
+  "+N more in List" slip under its sign that opens that topic's list.
+- Plants hold their sway while the camera turns; the motion hides it and it keeps
+  rotation smooth on phones.
 - Only beds within the camera arc render. Off-arc assets load lazily.
 - For 5, 25, 100 and 1,000 thoughts, the meadow stays legible because beds, not
   individual plants, carry the overview.
