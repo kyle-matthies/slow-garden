@@ -287,6 +287,7 @@ export function BedSign({
   current,
   interactive,
   onSelect,
+  onMore,
 }: {
   bed: SceneBedModel;
   theta: MotionValue<number>;
@@ -294,6 +295,8 @@ export function BedSign({
   current: boolean;
   interactive: boolean;
   onSelect: (id: string) => void;
+  /** Opens the list for this topic, where resting thoughts live. */
+  onMore?: (id: string) => void;
 }) {
   const label = (
     <>
@@ -327,6 +330,16 @@ export function BedSign({
           <span className="bed-sign" aria-hidden="true">
             {label}
           </span>
+        )}
+        {interactive && onMore && bed.resting > 0 && (
+          <button
+            type="button"
+            className="bed-sign-more"
+            onClick={() => onMore(bed.plot.id)}
+          >
+            +{bed.resting} more in List
+            <span className="visually-hidden"> for {bed.plot.name}</span>
+          </button>
         )}
       </span>
     </Band>

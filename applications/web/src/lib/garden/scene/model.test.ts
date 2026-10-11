@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Entry, Plot, Seed } from "@/lib/garden/types";
-import { MAX_PLANTS_PER_BED, buildBeds } from "./model";
+import { MAX_PLANTS_PER_BED, PHONE_PLANTS_PER_BED, buildBeds } from "./model";
 import { EMPTY_TENDING } from "./tending";
 
 const plot = (id: string): Plot => ({
@@ -32,6 +32,17 @@ const entry = (seedId: string, day: number): Entry => ({
 });
 
 describe("buildBeds", () => {
+  it("takes a smaller cap on phones and counts the rest as resting", () => {
+    const seeds = Array.from({ length: 30 }, (_, i) => seed(i));
+    const entries = [entry("s29", 20)];
+    const [bed] = buildBeds([plot("p1")], seeds, entries, EMPTY_TENDING, PHONE_PLANTS_PER_BED);
+    expect(bed.plants).toHaveLength(PHONE_PLANTS_PER_BED);
+    expect(bed.resting).toBe(30 - PHONE_PLANTS_PER_BED);
+    expect(bed.total).toBe(30);
+    // The most recently tended thought is among those shown.
+    expect(bed.plants.map((p) => p.seed.id)).toContain("s29");
+  });
+
   it("renders at most a bed's worth of the most recently tended plants", () => {
     const seeds = Array.from({ length: 30 }, (_, i) => seed(i));
     const entries = [entry("s0", 20), entry("s1", 21)];

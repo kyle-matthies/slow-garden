@@ -28,7 +28,11 @@ import {
   wrap,
 } from "@/lib/garden/scene/camera";
 import { hashString } from "@/lib/garden/scene/hash";
-import { buildBeds } from "@/lib/garden/scene/model";
+import {
+  MAX_PLANTS_PER_BED,
+  PHONE_PLANTS_PER_BED,
+  buildBeds,
+} from "@/lib/garden/scene/model";
 import { paletteFor } from "@/lib/garden/scene/palette";
 import { EMPTY_TENDING, type Tending } from "@/lib/garden/scene/tending";
 import { PlantFocus } from "./plant-focus";
@@ -107,9 +111,19 @@ export function GardenScene({
     () => paletteFor(garden.id, night),
     [garden.id, night],
   );
+  // Phones show fewer plants per bed (ADR-007 budget); the sign says how many
+  // more wait in the list.
+  const narrow = size.width > 0 && size.width <= 480;
   const beds = useMemo(
-    () => buildBeds(plots, seeds, entries, tending),
-    [plots, seeds, entries, tending],
+    () =>
+      buildBeds(
+        plots,
+        seeds,
+        entries,
+        tending,
+        narrow ? PHONE_PLANTS_PER_BED : MAX_PLANTS_PER_BED,
+      ),
+    [plots, seeds, entries, tending, narrow],
   );
   const angles = useMemo(() => beds.map((b) => b.angle), [beds]);
   const topicIndex = beds.findIndex((b) => b.plot.id === topicId);
@@ -153,6 +167,14 @@ export function GardenScene({
       night,
     };
   }, [size, beds.length, night, dockHeight, interactive]);
+
+  const [settled, setSettled] = useState(true);
+  useMotionValueEvent(theta, "animationStart", () => setSettled(false));
+  useMotionValueEvent(theta, "animationComplete", () => setSettled(true));
+  // While the camera turns, plants hold their sway (see .is-turning in
+  // scene.css).
+  const [dragging, setDragging] = useState(false);
+  const turning = dragging || !settled;
 
   useAtmosphere({
     far,
@@ -212,9 +234,6 @@ export function GardenScene({
     [onTopic, topicId],
   );
 
-  const [settled, setSettled] = useState(true);
-  useMotionValueEvent(theta, "animationStart", () => setSettled(false));
-  useMotionValueEvent(theta, "animationComplete", () => setSettled(true));
 
   const turnTo = useCallback(
     (index: number) => {
@@ -272,6 +291,7 @@ export function GardenScene({
     if (!d.moved && Math.abs(dx) < 6) return;
     if (!d.moved)
       (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+    if (!d.moved) setDragging(true);
     d.moved = true;
     dragged.current = true;
     const next = d.theta - dx / metrics.ppd;
@@ -289,6 +309,7 @@ export function GardenScene({
   function onPointerUp() {
     const d = drag.current;
     drag.current = null;
+    if (d?.moved) setDragging(false);
     if (!d?.moved || !beds.length) return;
     const projected = theta.get() + d.v * 260;
     const index = nearestBed(projected, angles);
@@ -354,7 +375,7 @@ export function GardenScene({
     <LazyMotion features={domAnimation} strict>
       <section
         ref={root}
-        className={`garden-scene palette-${palette.name}${interactive ? "" : " is-backdrop"}${focusId ? " has-focus" : ""}`}
+        className={`garden-scene palette-${palette.name}${interactive ? "" : " is-backdrop"}${focusId ? " has-focus" : ""}${turning ? " is-turning" : ""}`}
         aria-label={interactive ? `${garden.name}, a living garden` : undefined}
         aria-hidden={interactive ? undefined : true}
         inert={!interactive}
@@ -411,6 +432,7 @@ export function GardenScene({
                 current={beds[i].plot.id === topicId}
                 interactive={interactive}
                 onSelect={onSign}
+                onMore={onListView}
               />
             ))}
         </SceneWorld>

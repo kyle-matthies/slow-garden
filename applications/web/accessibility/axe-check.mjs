@@ -42,6 +42,10 @@ const STATES = [
   ["garden-thought", `/dev/axe-fixtures?topic=${PLOT}&thought=${SEED}`],
   ["garden-archive", "/dev/axe-fixtures?view=archive"],
   ["garden-ring", "/dev/axe-fixtures?view=gardens"],
+  // Many gardens: a ring of 24 (the owner's 20+ requirement).
+  ["garden-ring-24", "/dev/axe-fixtures?state=scale&thoughts=100&gardens=24&view=gardens"],
+  // Phone cap: beds over 14 plants show "+N more in List".
+  ["garden-scale", "/dev/axe-fixtures?state=scale&thoughts=100"],
   ["cabinet", "/garden/returns-preview?scene=three-blooms"],
   // Settings, including the overnight tending preference (ADR-008), open in place.
   // The phone header's "More" disclosure, open over the scene.
@@ -71,6 +75,8 @@ const SHOT_STATES = new Set([
   "garden-list",
   "garden-thought",
   "garden-ring",
+  "garden-ring-24",
+  "garden-scale",
   "cabinet",
   "garden-settings",
   "garden-menu",

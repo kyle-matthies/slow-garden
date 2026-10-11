@@ -12,6 +12,8 @@ import {
 } from "./tending";
 
 export const MAX_PLANTS_PER_BED = 24;
+/** Narrow screens show fewer plants per bed; the rest stay in List and search. */
+export const PHONE_PLANTS_PER_BED = 14;
 
 export type ScenePlantModel = {
   seed: Seed;
@@ -44,6 +46,7 @@ export function buildBeds(
   seeds: readonly Seed[],
   entries: readonly Entry[],
   tending: Tending,
+  maxPerBed = MAX_PLANTS_PER_BED,
 ): SceneBedModel[] {
   const angles = bedAngles(plots.length);
   const entriesBySeed = new Map<string, Entry[]>();
@@ -74,7 +77,7 @@ export function buildBeds(
       });
     const shown = [...active]
       .sort((a, b) => b.lastActivity.localeCompare(a.lastActivity))
-      .slice(0, MAX_PLANTS_PER_BED)
+      .slice(0, maxPerBed)
       .sort((a, b) => a.slot.depth - b.slot.depth);
     return {
       plot,

@@ -13,6 +13,7 @@
 //     reduced motion, as a check that the atmosphere idles.
 // Synthetic fixtures only; no Supabase, provider or journal content.
 import { spawn } from "node:child_process";
+import { execSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -30,9 +31,17 @@ const IDLE_MS = 5_000;
 const IMAGE_BUDGET = 350 * 1024;
 
 const ROUTES = [
-  { name: "garden-100", url: "/dev/axe-fixtures?state=scale&thoughts=100" },
-  { name: "garden-1000", url: "/dev/axe-fixtures?state=scale&thoughts=1000" },
+  { name: "garden-100", url: "/dev/axe-fixtures?state=scale&thoughts=100", target: ".garden-scene" },
+  { name: "garden-1000", url: "/dev/axe-fixtures?state=scale&thoughts=1000", target: ".garden-scene" },
+  // Many gardens: the ring with 24 synthetic gardens.
+  {
+    name: "ring-24",
+    url: "/dev/axe-fixtures?state=scale&thoughts=100&gardens=24&view=gardens",
+    target: ".garden-ring",
+  },
 ];
+const SETTLE_MS = 3000;
+const TRACE_CATEGORIES = ["devtools.timeline", "disabled-by-default-devtools.timeline", "cc", "blink"];
 const DEVICES = [
   {
     name: "1280",
@@ -84,7 +93,7 @@ const quantile = (sorted, q) =>
   sorted.length ? sorted[Math.min(sorted.length - 1, Math.floor(q * sorted.length))] : 0;
 const round = (n) => Math.round(n * 10) / 10;
 
-async function open(browser, device, url, reducedMotion = "no-preference") {
+async function open(browser, device, route, reducedMotion = "no-preference") {
   const ctx = await browser.newContext({
     viewport: device.viewport,
     deviceScaleFactor: device.deviceScaleFactor,
@@ -96,10 +105,10 @@ async function open(browser, device, url, reducedMotion = "no-preference") {
   const cdp = await ctx.newCDPSession(page);
   await cdp.send("Emulation.setCPUThrottlingRate", { rate: device.throttle });
   await cdp.send("Performance.enable");
-  await page.goto(`${BASE}${url}`, { waitUntil: "networkidle" });
-  await page.waitForSelector(".garden-scene");
+  await page.goto(`${BASE}${route.url}`, { waitUntil: "networkidle" });
+  await page.waitForSelector(route.target);
   // Let hydration finish (slow under CPU throttling) before sampling anything.
-  await page.waitForTimeout(3000);
+  await page.waitForTimeout(SETTLE_MS);
   return { ctx, page, cdp };
 }
 
@@ -124,7 +133,7 @@ async function transferred(page) {
 }
 
 /** Drag the meadow back and forth for ROTATE_MS while recording rAF intervals. */
-async function rotate(browser, page, touch) {
+async function rotate(browser, page, touch, target) {
   await page.evaluate(() => {
     const w = window;
     w.__frames = [];
@@ -144,9 +153,9 @@ async function rotate(browser, page, touch) {
     } catch {}
   });
   await browser.startTracing(page, {
-    categories: ["devtools.timeline", "disabled-by-default-devtools.timeline", "cc", "blink"],
+    categories: TRACE_CATEGORIES,
   });
-  const box = await page.locator(".garden-scene").boundingBox();
+  const box = await page.locator(target).boundingBox();
   const y = box.y + box.height * 0.45;
   // Phones drag by touch (no hover, no per-move hit testing); desktops by mouse.
   const cdp = touch ? await page.context().newCDPSession(page) : null;
@@ -264,20 +273,22 @@ async function busyWhileStill(cdp, page) {
 
 let failures = 0;
 const results = [];
+let chromiumVersion = "unknown";
 try {
   await waitForServer();
   const browser = await chromium.launch(
     process.env.AXE_CHROMIUM ? { executablePath: process.env.AXE_CHROMIUM } : {},
   );
+  chromiumVersion = browser.version();
   for (const route of ROUTES) {
     for (const device of DEVICES) {
-      const { ctx, page, cdp } = await open(browser, device, route.url);
+      const { ctx, page, cdp } = await open(browser, device, route);
       const weight = await transferred(page);
       const plants = await page.locator("[data-plant]").count();
       const stillBusy = await busyWhileStill(cdp, page);
-      const { frames, long, ...cost } = await rotate(browser, page, device.hasTouch ?? false);
+      const { frames, long, ...cost } = await rotate(browser, page, device.hasTouch ?? false, route.target);
       await ctx.close();
-      const reduced = await open(browser, device, route.url, "reduce");
+      const reduced = await open(browser, device, route, "reduce");
       const reducedBusy = await busyWhileStill(reduced.cdp, reduced.page);
       await reduced.ctx.close();
 
@@ -331,14 +342,37 @@ try {
   }
 }
 
+// Each run keeps its own receipt; nothing is overwritten.
+const run = process.env.PERF_RUN || new Date().toISOString().replace(/[:.]/g, "-");
+const git = (args) => {
+  try {
+    return execSync(`git ${args}`, { cwd: webDir }).toString().trim();
+  } catch {
+    return "unknown";
+  }
+};
 mkdirSync(receipts, { recursive: true });
 writeFileSync(
-  path.join(receipts, "performance.json"),
+  path.join(receipts, `performance-${run}.json`),
   JSON.stringify(
     {
       content_free_note: "Synthetic fixtures only; no journal content.",
+      run,
+      recorded_at: new Date().toISOString(),
+      commit: git("rev-parse HEAD"),
+      working_tree_clean: git("status --porcelain -- .") === "",
+      node: process.version,
+      chromium: chromiumVersion,
+      settings: {
+        rotate_ms: ROTATE_MS,
+        idle_ms: IDLE_MS,
+        settle_ms: SETTLE_MS,
+        trace_categories: TRACE_CATEGORIES,
+        routes: ROUTES,
+        devices: DEVICES,
+      },
       method:
-        "Production build (next start), headless Chromium in a 4-vCPU container without a GPU. While dragging the meadow for 10 s: frame cost is the duration of each main-thread task containing BeginMainFrame from a devtools.timeline trace, with 2D canvas rasterisation (done on the main thread here, by a GPU on real devices) split out and excluded from the budget; rAF intervals are recorded as environment-bound context. CPU throttling via CDP Emulation.setCPUThrottlingRate. Image bytes are resource transferSize after network idle. Real-device frame pacing remains an owner check.",
+        "Production build (next start), headless Chromium in a 4-vCPU container without a GPU. While dragging (touch on the phone profile) for 10 s: frame cost is the duration of each main-thread task containing BeginMainFrame from a trace, with 2D canvas rasterisation (done on the main thread here, by a GPU on real devices) split out and excluded from the budget; rAF intervals are recorded as environment-bound context. CPU throttling via CDP Emulation.setCPUThrottlingRate. Image bytes are resource transferSize after network idle.",
       budgets: { p95_ms_1280: 20, p95_ms_390_4x: 33, phone_image_kb: 350 },
       results,
       ok: failures === 0,

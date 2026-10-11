@@ -143,6 +143,10 @@
   animation: var(--sway-name, plant-sway) var(--sway, 7s) ease-in-out
     var(--sway-delay, 0s) infinite;
 }
+/* Sway holds while the camera turns: the motion hides it, and it frees the frame. */
+.is-turning .plant-art > svg {
+  animation-play-state: paused;
+}
 @keyframes plant-sway {
   0%,
   100% {
@@ -334,6 +338,25 @@
 .bed-sign-count {
   color: var(--sheet-muted);
   font-size: 0.78rem;
+}
+/* A small slip under the sign when some thoughts rest in the list. */
+.bed-sign-more {
+  min-height: 32px;
+  margin-top: 4px;
+  padding: 0.2rem 0.6rem;
+  border: 1px solid var(--sheet-edge);
+  border-radius: 3px;
+  background: var(--sheet);
+  color: var(--sheet-ink);
+  font: inherit;
+  font-size: 0.75rem;
+  white-space: nowrap;
+  box-shadow: var(--sheet-shadow);
+  cursor: pointer;
+}
+.bed-sign-more:focus-visible {
+  outline: 3px solid var(--moss);
+  outline-offset: 2px;
 }
 
 /* Paper chrome */
