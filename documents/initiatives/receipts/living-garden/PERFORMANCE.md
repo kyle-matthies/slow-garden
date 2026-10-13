@@ -39,6 +39,23 @@ Raw files: `performance-4d84d8b-run1.json`, `-run2.json`, `-run3.json`.
 - The worst phone run (31.1 ms) leaves little margin, and this container varies from run
   to run, so a real-device check remains worthwhile, but the stated acceptance is met.
 
+## Restack confirmation (2026-10-13): this environment is slower today
+
+After #24 merged, #25 and #26 were restacked (merge commits; no A6 code changed). The
+confirmation runs on the restacked head and a same-day control on the previously passing
+code both miss the phone budget, so the shortfall is the container, not the restack:
+
+| Run (2026-10-13) | Code | 1280 garden-100 / 1000 / ring | 390 garden-100 / 1000 / ring |
+|---|---|---|---|
+| `performance-5eb4d36-confirm.json` | restacked head | 18.2 / 15.8 / 8.4 ms | 39.7 / 43.7 / 27.7 ms |
+| `performance-5eb4d36-confirm2.json` | restacked head | 14.3 / 19.6 / 9.6 ms | 43.5 / 56.5 / 35.6 ms |
+| `performance-control-e651786.json` | A6 code that passed 3/3 on 10-11 | 14.6 / 18.8 / 7.9 ms | 50.3 / 54.9 / 33.7 ms |
+
+Identical code ran about 1.6–2× slower than on 2026-10-11 (for example the 1280 ring,
+which has no canvas: 4.6 ms then, 7.9 ms now). The three-run acceptance above stands
+for commit 4d84d8b; the phone budget cannot be re-confirmed in today's container, which
+leaves the real-device check as the deciding measurement.
+
 ## What changed, and what it bought
 
 Measured on the same method; only changes with a reliable gain were kept.
