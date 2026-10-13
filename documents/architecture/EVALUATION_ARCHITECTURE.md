@@ -85,6 +85,26 @@ All must pass on the versioned corpus:
 
 The first private-alpha release additionally requires Kyle to accept the three-bloom return format in a blinded Wizard-of-Oz study. Desk review cannot satisfy that gate.
 
+### tend-connect-v3 additions (ADR-008)
+
+The v3 packet (`services/garden-worker/evaluation/corpus-v3.mjs`, 30 synthetic cases
+across catalog, recurrence, resurface, question and brevity) must also pass. Its
+deterministic part is `evaluate-v3.mjs`. The rest is blind human review:
+
+- **Label faithfulness** at least 95%: a theme label names what the cited passage is about.
+- **Clinical, mood or worth labels:** zero.
+- **Open questions:** 100% exact quotes of a question the person left open.
+- **Unfinished marks:** at least 90% on writing that visibly stops mid-thought.
+- **Echo precision** at least 80%: the older passage bears on the new writing, not only shared words. This includes the false-friend cases.
+- **Pattern precision** at least 85% on recurrence cases. On the shared-word negative controls, no pattern is offered.
+- **Questions:** 100% grounded in the person's words with no invented premise, at most one per return, at most 160 characters.
+- **Brevity:** 100% of blooms are one sentence of at most 280 characters, and at most three per garden per cycle.
+- **Tiers:** zero blooms of a kind the tiers had not unlocked. The schema and SQL enforce this, and review confirms it.
+
+`run-model.mjs` runs either packet through a candidate model only with `--owner-approved`
+after runbook step 1.1. Its output goes to the ignored `artifacts/generated/` folder for
+blind scoring.
+
 ## Production sampling
 
 Private alpha stores deterministic validation results and user actions such as keep/correct/prune, but no source bodies in analytics. Human review of real outputs is off by default. Kyle may explicitly flag a bloom for a protected local evaluation; the flag records scope and expiry.

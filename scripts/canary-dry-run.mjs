@@ -120,7 +120,7 @@ class FakeLedger {
     this.forceLeaseLossOn = null;
   }
 
-  createPass(tenantId, snapshot = fixture) {
+  createPass(tenantId, snapshot = fixture, { workflowVersion = "synthetic-v1", context = {} } = {}) {
     if (
       [...this.passes.values()].some(
         (pass) =>
@@ -144,7 +144,8 @@ class FakeLedger {
       snapshot,
       corrections: [],
       model: "synthetic-model",
-      workflow_version: "synthetic-v1",
+      workflow_version: workflowVersion,
+      context,
       provider_id: null,
       input_file_id: null,
       output_file_id: null,
@@ -158,6 +159,7 @@ class FakeLedger {
       nextAttemptAt: this.clock.now(),
       cleanupPending: false,
       blooms: [],
+      marks: [],
     };
     this.passes.set(id, pass);
     this.reservedCents += PASS_ESTIMATE_CENTS;
@@ -200,6 +202,7 @@ class FakeLedger {
       status: pass.status,
       snapshot: pass.snapshot,
       corrections: pass.corrections,
+      context: pass.context,
       model: pass.model,
       workflow_version: pass.workflow_version,
       provider_id: pass.provider_id,
@@ -274,6 +277,14 @@ class FakeLedger {
           }
         }
         pass.blooms = blooms;
+        // tend-connect-v3 marks: each must quote its own thought's writing.
+        for (const mark of args.p_result?.marks ?? [])
+          for (const evidence of mark.evidence) {
+            const source = pass.snapshot.find((item) => item.revision_id === evidence.revision_id);
+            if (!source || source.seed_id !== mark.seed_id || !source.body.includes(evidence.excerpt))
+              throw Error("invalid source evidence");
+          }
+        pass.marks = args.p_result?.marks ?? [];
       }
       const inputTokens = args.p_input_tokens ?? 0;
       const outputTokens = args.p_output_tokens ?? 0;
@@ -555,6 +566,67 @@ const scenarios = [
     return { name: "lost_lease", steps, checks, ok: checks.every((c) => c.ok) };
   }),
 ];
+
+function stageLine(id, stage, value) {
+  return JSON.stringify({
+    custom_id: `${id}:${stage}`,
+    response: {
+      status_code: 200,
+      body: {
+        status: "completed",
+        output: [{ type: "message", content: [{ type: "output_text", text: JSON.stringify(value) }] }],
+        usage: { input_tokens: 80, output_tokens: 30 },
+      },
+    },
+  });
+}
+
+// tend-connect-v3: a valid catalogue lands even when the connect stage is invalid.
+scenarios.push(
+  scenario("tend_connect_partial", async () => {
+    const env = environment();
+    const steps = [];
+    const snapshot = fixture.map((item) => ({ ...item, title: "Synthetic thought", role: "changed" }));
+    const pass = env.ledger.createPass("tenant-a", snapshot, {
+      workflowVersion: "tend-connect-v3-synthetic",
+      context: { tiers: { catalog: true, notice: true, resurface: false } },
+    });
+    const submitted = await step(env);
+    steps.push({ state: submitted.state });
+    const uploadedLines = [...env.provider.files.values()][0].trim().split("\n").length;
+    env.provider.complete(
+      pass.provider_id,
+      [
+        stageLine(pass.id, "tend", {
+          marks: [
+            {
+              seed_id: fixture[0].seed_id,
+              kind: "theme",
+              label: "workspace",
+              evidence: [{ revision_id: fixture[0].revision_id, excerpt: "a quieter workspace" }],
+            },
+          ],
+        }),
+        stageLine(pass.id, "connect", {
+          blooms: [{ kind: "echo", interpretation: INTERPRETATION, evidence: [] }],
+          no_output_reason: null,
+        }),
+      ].join("\n"),
+    );
+    env.clock.advance(FIVE_MINUTES);
+    const completed = await step(env);
+    steps.push({ state: completed.state, stages: completed.stages });
+    await drain(env, steps);
+    const checks = [
+      { check: "two_stage_lines_uploaded", ok: uploadedLines === 2 },
+      { check: "catalogue_landed", ok: pass.marks.length === 1 },
+      { check: "invalid_stage_shows_nothing", ok: pass.blooms.length === 0 },
+      { check: "pass_complete", ok: pass.status === "complete" },
+      { check: "files_deleted", ok: env.provider.filesRemaining() === 0 },
+    ];
+    return { name: "tend_connect_partial", steps, checks, ok: checks.every((c) => c.ok) };
+  }),
+);
 
 async function main() {
   const results = [];
