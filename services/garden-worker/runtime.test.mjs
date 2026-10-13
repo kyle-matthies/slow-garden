@@ -606,6 +606,16 @@ test("v3 connect is strict: allowed kinds, one short sentence, real evidence", (
   assert.equal(validateConnect({ blooms: [echo], no_output_reason: null }, job3).blooms.length, 1);
   const twoSentences = { ...echo, interpretation: "First thought here. Second thought there." };
   assert.throws(() => validateConnect({ blooms: [twoSentences], no_output_reason: null }, job3), /invalid_bloom/);
+  const oldOnly = { ...echo, evidence: [echo.evidence[0], { revision_id: "r3", excerpt: "A slow walk" }] };
+  assert.throws(() => validateConnect({ blooms: [oldOnly], no_output_reason: null }, job3), /invalid_echo/, "an echo cites current writing");
+  const recentPair = {
+    ...echo,
+    evidence: [
+      { revision_id: "r2", excerpt: "the room before naming" },
+      { revision_id: "r2", excerpt: "really empty" },
+    ],
+  };
+  assert.throws(() => validateConnect({ blooms: [recentPair], no_output_reason: null }, job3), /invalid_echo/, "an echo spans at least four weeks");
   const lonelyEcho = { ...echo, evidence: [echo.evidence[0]] };
   assert.throws(() => validateConnect({ blooms: [lonelyEcho], no_output_reason: null }, job3), /invalid_bloom/);
   const q = { kind: "question", interpretation: "What is the room for?", evidence: [{ revision_id: "r2", excerpt: "room" }] };

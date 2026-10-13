@@ -131,7 +131,9 @@ begin
       from public.current_entries c join public.seeds s on s.id=c.seed_id where c.tenant_id=new.tenant_id and s.plot_id=any(new.plot_ids) and s.status='active' and c.archived_at is null;
     if jsonb_array_length(snap)=0 then raise exception 'write an entry before inviting a reflection' using errcode='22023'; end if;
   else
-    select max(finished_at) into since from public.garden_passes where tenant_id=new.tenant_id and scope_key=scope and status='complete';
+    -- The watermark is the last completed pass's snapshot time (its created_at), not when it
+    -- finished: writing saved while a pass was in flight was never in its snapshot.
+    select max(created_at) into since from public.garden_passes where tenant_id=new.tenant_id and scope_key=scope and status='complete';
     select count(*),count(distinct date_trunc('week',c.created_at)),min(c.created_at) into n_entries,n_weeks,oldest
       from public.current_entries c join public.seeds s on s.id=c.seed_id where c.tenant_id=new.tenant_id and s.plot_id=any(new.plot_ids) and s.status='active' and c.archived_at is null;
     if n_entries=0 then raise exception 'write an entry before inviting a reflection' using errcode='22023'; end if;
@@ -247,8 +249,18 @@ begin
       if jsonb_typeof(b->'evidence') is distinct from 'array' or jsonb_array_length(b->'evidence')<1 then raise exception 'evidence required'; end if;
       if not v3 and b->>'kind' in('pattern','echo') then raise exception 'kind requires tend-connect-v3'; end if;
       if v3 and char_length(b->>'interpretation')>280 then raise exception 'interpretation too long'; end if;
-      if v3 and b->>'kind'='pattern' and not coalesce((j.context#>>'{tiers,notice}')::boolean,false) then raise exception 'tier not unlocked'; end if;
-      if v3 and b->>'kind'='echo' and not coalesce((j.context#>>'{tiers,resurface}')::boolean,false) then raise exception 'tier not unlocked'; end if;
+      -- The finalizer is the second boundary: every v3 kind must belong to an unlocked tier
+      -- (mirrors allowedKinds() in the worker), whatever the worker's schema allowed.
+      if v3 and coalesce(b->>'kind','') not in('connection','tension','change','pattern','question','echo') then raise exception 'invalid bloom kind'; end if;
+      if v3 and b->>'kind' in('connection','tension','change','pattern') and not coalesce((j.context#>>'{tiers,notice}')::boolean,false) then raise exception 'tier not unlocked'; end if;
+      if v3 and b->>'kind' in('question','echo') and not coalesce((j.context#>>'{tiers,resurface}')::boolean,false) then raise exception 'tier not unlocked'; end if;
+      -- An echo sets older writing beside current writing: a changed source and one at least
+      -- four weeks older, both cited.
+      if v3 and b->>'kind'='echo' and not exists(
+        select 1 from jsonb_array_elements(b->'evidence') ec join jsonb_array_elements(j.snapshot) sc on sc->>'revision_id'=ec->>'revision_id',
+          jsonb_array_elements(b->'evidence') eo join jsonb_array_elements(j.snapshot) so on so->>'revision_id'=eo->>'revision_id'
+        where sc->>'role'='changed' and (sc->>'created_at')::timestamptz-(so->>'created_at')::timestamptz>=interval '28 days')
+      then raise exception 'echo needs older writing beside new'; end if;
       for e in select value from jsonb_array_elements(b->'evidence') loop
         if not exists(select 1 from jsonb_array_elements(j.snapshot) s where s->>'revision_id'=e->>'revision_id' and length(e->>'excerpt')>0 and position(e->>'excerpt' in s->>'body')>0) then raise exception 'invalid source evidence'; end if;
       end loop;
@@ -321,7 +333,8 @@ begin
         group by pl.garden_id,case when pl.cross_pollinate then null else pl.id end
     loop
       exit when made>=p_per_tenant;
-      select max(finished_at) into last from public.garden_passes
+      -- Same watermark as prepare_pass: the last completed snapshot, not its finish time.
+      select max(created_at) into last from public.garden_passes
         where tenant_id=a.id and scope_key=(select string_agg(x::text,',' order by x) from unnest(s.plot_ids) x) and status='complete';
       continue when not exists(select 1 from public.current_entries c join public.seeds sd on sd.id=c.seed_id
         where c.tenant_id=a.id and sd.plot_id=any(s.plot_ids) and sd.status='active' and c.archived_at is null
