@@ -357,6 +357,18 @@ export function validateTend(value, job) {
 }
 
 /** Strict, like connect-v2: one invalid bloom rejects the whole stage. */
+const ECHO_GAP_MS = 28 * 86_400_000;
+
+/** An echo sets older writing beside current writing: it cites at least one changed
+ * revision and one written at least four weeks before it. */
+function isEcho(evidence, bySource) {
+  const cited = evidence.map((e) => bySource.get(e.revision_id)).filter(Boolean);
+  const current = cited.filter((s) => s.role === "changed").map((s) => Date.parse(s.created_at));
+  if (!current.length) return false;
+  const newest = Math.max(...current);
+  return cited.some((s) => newest - Date.parse(s.created_at) >= ECHO_GAP_MS);
+}
+
 export function validateConnect(value, job) {
   const kinds = allowedKinds(job.context?.tiers);
   if (
@@ -370,6 +382,7 @@ export function validateConnect(value, job) {
   )
     throw Error("invalid_schema");
   const sources = new Map(job.snapshot.map((s) => [s.revision_id, s.body]));
+  const bySource = new Map(job.snapshot.map((s) => [s.revision_id, s]));
   if (value.blooms.filter((b) => b?.kind === "question").length > 1) throw Error("too_many_questions");
   for (const bloom of value.blooms) {
     if (
@@ -396,6 +409,7 @@ export function validateConnect(value, job) {
         !sources.get(e.revision_id)?.includes(e.excerpt)
       )
         throw Error("invalid_evidence");
+    if (bloom.kind === "echo" && !isEcho(bloom.evidence, bySource)) throw Error("invalid_echo");
   }
   return value;
 }
