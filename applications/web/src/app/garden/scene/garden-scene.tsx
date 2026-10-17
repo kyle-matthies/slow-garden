@@ -66,6 +66,7 @@ export type GardenSceneProps = {
   onListView?: (topicId: string) => void;
   newTopic?: ReactNode;
   newThought?: (plotId: string) => ReactNode;
+  onViewBlooms?: (ids: string[]) => void;
   onRespondMark?: (
     markId: string,
     response: "keep" | "prune",
@@ -95,6 +96,7 @@ export function GardenScene({
   newTopic,
   newThought,
   onRespondMark,
+  onViewBlooms,
 }: GardenSceneProps) {
   const interactive = mode === "interactive";
   const root = useRef<HTMLElement>(null);
@@ -556,6 +558,7 @@ export function GardenScene({
                   onWrite={() => onOpenThought?.(focusPlant.seed.id)}
                   onClose={closeFocus}
                   onRespondMark={onRespondMark}
+                  onViewBlooms={onViewBlooms}
                   onReviewBlooms={
                     onListView ? () => onListView(focusBed.plot.id) : undefined
                   }
