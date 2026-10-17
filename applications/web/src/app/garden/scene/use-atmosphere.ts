@@ -5,14 +5,14 @@ import type { Palette } from "@/lib/garden/scene/palette";
 import { GardenAtmosphere } from "./atmosphere";
 
 /**
- * Drives the canvas atmosphere. The back canvas sits behind the plants and the
- * front canvas in front of them. Wind is written to `--wind` on `windTarget` so
- * DOM plants lean with the same gusts.
+ * Drives the canvas atmosphere. The far and back canvases sit behind the plants
+ * and the front canvas in front of them. DOM plants sway with a compositor-only
+ * CSS gust (scene.css), so the loop never writes styles per frame.
  */
 export function useAtmosphere({
+  far,
   back,
   front,
-  windTarget,
   palette,
   seed,
   horizon,
@@ -22,9 +22,9 @@ export function useAtmosphere({
   width,
   height,
 }: {
+  far: React.RefObject<HTMLCanvasElement | null>;
   back: React.RefObject<HTMLCanvasElement | null>;
   front: React.RefObject<HTMLCanvasElement | null>;
-  windTarget: React.RefObject<HTMLElement | null>;
   palette: Palette;
   seed: number;
   horizon: number;
@@ -38,16 +38,14 @@ export function useAtmosphere({
   const ready = width > 0 && height > 0;
 
   useEffect(() => {
-    if (!ready || !back.current || !front.current) return;
-    const atmosphere = new GardenAtmosphere(back.current, front.current, {
+    if (!ready || !far.current || !back.current || !front.current) return;
+    const atmosphere = new GardenAtmosphere(far.current, back.current, front.current, {
       palette,
       seed,
       horizon,
       fov,
       still,
       getTheta: () => theta.get(),
-      onWind: (wind) =>
-        windTarget.current?.style.setProperty("--wind", wind.toFixed(3)),
     });
     engine.current = atmosphere;
     atmosphere.resize(width, height);

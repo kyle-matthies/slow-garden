@@ -20,6 +20,13 @@ const BASE = "http://localhost:3211";
 const PLOT = "00000000-0000-4000-8000-000000000100";
 const SEED = "00000000-0000-4000-8000-000000001000";
 
+// Phones fold secondary tools behind "More"; open it first when it is showing.
+async function openSettings(page) {
+  const more = page.getByRole("button", { name: "More" });
+  if (await more.isVisible()) await more.click();
+  await page.getByRole("button", { name: "Settings & export" }).click();
+}
+
 const STATES = [
   ["landing", "/"],
   ["login", "/login"],
@@ -35,12 +42,25 @@ const STATES = [
   ["garden-thought", `/dev/axe-fixtures?topic=${PLOT}&thought=${SEED}`],
   ["garden-archive", "/dev/axe-fixtures?view=archive"],
   ["garden-ring", "/dev/axe-fixtures?view=gardens"],
+  // Many gardens: a ring of 24 (the owner's 20+ requirement).
+  ["garden-ring-24", "/dev/axe-fixtures?state=scale&thoughts=100&gardens=24&view=gardens"],
+  // Phone cap: beds over 14 plants show "+N more in List".
+  ["garden-scale", "/dev/axe-fixtures?state=scale&thoughts=100"],
   ["cabinet", "/garden/returns-preview?scene=three-blooms"],
   // Settings, including the overnight tending preference (ADR-008), open in place.
+  // The phone header's "More" disclosure, open over the scene.
+  [
+    "garden-menu",
+    "/dev/axe-fixtures",
+    async (page) => {
+      const more = page.getByRole("button", { name: "More" });
+      if (await more.isVisible()) await more.click();
+    },
+  ],
   [
     "garden-settings",
     "/dev/axe-fixtures?view=list",
-    (page) => page.getByRole("button", { name: "Settings & export" }).click(),
+    openSettings,
   ],
 ];
 // Findings reported as warnings instead of failures. Keep empty unless a finding is
@@ -55,8 +75,11 @@ const SHOT_STATES = new Set([
   "garden-list",
   "garden-thought",
   "garden-ring",
+  "garden-ring-24",
+  "garden-scale",
   "cabinet",
   "garden-settings",
+  "garden-menu",
   "error",
 ]);
 const SCHEMES = ["light", "dark"];
@@ -140,7 +163,7 @@ const CONTRAST = [
   {
     state: "garden-settings",
     url: "/dev/axe-fixtures?view=list",
-    open: (page) => page.getByRole("button", { name: "Settings & export" }).click(),
+    open: openSettings,
     token: "--garden-bg",
     selectors: [".tending-settings h3", ".tending-settings p", ".tending-toggle"],
   },
