@@ -235,3 +235,33 @@ test("exported markdown of a thought re-imports with the same text", async () =>
   assert.equal(thought.entries[0].date, "2024-03-05");
   assert.equal(thought.entries[0].body, f.revisions[0].body);
 });
+
+test("tending marks export as AI-derived material, filtered by garden", () => {
+  const f = fixture();
+  const gardenId = f.gardens[0].id;
+  const mark = {
+    id: "m-1",
+    pass_id: f.passes[0]?.id ?? "p-1",
+    tenant_id: f.gardens[0].tenant_id,
+    garden_id: gardenId,
+    seed_id: f.seeds[0].id,
+    kind: "theme",
+    label: "walking",
+    evidence: [{ revision_id: f.revisions[0].id, excerpt: "x" }],
+    created_at: "2026-10-01T00:00:00Z",
+  };
+  const other = { ...mark, id: "m-2", garden_id: "another-garden" };
+  const snapshot = {
+    ...f,
+    marks: [mark, other],
+    markResponses: [
+      { id: "r-1", tenant_id: mark.tenant_id, mark_id: "m-1", response: "prune", created_at: "2026-10-02T00:00:00Z" },
+    ],
+  };
+  const doc = buildExportDocument(filterSnapshotByGarden(snapshot, gardenId));
+  assert.equal(doc.derived.marks.authorship, "ai-derived");
+  assert.deepEqual(doc.derived.marks.rows.map((m) => m.id), ["m-1"]);
+  assert.equal(doc.derived.mark_responses.authorship, "user");
+  assert.equal(doc.derived.mark_responses.rows.length, 1);
+  assert.equal(buildExportDocument(f).derived.marks.rows.length, 0, "older snapshots without marks still export");
+});

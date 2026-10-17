@@ -4,6 +4,7 @@ import {
   validateAreaName,
   validateBloomResponse,
   validateEntryBody,
+  validateTimezone,
 } from "./validation";
 
 describe("validateAreaName", () => {
@@ -58,5 +59,16 @@ describe("saveErrorMessage", () => {
     expect(saveErrorMessage(undefined)).toBe(
       "Could not save. Your writing is still here; please retry.",
     );
+  });
+});
+
+describe("validateTimezone", () => {
+  it("accepts IANA zone names", () => {
+    for (const zone of ["UTC", "Europe/London", "America/Los_Angeles", "America/Argentina/Buenos_Aires", "Etc/GMT+5"])
+      expect(validateTimezone(zone)).toBeNull();
+  });
+  it("rejects anything else", () => {
+    for (const zone of ["", "../etc", "Europe/London; drop", "x".repeat(70)])
+      expect(validateTimezone(zone)).not.toBeNull();
   });
 });

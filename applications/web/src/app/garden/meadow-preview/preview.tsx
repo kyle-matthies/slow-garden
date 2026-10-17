@@ -29,6 +29,20 @@ export function MeadowPreview() {
     () => (scene.tending ? syntheticTending(data, scene.tending) : undefined),
     [data, scene],
   );
+  // Fixture-only responses so Keep/Prune can be exercised without a database.
+  const [responses, setResponses] = useState<
+    Record<string, "keep" | "prune">
+  >({});
+  const responded = useMemo(
+    () =>
+      tending && {
+        ...tending,
+        marks: tending.marks.map((m) =>
+          responses[m.id] ? { ...m, response: responses[m.id] } : m,
+        ),
+      },
+    [tending, responses],
+  );
   const [topic, setTopic] = useState(params.get("topic") ?? "");
   const [focus, setFocus] = useState(params.get("focus") ?? "");
   const garden = data.gardens[0];
@@ -87,7 +101,7 @@ export function MeadowPreview() {
         plots={data.plots}
         seeds={data.seeds}
         entries={data.entries}
-        tending={tending}
+        tending={responded}
         topicId={topic}
         focusId={focus}
         onTopic={(id) => {
@@ -97,6 +111,10 @@ export function MeadowPreview() {
         onFocus={setFocus}
         onOpenThought={() => undefined}
         onListView={() => undefined}
+        onRespondMark={async (markId, response) => {
+          setResponses((r) => ({ ...r, [markId]: response }));
+          return null;
+        }}
       />
     </main>
   );

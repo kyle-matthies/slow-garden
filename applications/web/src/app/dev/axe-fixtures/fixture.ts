@@ -120,4 +120,5 @@ export const FIXTURE: GardenData = {
     },
   ],
   aiAvailable: false,
+  account: { tendOvernight: false, timezone: "UTC" },
 };

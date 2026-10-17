@@ -7,6 +7,7 @@ import {
   validateAreaName,
   validateBloomResponse,
   validateEntryBody,
+  validateTimezone,
 } from "@/lib/garden/validation";
 
 async function authenticated() {
@@ -284,4 +285,62 @@ export async function readReturns(gardenId: string) {
     blooms: blooms ?? [],
     responses: responses ?? [],
   };
+}
+
+/** Keep or prune one tending mark. Append-only and replay-safe, like bloom responses. */
+export async function respondToMark(
+  id: string,
+  markId: string,
+  response: "keep" | "prune",
+): Promise<ActionResult> {
+  if (response !== "keep" && response !== "prune")
+    return { ok: false, message: "Choose keep or prune." };
+  try {
+    const { db, tenantId } = await authenticated();
+    const { data: existing } = await db
+      .from("tending_mark_responses")
+      .select("id")
+      .eq("id", id)
+      .maybeSingle();
+    if (!existing) {
+      const { error } = await db.from("tending_mark_responses").insert({
+        id,
+        tenant_id: tenantId,
+        mark_id: markId,
+        response,
+      });
+      if (error) throw error;
+    }
+    revalidatePath("/garden");
+    return { ok: true };
+  } catch {
+    return {
+      ok: false,
+      message: "Could not save your response. Please retry.",
+    };
+  }
+}
+
+/** Overnight tending is a preference; it never starts processing by itself. */
+export async function setTendingPreferences(
+  tendOvernight: boolean,
+  timezone: string,
+): Promise<ActionResult> {
+  const invalid = validateTimezone(timezone);
+  if (invalid) return { ok: false, message: invalid };
+  try {
+    const { db, tenantId } = await authenticated();
+    const { error } = await db
+      .from("accounts")
+      .update({ tend_overnight: tendOvernight, timezone })
+      .eq("id", tenantId);
+    if (error) throw error;
+    revalidatePath("/garden");
+    return { ok: true };
+  } catch {
+    return {
+      ok: false,
+      message: "Could not save that preference. Please retry.",
+    };
+  }
 }

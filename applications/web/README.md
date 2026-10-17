@@ -17,6 +17,18 @@ and template changes with `supabase config push --project-ref <project-ref>`.
 
 Only the Supabase publishable key belongs in this application. Never add a secret or service-role key to a `NEXT_PUBLIC_` variable.
 
+## Tending and export compatibility
+
+The `New` bloom cue clears when its plant's tending is viewed. First-view receipts
+store only bloom IDs for the signed-in account in this browser; they do not sync
+between devices or act as Keep/Correct/Prune responses. When browser storage is
+unavailable, receipts last for the current page session. An unseen bloom does not
+lose its cue merely because it is older than seven days.
+
+Exports remain available before the separately gated tending migration: missing
+tending tables contribute empty mark arrays. Permission and other database errors
+still fail the export instead of returning an incomplete snapshot.
+
 ## Accessibility checks
 
 `accessibility/` holds a self-contained axe harness. It boots `next dev` without
