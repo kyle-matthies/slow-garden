@@ -124,8 +124,9 @@ export function GardenScene({
         entries,
         tending,
         narrow ? PHONE_PLANTS_PER_BED : MAX_PLANTS_PER_BED,
+        focusId,
       ),
-    [plots, seeds, entries, tending, narrow],
+    [plots, seeds, entries, tending, narrow, focusId],
   );
   const angles = useMemo(() => beds.map((b) => b.angle), [beds]);
   const topicIndex = beds.findIndex((b) => b.plot.id === topicId);
@@ -173,6 +174,7 @@ export function GardenScene({
   const [settled, setSettled] = useState(true);
   useMotionValueEvent(theta, "animationStart", () => setSettled(false));
   useMotionValueEvent(theta, "animationComplete", () => setSettled(true));
+  useMotionValueEvent(theta, "animationCancel", () => setSettled(true));
   // While the camera turns, plants hold their sway (see .is-turning in
   // scene.css).
   const [dragging, setDragging] = useState(false);

@@ -32,6 +32,25 @@ const entry = (seedId: string, day: number): Entry => ({
 });
 
 describe("buildBeds", () => {
+  it("keeps a focused older thought within the phone cap, in its original slot", () => {
+    const seeds = Array.from({ length: 30 }, (_, i) => seed(i));
+    const [full] = buildBeds([plot("p1")], seeds, [], EMPTY_TENDING, 30);
+    const [phone] = buildBeds([plot("p1")], seeds, [], EMPTY_TENDING, PHONE_PLANTS_PER_BED, "s0");
+    expect(phone.plants).toHaveLength(PHONE_PLANTS_PER_BED);
+    expect(phone.resting).toBe(30 - PHONE_PLANTS_PER_BED);
+    expect(phone.plants.find((p) => p.seed.id === "s0")?.slot).toEqual(
+      full.plants.find((p) => p.seed.id === "s0")?.slot,
+    );
+    expect(phone.plants.some((p) => p.seed.id === "s29")).toBe(true);
+  });
+
+  it("does not reveal an archived thought through a focus request", () => {
+    const seeds = [seed(0, "p1", "archived"), ...Array.from({ length: 30 }, (_, i) => seed(i + 1))];
+    const [bed] = buildBeds([plot("p1")], seeds, [], EMPTY_TENDING, PHONE_PLANTS_PER_BED, "s0");
+    expect(bed.plants.some((p) => p.seed.id === "s0")).toBe(false);
+    expect(bed.plants).toHaveLength(PHONE_PLANTS_PER_BED);
+  });
+
   it("takes a smaller cap on phones and counts the rest as resting", () => {
     const seeds = Array.from({ length: 30 }, (_, i) => seed(i));
     const entries = [entry("s29", 20)];

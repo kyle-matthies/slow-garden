@@ -47,6 +47,7 @@ export function buildBeds(
   entries: readonly Entry[],
   tending: Tending,
   maxPerBed = MAX_PLANTS_PER_BED,
+  focusedSeedId = "",
 ): SceneBedModel[] {
   const angles = bedAngles(plots.length);
   const entriesBySeed = new Map<string, Entry[]>();
@@ -77,8 +78,14 @@ export function buildBeds(
       });
     const shown = [...active]
       .sort((a, b) => b.lastActivity.localeCompare(a.lastActivity))
-      .slice(0, maxPerBed)
-      .sort((a, b) => a.slot.depth - b.slot.depth);
+      .slice(0, maxPerBed);
+    // A direct link or viewport resize must not remove the open thought.
+    // Keep its original slot and replace one visible plant, preserving the cap.
+    const focused = active.find((p) => p.seed.id === focusedSeedId);
+    if (focused && !shown.includes(focused) && maxPerBed > 0) {
+      shown.splice(Math.max(0, shown.length - 1), 1, focused);
+    }
+    shown.sort((a, b) => a.slot.depth - b.slot.depth);
     return {
       plot,
       angle: angles[i],

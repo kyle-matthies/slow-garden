@@ -58,6 +58,14 @@ leaves the real-device check as the deciding measurement.
 
 ## What changed, and what it bought
 
+Release verification, 2026-10-17: passing builds and synthetic interaction checks
+are separate from the phone frame-pacing acceptance. The October 13 confirmation
+failures above remain open evidence; the mid-range physical-phone owner check in
+ADR-007 has not been completed. Merging the hardening improvements does not mark
+the phone performance budget met. The cap now retains a focused thought without
+exceeding 14 visible plants, and cancelling a camera spring restores the settled
+state. The budget is unchanged.
+
 Measured on the same method; only changes with a reliable gain were kept.
 
 | Change | Effect |
