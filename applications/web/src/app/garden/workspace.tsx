@@ -24,6 +24,7 @@ import { TendingSettings } from "./tending-settings";
 import { NewArea } from "./new-area";
 import { GardenRing } from "./scene/garden-ring";
 import { GardenScene } from "./scene/garden-scene";
+import { useSeenTending } from "@/lib/garden/use-seen-tending";
 import { ThoughtPlant, TopicPlants } from "./scene/thought-plant";
 
 /** "" is the living garden, "gardens" the ring of all gardens, "list" the structured workspace. */
@@ -144,6 +145,7 @@ function EntryCard({
   );
 }
 export function GardenWorkspace({ data }: { data: GardenData }) {
+  const { tending, markBloomsSeen } = useSeenTending(data.tenantId, data.tending);
   const [editorGeneration, setEditorGeneration] = useState(0);
   const router = useRouter();
   const params = useSearchParams();
@@ -396,7 +398,7 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
           entries={data.entries}
           topicId={seed.plot_id}
           focusId=""
-          tending={data.tending}
+          tending={tending}
           mode="backdrop"
         />
       )}
@@ -547,7 +549,8 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
             entries={data.entries}
             topicId={plotId}
             focusId={focusId}
-            tending={data.tending}
+            tending={tending}
+            onViewBlooms={markBloomsSeen}
             canWrite={garden.status === "active"}
             onRespondMark={async (markId, response) => {
               try {

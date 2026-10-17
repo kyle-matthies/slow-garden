@@ -19,9 +19,7 @@ function fakeDb(tables: Record<string, Result>) {
 }
 
 const entry = (id: string, seed: string, at: string) =>
-  ({ id, seed_id: seed, revision_id: `r-${id}`, created_at: at }) as unknown as Entry;
-
-const now = Date.parse("2026-10-10T12:00:00Z");
+  ({ id, seed_id: seed, revision_id: `r-${id}`, created_at: at, revised_at: at }) as unknown as Entry;
 
 describe("toEvidence", () => {
   it("keeps only evidence it can place on a known revision", () => {
@@ -103,7 +101,7 @@ describe("loadTending", () => {
         error: null,
       },
     });
-    const tending = await loadTending(db, "g1", entries, now);
+    const tending = await loadTending(db, "g1", entries);
     expect(tending.marks).toHaveLength(1);
     expect(tending.marks[0]).toMatchObject({ id: "m1", seedId: "s1", response: "prune" });
     expect(tending.blooms.map((b) => b.id)).toEqual(["b1"]);
@@ -119,6 +117,18 @@ describe("loadTending", () => {
     const db = fakeDb({
       tending_marks: { data: null, error: { message: "relation does not exist" } },
     });
-    expect(await loadTending(db, "g1", entries, now)).toBe(EMPTY_TENDING);
+    expect(await loadTending(db, "g1", entries)).toBe(EMPTY_TENDING);
+  });
+
+  it("dates current evidence by its exact revision and keeps unseen old blooms new", async () => {
+    const revised = { ...entries[0], revised_at: "2026-10-16T08:00:00Z" };
+    const db = fakeDb({ blooms: { data: [{
+      id: "old-unseen", pass_id: "p1", kind: "echo", interpretation: "Synthetic",
+      evidence: [{ revision_id: revised.revision_id, excerpt: "updated" }],
+      created_at: "2026-01-01T00:00:00Z",
+    }], error: null } });
+    const tending = await loadTending(db, "g1", [revised]);
+    expect(tending.blooms[0].evidence[0].writtenAt).toBe(revised.revised_at);
+    expect(tending.blooms[0].isNew).toBe(true);
   });
 });

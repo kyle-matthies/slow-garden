@@ -7,8 +7,6 @@ type Db = SupabaseClient<Database>;
 type RevisionInfo = { seedId: string; writtenAt: string };
 type RawEvidence = { revision_id?: unknown; excerpt?: unknown };
 
-const NEW_FOR_DAYS = 7;
-
 /** Map stored evidence to the web contract, dropping anything we cannot place. */
 export function toEvidence(raw: unknown, revisions: Map<string, RevisionInfo>): Evidence[] {
   if (!Array.isArray(raw)) return [];
@@ -37,7 +35,6 @@ export async function loadTending(
   db: Db,
   gardenId: string,
   entries: readonly Entry[],
-  now = Date.now(),
 ): Promise<Tending> {
   try {
     const [marks, markResponses, blooms, bloomResponses, themes] = await Promise.all([
@@ -70,7 +67,7 @@ export async function loadTending(
     for (const result of [marks, markResponses, blooms, bloomResponses, themes]) if (result.error) throw result.error;
 
     const revisions = new Map<string, RevisionInfo>(
-      entries.map((e) => [e.revision_id, { seedId: e.seed_id, writtenAt: e.created_at }]),
+      entries.map((e) => [e.revision_id, { seedId: e.seed_id, writtenAt: e.revised_at }]),
     );
     // Evidence may cite an earlier revision of an entry; look those up too.
     const cited = new Set<string>();
@@ -112,7 +109,8 @@ export async function loadTending(
             interpretation: b.interpretation,
             evidence,
             createdAt: b.created_at,
-            isNew: !response && now - Date.parse(b.created_at) < NEW_FOR_DAYS * 86_400_000,
+            // The browser applies its first-view receipt separately from replies.
+            isNew: !response,
             response,
           },
         ];
