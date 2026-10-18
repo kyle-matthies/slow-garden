@@ -43,6 +43,15 @@ describe("buildBeds", () => {
     expect(bed.plants.map((p) => p.seed.id)).toContain("s29");
   });
 
+  it("keeps the focused thought under the phone cap", () => {
+    const seeds = Array.from({ length: 30 }, (_, i) => seed(i));
+    const [bed] = buildBeds([plot("p1")], seeds, [], EMPTY_TENDING, PHONE_PLANTS_PER_BED, "s0");
+    expect(bed.plants).toHaveLength(PHONE_PLANTS_PER_BED);
+    expect(bed.plants.map((p) => p.seed.id)).toContain("s0");
+    const [uncapped] = buildBeds([plot("p1")], seeds, [], EMPTY_TENDING, PHONE_PLANTS_PER_BED);
+    expect(uncapped.plants.map((p) => p.seed.id)).not.toContain("s0");
+  });
+
   it("renders at most a bed's worth of the most recently tended plants", () => {
     const seeds = Array.from({ length: 30 }, (_, i) => seed(i));
     const entries = [entry("s0", 20), entry("s1", 21)];

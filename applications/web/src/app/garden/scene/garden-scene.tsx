@@ -114,7 +114,7 @@ export function GardenScene({
     [garden.id, night],
   );
   // Phones show fewer plants per bed (ADR-007 budget); the sign says how many
-  // more wait in the list.
+  // more wait in the list. A focused thought is always kept.
   const narrow = size.width > 0 && size.width <= 480;
   const beds = useMemo(
     () =>
@@ -124,8 +124,9 @@ export function GardenScene({
         entries,
         tending,
         narrow ? PHONE_PLANTS_PER_BED : MAX_PLANTS_PER_BED,
+        focusId || undefined,
       ),
-    [plots, seeds, entries, tending, narrow],
+    [plots, seeds, entries, tending, narrow, focusId],
   );
   const angles = useMemo(() => beds.map((b) => b.angle), [beds]);
   const topicIndex = beds.findIndex((b) => b.plot.id === topicId);
@@ -173,6 +174,8 @@ export function GardenScene({
   const [settled, setSettled] = useState(true);
   useMotionValueEvent(theta, "animationStart", () => setSettled(false));
   useMotionValueEvent(theta, "animationComplete", () => setSettled(true));
+  // A press stops the spring mid-turn (theta.stop()); that ends the turn too.
+  useMotionValueEvent(theta, "animationCancel", () => setSettled(true));
   // While the camera turns, plants hold their sway (see .is-turning in
   // scene.css).
   const [dragging, setDragging] = useState(false);

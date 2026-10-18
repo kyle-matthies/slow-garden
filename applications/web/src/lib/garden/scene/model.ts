@@ -47,6 +47,8 @@ export function buildBeds(
   entries: readonly Entry[],
   tending: Tending,
   maxPerBed = MAX_PLANTS_PER_BED,
+  /** A thought that stays shown however the cap falls, e.g. the focused one. */
+  keepId?: string,
 ): SceneBedModel[] {
   const angles = bedAngles(plots.length);
   const entriesBySeed = new Map<string, Entry[]>();
@@ -76,7 +78,11 @@ export function buildBeds(
         };
       });
     const shown = [...active]
-      .sort((a, b) => b.lastActivity.localeCompare(a.lastActivity))
+      .sort(
+        (a, b) =>
+          Number(b.seed.id === keepId) - Number(a.seed.id === keepId) ||
+          b.lastActivity.localeCompare(a.lastActivity),
+      )
       .slice(0, maxPerBed)
       .sort((a, b) => a.slot.depth - b.slot.depth);
     return {
