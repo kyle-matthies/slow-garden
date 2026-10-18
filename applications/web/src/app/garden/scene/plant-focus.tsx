@@ -35,6 +35,7 @@ export function PlantFocus({
   onWrite,
   onClose,
   onRespondMark,
+  onViewBlooms,
   onReviewBlooms,
 }: {
   plant: ScenePlantModel;
@@ -48,6 +49,7 @@ export function PlantFocus({
   onClose: () => void;
   /** Keep or prune a tending mark; resolves with an error message, if any. */
   onRespondMark?: (markId: string, response: "keep" | "prune") => Promise<string | null>;
+  onViewBlooms?: (ids: string[]) => void;
   /** Open the Cabinet where blooms are reviewed in full. */
   onReviewBlooms?: () => void;
 }) {
@@ -66,6 +68,9 @@ export function PlantFocus({
     heading.current?.focus({ preventScroll: true });
   }, [plant.seed.id]);
   const { seed, growth, genome, marks, blooms } = plant;
+  useEffect(() => {
+    onViewBlooms?.(blooms.filter((b) => b.isNew).map((b) => b.id));
+  }, [blooms, onViewBlooms]);
   const latest = entries
     .filter((e) => !e.archived_at)
     .sort((a, b) => b.created_at.localeCompare(a.created_at))
