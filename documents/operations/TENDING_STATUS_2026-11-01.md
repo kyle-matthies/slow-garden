@@ -23,6 +23,11 @@ or `pg_net`. Overnight tending had never been operational.
   Plot permissions were preserved, including the two plots that did not opt in.
 - Verified RLS on both new tending tables. Anonymous clients cannot finalize passes;
   authenticated users cannot claim jobs; the service role can claim jobs.
+- A rollback-only hosted two-user synthetic canary exercised pass preparation,
+  rejection of a locked connection tier, completion with one valid catalogue mark,
+  owner visibility and second-tenant isolation. The runtime was enabled only inside
+  that transaction with a synthetic model and no provider calls. After rollback,
+  independent readback confirmed zero synthetic users, zero passes, and runtime off.
 - Security advisors before and after show the same pre-existing leaked-password
   protection warning; no new database security warning appeared.
 - Current worker runtime: 30 tests passed. Main's latest web/database CI run
@@ -65,3 +70,13 @@ reconciling it; do not replace main's tested implementation with the older varia
 Physical-phone performance acceptance and prompt-pack image production remain open.
 Four-week dogfood, diary/interview research and blind quality study are later evidence
 gates. Explore mode, native iOS and team features remain deferred.
+
+## Dependency gate discovered during this review
+
+The first November 1 PR workflow passed database lint, generated-type comparison
+and all 109 database assertions, but failed the web dependency audit on newly
+published Next.js critical/high advisories and high advisories in Vite and Zod.
+Updated Next.js and its ESLint configuration from 16.3.8 to 16.4.3 and refreshed
+compatible transitive dependencies (including Vite 7.3.7 and Zod 4.6.7). The existing
+audit policy was preserved. The local gate now reports no unexcepted high/critical
+advisories; moderate development-tool advisories remain outside that blocking policy.
