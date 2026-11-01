@@ -1,6 +1,6 @@
 # AI activation runbook
 
-Status: Draft; no gate below has a hosted receipt yet
+Status: Activation incomplete. Hosted tending schema and account preference verified November 1; provider setup, model evaluation, worker deployment and scheduling remain pending. See [dated receipt](TENDING_STATUS_2026-11-01.md).
 Owner: Kyle
 Applies to: `supabase/functions/garden-worker`, `private.ai_runtime`, `GARDEN_AI_ENABLED`
 Related: [worker README](../../services/garden-worker/README.md),
@@ -12,7 +12,9 @@ It is deliberately slow. Every check is go/no-go: a single **no-go** stops activ
 and nothing in this document may be skipped because a previous run passed. Activation
 is reversible at every step; see [Rollback](#rollback).
 
-The runtime is off today (`private.ai_runtime.enabled=false`, `GARDEN_AI_ENABLED=false`).
+The database runtime was verified off on November 1 (`private.ai_runtime.enabled=false`);
+the web environment flag was not reverified in that audit. The account's overnight
+preference is on, but this preference alone does not start processing.
 Executing this runbook is a product decision recorded in `documents/DECISION_LOG.md`
 first, not an operational convenience.
 
