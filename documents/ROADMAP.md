@@ -1,6 +1,6 @@
 # Multi-horizon planning roadmap
 
-Status: Web-first delivery authorized by ADR-006; local implementation in progress. Historical native-first roadmap below is retained for provenance. See operations/WEB_DOGFOOD_DELIVERY.md for current gates.
+Status: Web-first implementation merged through PR #26. Hosted tending schema applied November 1; provider activation remains blocked. Historical native-first roadmap below is retained for provenance. See operations/AI_ACTIVATION_RUNBOOK.md for current activation gates.
 Planning model: Evidence-gated horizons, not date commitments
 Primary rule: Do not advance a horizon because code exists; advance when its exit evidence exists.
 
@@ -11,20 +11,27 @@ and [ADR-008](architecture/ADR-008_TENDING_TIERS.md). Design:
 [LIVING_GARDEN.md](design/LIVING_GARDEN.md). Each item is one reviewable PR. Activation
 stays gated by the [runbook](operations/AI_ACTIVATION_RUNBOOK.md).
 
-- [ ] PR 0 · Decisions, ADRs, living-garden spec, asset manifest and prompt pack.
-- [ ] A1 · Scene foundation: `motion`, camera, layers, palettes, atmosphere canvas, growth/layout/genome/species modules.
-- [ ] B2 · Web tending contract and synthetic fixtures.
-- [ ] A2 · Living plants, beds, plant focus, writing page that stills the scene.
-- [ ] A5 · Tending surfaces and `/garden/meadow-preview` synthetic scenes.
-- [ ] A3 · Garden ring for many gardens.
-- [ ] A4 · Cabinet clipping board and press transition.
-- [ ] B3 · `tending_tiers` migration with pgTAP tests (local only; hosted apply is an owner gate).
-- [ ] B4 · `tend-connect-v3` two-stage worker.
-- [ ] B5 · Evaluation families, thresholds and a synthetic-only model-run harness.
-- [ ] B6 · Nightly scheduler and "Tend overnight" setting (ships off).
-- [ ] B7 · Live tending wiring in the scene and list.
-- [ ] A6 · Accessibility, performance and visual receipts.
+- [x] PR 0 · Decisions, ADRs, living-garden spec, asset manifest and prompt pack.
+- [x] A1 · Scene foundation: `motion`, camera, layers, palettes, atmosphere canvas, growth/layout/genome/species modules.
+- [x] B2 · Web tending contract and synthetic fixtures.
+- [x] A2 · Living plants, beds, plant focus, writing page that stills the scene.
+- [x] A5 · Tending surfaces and `/garden/meadow-preview` synthetic scenes.
+- [x] A3 · Garden ring for many gardens.
+- [x] A4 · Cabinet clipping board and press transition.
+- [x] B3 · `tending_tiers` migration with pgTAP tests; hosted apply verified November 1.
+- [x] B4 · `tend-connect-v3` two-stage worker implementation; deployment pending.
+- [x] B5 · Evaluation families, thresholds and a synthetic-only model-run harness; model evaluation pending.
+- [x] B6 · Nightly enqueue function, scheduler runbook, and "Tend overnight" setting. Scheduling migration and hosted jobs are still pending.
+- [x] B7 · Live tending wiring in the scene and list.
+- [x] A6 · Accessibility, performance and visual implementation receipts; physical-phone acceptance remains open.
 - [ ] Gate · Owner go/no-go through runbook phases 0.4 → 4b.
+
+Build completion above means merged implementation, not hosted AI acceptance.
+PRs #20–#26 are merged; production release code is `1645ef6`. The account's overnight
+preference is now on, but no provider secrets, deployed worker, or scheduled jobs
+exist yet. See the [November 1 hosted receipt](operations/TENDING_STATUS_2026-11-01.md)
+for evidence and the remaining activation sequence. September initiative boxes below
+retain their broader acceptance gates rather than merely tracking code merges.
 
 This section supersedes the "botanical scrapbook" and "scheduled tending" deferrals
 below. Explore mode, native iOS and team features remain deferred.
