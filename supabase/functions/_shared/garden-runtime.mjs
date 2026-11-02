@@ -272,12 +272,13 @@ export function requestsFor(job) {
       tendPrompt,
       {
         workflow_version: job.workflow_version,
-        sources: changedSources(job).map(({ revision_id, seed_id, title, body, created_at }) => ({
+        sources: changedSources(job).map(({ revision_id, seed_id, title, body, created_at, role }) => ({
           revision_id,
           seed_id,
           title,
           body,
           created_at,
+          role,
         })),
         corrections,
       },
@@ -419,11 +420,14 @@ function outputText(line) {
   const body = line.response.body;
   if (
     body.status !== "completed" ||
-    body.output.some((item) => item.type !== "message" || item.content.some((c) => c.type !== "output_text"))
+    body.output.some((item) =>
+      item.type !== "reasoning" &&
+      (item.type !== "message" || item.content.some((c) => c.type !== "output_text")),
+    )
   )
     throw Error("unexpected_provider_output");
   return {
-    text: body.output.flatMap((item) => item.content).map((c) => c.text).join(""),
+    text: body.output.filter((item) => item.type === "message").flatMap((item) => item.content).map((c) => c.text).join(""),
     inputTokens: body.usage?.input_tokens ?? 0,
     outputTokens: body.usage?.output_tokens ?? 0,
   };

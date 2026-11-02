@@ -546,6 +546,7 @@ test("v3 requests: tend always, connect only when a tier unlocks it", () => {
   assert.deepEqual(catalogOnly.map((l) => l.custom_id), ["pass:tend"]);
   const tendInput = JSON.parse(catalogOnly[0].body.input[1].content);
   assert.deepEqual(tendInput.sources.map((s) => s.revision_id), ["r1", "r2"], "tend sees only changed writing");
+  assert.ok(tendInput.sources.every((s) => s.role === "changed"), "tend sources carry the role required by the prompt");
   assert.deepEqual(tendInput.corrections, [{ pruned: "theme", label: "naming" }]);
   const full = requestsFor(v3Job({ notice: true, resurface: true }));
   assert.deepEqual(full.map((l) => l.custom_id), ["pass:tend", "pass:connect"]);
@@ -674,4 +675,13 @@ test("v3 dispatch uploads both stage lines and finishes with marks", async () =>
   assert.equal(finish.p_result.marks.length, 1);
   assert.equal(finish.p_input_tokens, 200);
   assert.ok(!JSON.stringify(done).includes("room"), "the worker's report carries no source text");
+});
+
+test("v3 ignores reasoning metadata but still rejects tool calls", () => {
+  const job = v3Job({});
+  const line = JSON.parse(stageLine("tend", { marks: [] }));
+  line.response.body.output.unshift({ type: "reasoning", summary: [] });
+  assert.equal(parseTendConnect(JSON.stringify(line), job).stages.tend, "ok");
+  line.response.body.output.push({ type: "function_call", name: "unexpected_tool" });
+  assert.throws(() => parseTendConnect(JSON.stringify(line), job), /no_valid_stage/);
 });

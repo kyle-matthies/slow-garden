@@ -1,6 +1,6 @@
 # AI activation runbook
 
-Status: Activation incomplete. Hosted tending schema and account preference verified November 1; provider setup, model evaluation, worker deployment and scheduling remain pending. See [dated receipt](TENDING_STATUS_2026-11-01.md).
+Status: Automatic activation incomplete. Hosted schema and preference were verified November 1; the provider key was tested and a one-time supervised run completed November 2. The global runtime is restored to off. Permanent worker/scheduling and remaining quality/lifecycle gates are pending. See [November 1 receipt](TENDING_STATUS_2026-11-01.md) and [supervised run receipt](SUPERVISED_TENDING_2026-11-02.md).
 Owner: Kyle
 Applies to: `supabase/functions/garden-worker`, `private.ai_runtime`, `GARDEN_AI_ENABLED`
 Related: [worker README](../../services/garden-worker/README.md),
