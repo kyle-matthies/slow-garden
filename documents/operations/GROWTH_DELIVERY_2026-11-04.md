@@ -27,11 +27,11 @@ is authorized by this wave. No activation gate is bypassed.
 
 | ID | User outcome / growth mechanism | Scope and owner | Acceptance | State |
 |---|---|---|---|---|
-| G1 | Understand the product and take a credible first step | Landing positioning and concrete product walkthrough; positioning agent | Clear writing-first proposition, one primary CTA, truthful AI/privacy claims; responsive and accessible | Implementing |
+| G1 | Understand the product and take a credible first step | Landing positioning and concrete product walkthrough; positioning agent | Clear writing-first proposition, one primary CTA, truthful AI/privacy claims; responsive and accessible | Implemented; reviewed and tested |
 | G2 | Reach a first saved entry without losing setup work | Recoverable first-run flow; onboarding agent | Tenant-scoped recovery, stable request IDs, no duplicate area creation, no lost first draft, accessible steps | Implementing |
-| G3 | Bring existing writing in with confidence | Import preview, target and retry reliability; import agent | Failures retain preview and selections; correct garden/topic; retry is safe and success is accurately reported | Implementing |
-| G4 | Know what tending actually did and what is only a preference | Settings status and read-only pass history; root | Saved opt-in, app availability and observed pass status are distinct; history failure is not “no runs”; no automatic-delivery promise | Implementing |
-| G5 | Resume earlier writing directly from the primary garden | Bounded recent-writing surface; next available specialist | Exact entry links, current garden/topic scope, archive exclusion, empty state, keyboard/mobile access; no nagging or engagement ranking | Queued in parallel wave |
+| G3 | Bring existing writing in with confidence | Import preview, target and retry reliability; import agent | Failures retain preview and selections; correct garden/topic; retry is safe and success is accurately reported | Implemented; reviewed and tested |
+| G4 | Know what tending actually did and what is only a preference | Settings status and read-only pass history; root | Saved opt-in, app availability and observed pass status are distinct; history failure is not “no runs”; no automatic-delivery promise | Implemented; independent review passed |
+| G5 | Resume earlier writing directly from the primary garden | Bounded recent-writing surface; positioning agent, second lane | Exact entry links, current garden/topic scope, archive exclusion, empty state, keyboard/mobile access; no nagging or engagement ranking | Implementing |
 
 The four-agent runtime limit means overlapping batches, not five simultaneously
 running agents. Each lane has an isolated Code-rooted worktree and owns distinct
@@ -90,3 +90,8 @@ evidence.
 
 - Planning: five workstreams selected from source inspection; three specialists
   started concurrently, with root implementing G4 and owning integration.
+- First integration batch: G1, G3 and G4 pass 78 component/unit tests, 75 node tests,
+  31 worker tests, lint and production build. G1 also passed synthetic browser
+  checks at 390/1280 in light/dark. G4 passed independent review by the import agent.
+  Full axe/contrast/overflow harness is running on the combined branch. G2 is
+  receiving an independent draft-isolation review before integration.

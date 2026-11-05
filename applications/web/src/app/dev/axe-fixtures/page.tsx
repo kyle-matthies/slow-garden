@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import Loading from "@/app/loading";
 import { GardenWorkspace } from "@/app/garden/workspace";
+import { ImportForm } from "@/app/garden/import/import-form";
 import { ErrorFixture } from "./error-fixture";
 import {
   syntheticGarden,
@@ -25,6 +26,8 @@ export default async function AxeFixturesPage({
   const { state, thoughts, gardens } = await searchParams;
   if (state === "error") return <ErrorFixture />;
   if (state === "loading") return <Loading />;
+  if (state === "import") return <ImportForm gardens={FIXTURE.gardens} gardenId={FIXTURE.gardenId} plots={FIXTURE.plots.filter((p) => !p.archived_at)} />;
+  if (state === "first-run") return <Suspense><GardenWorkspace data={{ ...FIXTURE, gardens: [], gardenId: "", plots: [], seeds: [], entries: [] }} /></Suspense>;
   if (state === "scale") {
     // A synthetic, tended garden for performance receipts (ADR-007 budget).
     const count = Math.min(Math.max(Number(thoughts) || 100, 1), 1000);
@@ -52,7 +55,7 @@ export default async function AxeFixturesPage({
   }
   return (
     <Suspense>
-      <GardenWorkspace data={FIXTURE} />
+      <GardenWorkspace data={{ ...FIXTURE, tendingHistory: { available: true, passes: [{ id: "synthetic-pass", status: "complete", createdAt: "2026-11-02T10:00:00Z", finishedAt: "2026-11-02T10:01:00Z" }] } }} />
     </Suspense>
   );
 }
