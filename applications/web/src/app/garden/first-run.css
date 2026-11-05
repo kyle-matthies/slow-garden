@@ -24,6 +24,12 @@
   text-transform: uppercase;
 }
 
+.first-run .first-run-backup {
+  border-left: 2px solid var(--line);
+  padding-left: 12px;
+  font-size: 0.82rem;
+}
+
 .first-run-form {
   display: grid;
   gap: 14px;

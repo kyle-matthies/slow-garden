@@ -27,11 +27,11 @@ is authorized by this wave. No activation gate is bypassed.
 
 | ID | User outcome / growth mechanism | Scope and owner | Acceptance | State |
 |---|---|---|---|---|
-| G1 | Understand the product and take a credible first step | Landing positioning and concrete product walkthrough; positioning agent | Clear writing-first proposition, one primary CTA, truthful AI/privacy claims; responsive and accessible | Implemented; reviewed and tested |
-| G2 | Reach a first saved entry without losing setup work | Recoverable first-run flow; onboarding agent | Tenant-scoped recovery, stable request IDs, no duplicate area creation, no lost first draft, accessible steps | Implementing |
-| G3 | Bring existing writing in with confidence | Import preview, target and retry reliability; import agent | Failures retain preview and selections; correct garden/topic; retry is safe and success is accurately reported | Implemented; reviewed and tested |
-| G4 | Know what tending actually did and what is only a preference | Settings status and read-only pass history; root | Saved opt-in, app availability and observed pass status are distinct; history failure is not “no runs”; no automatic-delivery promise | Implemented; independent review passed |
-| G5 | Resume earlier writing directly from the primary garden | Bounded recent-writing surface; positioning agent, second lane | Exact entry links, current garden/topic scope, archive exclusion, empty state, keyboard/mobile access; no nagging or engagement ranking | Implementing |
+| G1 | Understand the product and take a credible first step | Landing positioning and concrete product walkthrough; positioning agent | Clear writing-first proposition, one primary CTA, truthful AI/privacy claims; responsive and accessible | Merged in #29 |
+| G2 | Reach a first saved entry without losing setup work | Recoverable first-run flow; onboarding agent | Tenant-scoped recovery, stable request IDs, no duplicate area creation, no lost first draft, accessible steps | Accepted; release #30 |
+| G3 | Bring existing writing in with confidence | Import preview, target and retry reliability; import agent | Failures retain preview and selections; correct garden/topic; retry is safe and success is accurately reported | Merged in #29 |
+| G4 | Know what tending actually did and what is only a preference | Settings status and read-only pass history; root | Saved opt-in, app availability and observed pass status are distinct; history failure is not “no runs”; no automatic-delivery promise | Merged in #29 |
+| G5 | Resume earlier writing directly from the primary garden | Bounded recent-writing surface; positioning agent, second lane | Exact entry links, current garden/topic scope, archive exclusion, empty state, keyboard/mobile access; no nagging or engagement ranking | Accepted; release #30 |
 
 The four-agent runtime limit means overlapping batches, not five simultaneously
 running agents. Each lane has an isolated Code-rooted worktree and owns distinct
@@ -93,5 +93,28 @@ evidence.
 - First integration batch: G1, G3 and G4 pass 78 component/unit tests, 75 node tests,
   31 worker tests, lint and production build. G1 also passed synthetic browser
   checks at 390/1280 in light/dark. G4 passed independent review by the import agent.
-  Full axe/contrast/overflow harness is running on the combined branch. G2 is
-  receiving an independent draft-isolation review before integration.
+  Full axe/contrast/overflow harness passed. [PR #29](https://github.com/kyle-matthies/slow-garden/pull/29)
+  merged as `1500147`; both exact-head and post-merge web/database CI passed.
+- Review found and fixed a consequential G2 draft-loss bug before release: B
+  completing setup could delete or suppress A's unchanged unfinished writing.
+  Recovery now prefers the current tab, skips live foreign tabs, retains source
+  copies and scopes completion markers to the current tab. An independent reviewer
+  reran the twelve onboarding regressions and cleared the final implementation.
+- Final integration passes 99 Vitest, 75 Node and 31 worker tests, lint and
+  production build on Node 22.23.4. A separate reviewer cleared workspace recovery,
+  completion guard and scene navigation integration.
+- Production-build synthetic journeys pass all four profiles (390/1280, light/dark):
+  keyboard disclosure and exact-entry navigation, tending history, no-write import
+  preview, failed-import retry, setup reload, and first-entry recovery after a
+  garden already exists. No page errors or horizontal overflow. Machine-readable
+  [journey receipt](../initiatives/receipts/growth-20261104/journeys.json).
+  Screenshots are synthetic and preserved locally in `/tmp/slow-garden-growth-20261104`.
+  Full accessibility/contrast/overflow checks also pass with the expanded resume
+  surface. The only moderate findings are the existing Cabinet preview
+  `landmark-unique` and `page-has-heading-one`; no new moderate findings were found.
+  Synthetic screenshots are in `/tmp/slow-garden-growth-final-axe-20261104` and
+  [contrast results](../initiatives/receipts/growth-20261104/contrast.json) are preserved.
+- [PR #30](https://github.com/kyle-matthies/slow-garden/pull/30) carries G2/G5,
+  workspace integration, the repeatable browser journeys and this reconciled plan.
+  Its GitHub checks, merge record and deployment receipt are the release authority;
+  a passing local test alone is not deployment evidence.

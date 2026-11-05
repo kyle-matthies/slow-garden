@@ -11,6 +11,18 @@ Naming: `<NN>-<slug>.md`, matching the wave table. Status language follows
 [documents/README.md](../README.md). A merged pull request is intermediate state; an
 initiative is complete only when its acceptance evidence exists.
 
+## November 4, 2026 growth wave
+
+[Delivery plan and release evidence](../operations/GROWTH_DELIVERY_2026-11-04.md).
+Five parallel lanes target trustworthy activation and voluntary return without
+adding tracking or treating implementation as measured commercial impact.
+
+- [G1: Positioning](growth-20261104/G1-positioning.md)
+- [G2: First-entry recovery](growth-20261104/G2-onboarding.md)
+- [G3: Import reliability](growth-20261104/G3-import.md)
+- [G4: Tending transparency](growth-20261104/G4-tending-transparency.md)
+- [G5: Resume recent writing](growth-20261104/G5-resume.md)
+
 ## September 2026 wave
 
 Current status as of September 27: all listed PRs merged. Main CI passed on

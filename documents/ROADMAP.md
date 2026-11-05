@@ -1,8 +1,19 @@
 # Multi-horizon planning roadmap
 
-Status: Web-first implementation merged through PR #26. Hosted tending schema applied November 1; provider activation remains blocked. Historical native-first roadmap below is retained for provenance. See operations/AI_ACTIVATION_RUNBOOK.md for current activation gates.
+Status: Living garden and tending implementation merged; November 4 growth releases #29/#30 are tracked below. Hosted tending schema applied November 1; a supervised provider run completed November 2. Automatic tending remains off. Historical native-first roadmap below is retained for provenance. See operations/AI_ACTIVATION_RUNBOOK.md for current activation gates.
 Planning model: Evidence-gated horizons, not date commitments
 Primary rule: Do not advance a horizon because code exists; advance when its exit evidence exists.
+
+## Current delivery — November 4 activation and return-value improvements
+
+Five implementation lanes are tracked in the [growth delivery plan](operations/GROWTH_DELIVERY_2026-11-04.md):
+clearer landing positioning, recoverable first-run writing, reliable import retry,
+truthful tending activity, and exact-entry resume from the primary garden.
+PR #29 delivers the landing, import and tending slices; PR #30 carries recovery
+and resume. All five have passed implementation review and synthetic journeys;
+GitHub merge/check/deployment receipts establish the release state.
+These are testable product hypotheses; no conversion or retention lift is claimed.
+There is no new tracking, acquisition campaign or change to AI activation gates.
 
 ## Current web priority — 2026-10-09 living garden and first-class tending
 
@@ -27,10 +38,12 @@ stays gated by the [runbook](operations/AI_ACTIVATION_RUNBOOK.md).
 - [ ] Gate · Owner go/no-go through runbook phases 0.4 → 4b.
 
 Build completion above means merged implementation, not hosted AI acceptance.
-PRs #20–#26 are merged; production release code is `1645ef6`. The account's overnight
-preference is now on, but no provider secrets, deployed worker, or scheduled jobs
-exist yet. See the [November 1 hosted receipt](operations/TENDING_STATUS_2026-11-01.md)
-for evidence and the remaining activation sequence. September initiative boxes below
+PRs #20–#26 are merged; that release code was `1645ef6`. The account's overnight
+preference is on and the provider key was tested in a one-time supervised run.
+Automatic tending remains off; permanent worker/scheduling and quality/lifecycle
+gates remain pending. See the [November 1 hosted receipt](operations/TENDING_STATUS_2026-11-01.md)
+and [November 2 supervised receipt](operations/SUPERVISED_TENDING_2026-11-02.md)
+for dated evidence and the remaining activation sequence. September initiative boxes below
 retain their broader acceptance gates rather than merely tracking code merges.
 
 This section supersedes the "botanical scrapbook" and "scheduled tending" deferrals

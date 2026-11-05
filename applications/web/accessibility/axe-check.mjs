@@ -36,6 +36,9 @@ const STATES = [
   ["garden-import", "/dev/axe-fixtures?state=import"],
   // The living garden scene (D-022) is the default overview.
   ["garden-overview", "/dev/axe-fixtures"],
+  ["garden-resume", "/dev/axe-fixtures", async (page) => {
+    await page.locator(".recent-writing > summary").click();
+  }],
   ["garden-topic", `/dev/axe-fixtures?topic=${PLOT}`],
   ["garden-focus", `/dev/axe-fixtures?focus=${SEED}`],
   // The structured list view keeps the September workspace.
@@ -73,6 +76,7 @@ const SHOT_STATES = new Set([
   "landing",
   "login",
   "garden-overview",
+  "garden-resume",
   "garden-focus",
   "garden-list",
   "garden-thought",
