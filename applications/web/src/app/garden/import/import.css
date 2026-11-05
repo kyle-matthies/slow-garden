@@ -7,6 +7,14 @@
   display: flex;
   padding-block: 24px;
 }
+.import-page .action-row {
+  flex-wrap: wrap;
+}
+.import-summary {
+  padding: 12px 16px;
+  border-left: 3px solid var(--moss);
+  background: var(--paper);
+}
 .import-page h1 {
   font-family: var(--font-editorial), serif;
   letter-spacing: -0.02em;
