@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "axe": "node axe-check.mjs",
+    "growth": "node growth-check.mjs",
     "perf": "node perf-check.mjs"
   },
   "devDependencies": {

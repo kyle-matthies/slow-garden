@@ -1,0 +1,54 @@
+{
+  "synthetic_only": true,
+  "results": [
+    {
+      "width": 390,
+      "colorScheme": "light",
+      "exact_entry_resume": true,
+      "tending_history": true,
+      "preview_no_write": true,
+      "failed_import_retry": true,
+      "setup_reload": true,
+      "setup_partial_garden_recovery": true,
+      "overflow": false,
+      "page_errors": 0
+    },
+    {
+      "width": 390,
+      "colorScheme": "dark",
+      "exact_entry_resume": true,
+      "tending_history": true,
+      "preview_no_write": true,
+      "failed_import_retry": true,
+      "setup_reload": true,
+      "setup_partial_garden_recovery": true,
+      "overflow": false,
+      "page_errors": 0
+    },
+    {
+      "width": 1280,
+      "colorScheme": "light",
+      "exact_entry_resume": true,
+      "tending_history": true,
+      "preview_no_write": true,
+      "failed_import_retry": true,
+      "setup_reload": true,
+      "setup_partial_garden_recovery": true,
+      "overflow": false,
+      "page_errors": 0
+    },
+    {
+      "width": 1280,
+      "colorScheme": "dark",
+      "exact_entry_resume": true,
+      "tending_history": true,
+      "preview_no_write": true,
+      "failed_import_retry": true,
+      "setup_reload": true,
+      "setup_partial_garden_recovery": true,
+      "overflow": false,
+      "page_errors": 0
+    }
+  ],
+  "ok": true
+}

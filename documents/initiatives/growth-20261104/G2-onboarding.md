@@ -1,6 +1,6 @@
 # G2 — Recover the first entry
 
-Status: Implemented and locally verified; root owns workspace integration and release.
+Status: Integrated; independent review, regression tests and synthetic browser recovery pass. Release tracked in the [delivery plan](../../operations/GROWTH_DELIVERY_2026-11-04.md).
 Date: November 4, 2026
 
 ## Product bet
@@ -30,15 +30,14 @@ measured conversion gain; this change adds no tracking or engagement pressure.
 - Keep progress and backup/recovery state visible and announced. Focus the active
   field after recovery/step changes. Input remains quiet and source text unchanged.
 
-## Required root integration
+## Workspace integration
 
 The workspace decides whether FirstRun mounts. Its prior test only checked whether
 the server had any gardens, which misses a checkpoint after the first garden saved.
-Import `loadOnboardingDraft` from `@/lib/garden/onboarding-draft` and add a mount
-effect keyed by `data.tenantId`. Await `loadOnboardingDraft(data.tenantId)`; when it
-returns a record and the effect is still active, set `firstRun=true`. Cancel the
-callback on unmount/tenant change and guard it with a ref set by `onDone`, so a late
-read cannot reopen a flow completed during hydration. No data/schema change needed.
+The workspace now imports `loadOnboardingDraft` and has a mount effect keyed by
+`data.tenantId`. A recovered checkpoint sets `firstRun=true`. Cancellation on
+unmount/tenant change and a completion ref set by `onDone` prevent a delayed read
+from reopening a completed flow. No data/schema change was needed.
 
 The helper returns `Promise<{state: OnboardingDraft; record: DraftRecord} | null>`.
 Its optional backend/strict/tab arguments support bounded tests. The component
@@ -54,6 +53,9 @@ Node 22.23.4:
   ordering and an unchanged live A draft surviving B's independent completion and
   A's reload.
 - Full Vitest suite, lint and production build pass in this lane.
+- Combined release: 99 Vitest tests. The production-build browser harness verifies
+  real IndexedDB backup/reload and a synthetic step-four checkpoint reopening even
+  with an existing garden, at 390/1280 in light/dark mode.
 - Independent peer review identified a first implementation's unsafe foreign-tab
   checkpoint deletion/global completion suppression. Both were removed before
   integration; the explicit two-tab regression now covers the reported failure.

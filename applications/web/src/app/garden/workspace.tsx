@@ -1,7 +1,8 @@
 "use client";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { loadOnboardingDraft } from "@/lib/garden/onboarding-draft";
 import type { GardenData, Entry, ActionResult } from "@/lib/garden/types";
 import {
   broadcastDraftsCleared,
@@ -22,6 +23,7 @@ import {
 } from "./actions";
 import { TendingSettings } from "./tending-settings";
 import { TendingActivity } from "./tending-activity";
+import { RecentWriting } from "./recent-writing";
 import { NewArea } from "./new-area";
 import { ToolsMenu } from "./tools-menu";
 import { GardenRing } from "./scene/garden-ring";
@@ -157,6 +159,17 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
     [savedEntry, setSavedEntry] = useState(""),
     [quietPage, setQuietPage] = useState(false),
     [firstRun, setFirstRun] = useState(() => data.gardens.length === 0);
+  const firstRunCompleted = useRef(false);
+  // Setup may already have saved a garden before a reload. Recover the remaining
+  // steps without letting a delayed read reopen a flow completed in this mount.
+  useEffect(() => {
+    let cancelled = false;
+    firstRunCompleted.current = false;
+    void loadOnboardingDraft(data.tenantId).then((saved) => {
+      if (!cancelled && !firstRunCompleted.current && saved) setFirstRun(true);
+    });
+    return () => { cancelled = true; };
+  }, [data.tenantId]);
   const garden = data.gardens.find((g) => g.id === data.gardenId);
   const requestedTopic = params.get("topic") ?? "";
   const requestedThought = params.get("thought") ?? "";
@@ -562,6 +575,7 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
         </div>
       ) : sceneOverview && garden ? (
         <div id="garden-content" className="scene-host">
+          {!focusId && <RecentWriting data={data} plotId={plotId} onNavigate={(topic, thought, entry) => navigate(topic, thought, "", entry)} />}
           <GardenScene
             garden={garden}
             plots={activePlots}
@@ -755,6 +769,7 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
             <FirstRun
               tenantId={data.tenantId}
               onDone={({ gardenId, topicId, thoughtId, entryId }) => {
+                firstRunCompleted.current = true;
                 setFirstRun(false);
                 const query = new URLSearchParams({
                   garden: gardenId,

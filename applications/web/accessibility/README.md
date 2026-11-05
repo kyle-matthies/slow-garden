@@ -32,6 +32,20 @@ failure. Screenshots land in `documents/initiatives/receipts/08/`.
 `AXE_RECEIPTS` writes the receipt set elsewhere (the living garden's receipts live in
 `documents/initiatives/receipts/living-garden/`).
 
+## Synthetic growth journeys
+
+```sh
+cd applications/web && npm run build
+cd accessibility && npm ci && npm run growth
+```
+
+The production-build journey check covers keyboard entry navigation from Continue
+writing, tending history, import preview without a server write, failed-import
+retry, and onboarding recovery. It uses fictional fixtures at 390 and 1280 in
+light and dark mode. Hosted credentials are removed from the server environment.
+Screenshots and `journeys.json` go to `/tmp/slow-garden-growth-20261104` by default;
+set `GROWTH_RECEIPTS` to choose a different directory. `AXE_CHROMIUM` also applies.
+
 ## Performance
 
 ```sh

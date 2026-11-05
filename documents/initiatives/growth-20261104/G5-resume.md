@@ -1,6 +1,6 @@
 # G5 · Resume recent writing
 
-Status: Implemented and validated locally; ready for integration. Root owns workspace integration.
+Status: Integrated; independent review, regression tests and synthetic browser journeys pass. Release tracked in the [delivery plan](../../operations/GROWTH_DELIVERY_2026-11-04.md).
 
 ## Problem and hypothesis
 
@@ -25,9 +25,9 @@ query is added.
 />
 ```
 
-Render outside the `GardenScene` pointer/keyboard gesture region, only in the
-active garden/topic overview. The parent coordinator chooses placement and may
-replace the older list-only Recent entries section to avoid duplicate surfaces.
+The workspace renders it outside the `GardenScene` pointer/keyboard gesture region,
+only in the active garden/topic overview and while plant focus is closed. The
+existing list-only Recent entries remains available in the alternate List view.
 The component returns null when no eligible saved entry exists; it never creates
 an empty disclosure or a button without a valid destination.
 
@@ -42,8 +42,9 @@ ties are stable, invalid timestamps are handled, and input arrays are not mutate
 Tests cover current-garden/topic scope, every archival level, distinct-thought cap,
 edited-entry ranking, timestamp offsets, malformed dates, stable ties, exact
 navigation callbacks, accessible native disclosure/labels, and no-body rendering.
-Integration still requires parent-level checks of the selected placement at mobile
-and desktop sizes. No retention lift or physical-phone acceptance is claimed.
+Production-build browser checks pass at 390/1280 in light/dark: keyboard expansion,
+three distinct saved thoughts and exact-entry navigation with a visible target.
+No retention lift or physical-phone acceptance is claimed.
 
 Node 22 local validation passed: nine focused helper/component tests, ESLint,
 production compilation and TypeScript. No workspace, scene, global stylesheet,
