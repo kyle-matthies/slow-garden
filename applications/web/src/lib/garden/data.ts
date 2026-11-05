@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import type { GardenData } from "./types";
 import { loadTending } from "./tending-data";
+import { loadTendingHistory } from "./tending-history";
 
 // Read every page explicitly: PostgREST's server row cap is not an export limit.
 export async function allRows<T>(
@@ -66,7 +67,7 @@ export async function loadGarden(
         ),
       ])
     : [[], [], []];
-  const [tending, account] = await Promise.all([
+  const [tending, account, tendingHistory] = await Promise.all([
     gardenId
       ? loadTending(db, gardenId, entries as GardenData["entries"])
       : undefined,
@@ -82,6 +83,7 @@ export async function loadGarden(
             : undefined,
         () => undefined,
       ),
+    gardenId ? loadTendingHistory(db, gardenId) : undefined,
   ]);
   return {
     tenantId,
@@ -92,6 +94,7 @@ export async function loadGarden(
     entries: entries as GardenData["entries"],
     aiAvailable: process.env.GARDEN_AI_ENABLED === "true",
     tending,
+    tendingHistory,
     account,
   };
 }

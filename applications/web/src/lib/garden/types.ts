@@ -1,4 +1,5 @@
 import type { Tending } from "./scene/tending";
+import type { TendingHistory } from "./tending-history";
 export type Garden = { id: string; name: string; status: string };
 export type Plot = {
   id: string;
@@ -40,6 +41,8 @@ export type GardenData = {
   aiAvailable: boolean;
   /** Derived tending for this garden; absent before the tending migration. */
   tending?: Tending;
+  /** Read-only operational history, distinct from permissions and scheduler activation. */
+  tendingHistory?: TendingHistory;
   /** Overnight tending preferences; absent before the tending migration. */
   account?: { tendOvernight: boolean; timezone: string };
 };
