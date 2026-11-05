@@ -32,6 +32,8 @@ const STATES = [
   ["login", "/login"],
   ["error", "/dev/axe-fixtures?state=error"],
   ["loading", "/dev/axe-fixtures?state=loading"],
+  ["garden-first-run", "/dev/axe-fixtures?state=first-run"],
+  ["garden-import", "/dev/axe-fixtures?state=import"],
   // The living garden scene (D-022) is the default overview.
   ["garden-overview", "/dev/axe-fixtures"],
   ["garden-topic", `/dev/axe-fixtures?topic=${PLOT}`],
@@ -94,14 +96,14 @@ const CONTRAST = [
     token: "--paper",
     selectors: [
       ".eyebrow",
-      ".hero h1",
-      ".hero-lede",
+      ".landing-hero h1",
+      ".landing-lede",
       ".primary-button",
       ".text-link",
       ".quiet-link",
-      ".principles p",
-      ".seed-card",
-      ".bloom-card",
+      ".landing-privacy article p",
+      ".landing-notebook article p",
+      ".landing-example-disclosure",
     ],
   },
   {

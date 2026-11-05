@@ -1,5 +1,5 @@
 "use client";
-import { useId, useMemo, useState } from "react";
+import { useId, useMemo, useRef, useState } from "react";
 import { setTendingPreferences } from "./actions";
 
 /**
@@ -27,7 +27,7 @@ export function TendingSettings({
   const zones = useMemo(() => {
     try {
       const list = Intl.supportedValuesOf("timeZone");
-      return list.includes("UTC") ? list : ["UTC", ...list];
+      return [...new Set(["UTC", account.timezone, detected, ...list])];
     } catch {
       return [account.timezone, detected].filter((z, i, a) => a.indexOf(z) === i);
     }
@@ -38,17 +38,27 @@ export function TendingSettings({
   );
   const [status, setStatus] = useState("");
   const [saving, setSaving] = useState(false);
+  const confirmed = useRef({ enabled: account.tendOvernight, timezone: account.timezone });
+  function restoreSaved() {
+    setEnabled(confirmed.current.enabled);
+    setTimezone(confirmed.current.timezone);
+  }
   async function save(nextEnabled: boolean, nextZone: string) {
     setSaving(true);
     setStatus("");
     try {
       const result = await setTendingPreferences(nextEnabled, nextZone);
-      if (!result.ok) setStatus(result.message);
+      if (!result.ok) {
+        restoreSaved();
+        setStatus(result.message);
+      }
       else {
-        setStatus(nextEnabled ? `Overnight tending is on for ${nextZone}.` : "Overnight tending is off.");
+        confirmed.current = { enabled: nextEnabled, timezone: nextZone };
+        setStatus(nextEnabled ? `Preference saved for ${nextZone}. This does not start or confirm an overnight run.` : "Preference saved: overnight tending is off.");
         onSaved();
       }
     } catch {
+      restoreSaved();
       setStatus("Could not save that preference. Please retry.");
     } finally {
       setSaving(false);
@@ -58,15 +68,16 @@ export function TendingSettings({
     <section className="tending-settings" aria-labelledby={`${id}-title`}>
       <h3 id={`${id}-title`}>Overnight tending</h3>
       <p>
-        Around 2 a.m. in your time zone, topics that allow AI tending are gently
-        catalogued, and connections are noticed. This only happens when you
-        have written something new. Returns appear quietly in the garden. Nothing
-        is sent to you, and your writing is never changed.
+        When the service&apos;s overnight schedule is active, tending checks for
+        new writing around 2 a.m. in your time zone. It only reads topics that
+        allow AI. Your saved preference does not confirm that scheduling is active.
+        Results appear quietly in the garden; your writing is never changed.
       </p>
       {!aiAvailable && (
         <p className="form-note">
-          AI tending isn&apos;t switched on for this service yet. Your choice is
-          saved for when it is.
+          AI reflection requests aren&apos;t available in this app right now.
+          Your overnight preference can still be saved. Earlier manual results,
+          if any, remain available.
         </p>
       )}
       <label className="tending-toggle">

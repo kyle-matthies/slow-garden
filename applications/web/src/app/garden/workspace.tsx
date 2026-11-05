@@ -21,6 +21,7 @@ import {
   signOut,
 } from "./actions";
 import { TendingSettings } from "./tending-settings";
+import { TendingActivity } from "./tending-activity";
 import { NewArea } from "./new-area";
 import { ToolsMenu } from "./tools-menu";
 import { GardenRing } from "./scene/garden-ring";
@@ -521,6 +522,7 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
               onSaved={refresh}
             />
           )}
+          {garden && <TendingActivity history={data.tendingHistory} tending={tending} />}
           <p>
             You stay signed in on this browser between visits, until you sign
             out or the session expires.
