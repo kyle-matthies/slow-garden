@@ -23,11 +23,13 @@ production.
 ## Verification
 
 - `eslint` 0 problems, `tsc --noEmit` 0 errors, `vitest` 116 of 116 (26 files),
-  `npm run test:node` 75 of 75, at commit `9b482ed`.
+  `npm run test:node` 75 of 75, re-run after the final scene fix.
 - `next build` passed in an isolated copy of the tree.
-- Axe run across the fixture states and viewports: contrast passes; two serious
-  failures remained, both in the all-gardens ring (new-garden card contrast and a
-  pointer-blocked button). See the follow-up note at the end of this file.
+- Axe run across the fixture states and viewports (112 runs): two serious failures
+  were found, both in the all-gardens ring (new-garden card contrast and a
+  pointer-blocked button). Both were fixed in a follow-up and the ring states re-run
+  clean in light and dark at 390 and 1280. The full 112-run sweep was not repeated
+  after that fix.
 - An intermittent unit failure (import form, asserted before its transition
   settled) was found, root-caused and fixed.
 - Visual review at 1440×900, 820×1180 and 390×844.

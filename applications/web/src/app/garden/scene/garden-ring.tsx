@@ -255,6 +255,9 @@ function RingCard({
   theta,
   spread,
   selected,
+  solid = false,
+  reach,
+  cardWidth,
   children,
 }: {
   index: number;
@@ -263,18 +266,32 @@ function RingCard({
   /** Horizontal distance between the front card and its first neighbour. */
   spread: number;
   selected: boolean;
+  /** Half the ring's width: cards beyond the first neighbour stay inside it. */
+  reach: number;
+  cardWidth: number;
+  /** Never faded: its text must keep full contrast wherever it stands. */
+  solid?: boolean;
   children: ReactNode;
 }) {
   // Offset from the front, in cards: 0 is the garden you would enter.
   const k = useTransform(theta, (t) => wrap(index * step - t) / step);
   const x = useTransform(k, (v) => {
     const a = Math.abs(v);
-    return Math.sign(v) * (a <= 1 ? a * spread : spread + (a - 1) * spread * 0.55);
+    if (a <= 1) return Math.sign(v) * a * spread;
+    // Farther cards tuck behind the neighbour but keep their outer edge in view.
+    const scale = 1 - Math.min(a, 3) * 0.15;
+    const inside = reach - 10 - (cardWidth * scale) / 2;
+    return (
+      Math.sign(v) *
+      Math.max(spread, Math.min(spread + (a - 1) * spread * 0.55, inside))
+    );
   });
   const scale = useTransform(k, (v) => 1 - Math.min(Math.abs(v), 3) * 0.15);
   const rotateY = useTransform(k, (v) => -Math.max(-1, Math.min(1, v)) * 26);
   const opacity = useTransform(k, (v) =>
-    Math.max(0, Math.min(1, 1 - (Math.abs(v) - 1.6) * 0.9)),
+    // Cards never fade part-way: their captions must keep full contrast.
+    // They slip out of sight behind their neighbours instead.
+    solid || Math.abs(v) <= 2.4 ? 1 : 0,
   );
   const zIndex = useTransform(k, (v) => 200 - Math.round(Math.abs(v) * 10));
   const visibility = useTransform(k, (v) => (Math.abs(v) > 2.7 ? "hidden" : "visible"));
@@ -434,6 +451,8 @@ export function GardenRing({
               step={step}
               theta={theta}
               spread={spread}
+              reach={width / 2}
+              cardWidth={cardWidth}
               selected={i === selected}
             >
               <button
@@ -468,10 +487,13 @@ export function GardenRing({
               step={step}
               theta={theta}
               spread={spread}
+              reach={width / 2}
+              cardWidth={cardWidth}
               selected={selected === gardens.length}
+              solid
             >
               <div
-                className="ring-garden ring-new"
+                className={`ring-garden ring-new${selected === gardens.length ? "" : " is-aside"}`}
                 data-ring-index={gardens.length}
                 tabIndex={-1}
               >
