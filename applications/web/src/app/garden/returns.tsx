@@ -164,7 +164,7 @@ export function GardenReturns({
           refresh();
         }}
       >
-        Open the Cabinet · AI returns
+        Open Returns · what the garden noticed
       </button>
     );
   return (
@@ -240,7 +240,7 @@ export function GardenReturns({
           </p>
         )}
         <p role="status" aria-live="polite" className="cabinet-status">
-          {message || (loading && !returns ? "Opening the Cabinet…" : "")}
+          {message || (loading && !returns ? "Opening Returns…" : "")}
         </p>
       </ReturnCabinet>
     </section>

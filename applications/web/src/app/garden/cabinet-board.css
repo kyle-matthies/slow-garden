@@ -10,13 +10,6 @@
   align-items: start;
 }
 
-.cabinet-bloom {
-  border-left-width: 1px;
-  background: transparent;
-  border-color: transparent;
-  padding-inline: 0;
-}
-
 /* The specimen sheet: deckled edges via a clipped polygon, shadow on the wrapper. */
 .cabinet-specimen-frame {
   filter: drop-shadow(0 12px 18px rgba(40, 46, 30, 0.2)) drop-shadow(0 1px 1px rgba(40, 46, 30, 0.18));
@@ -24,7 +17,7 @@
 }
 .cabinet-specimen-card {
   position: relative;
-  padding: 1.1rem 1.15rem 0.9rem;
+  padding: 1.25rem 1.4rem 1rem;
   background:
     radial-gradient(circle at 20% 15%, rgba(255, 255, 255, 0.5), transparent 40%),
     linear-gradient(170deg, var(--cabinet-card), var(--cabinet-ivory));
@@ -39,9 +32,9 @@
   );
 }
 .cabinet-specimen-card .cabinet-interpretation {
-  margin: 0.6rem 0 0.4rem;
-  font-size: 1.28rem;
-  line-height: 1.45;
+  margin: 0.9rem 0 0.4rem;
+  font-size: 1.4rem;
+  line-height: 1.4;
   font-style: normal;
 }
 
@@ -52,21 +45,21 @@
   position: relative;
   display: grid;
   place-items: center;
-  min-height: 15rem;
-  padding: 0.6rem 0.4rem 1rem;
+  min-height: 11rem;
+  padding: 0.4rem 0.4rem 0.8rem;
 }
 .pressed-photo {
   display: block;
   width: 100%;
-  max-width: 17rem;
+  max-width: 12rem;
   height: auto;
   mix-blend-mode: multiply;
 }
 .pressed-drawn {
   display: block;
   width: 72%;
-  max-width: 14rem;
-  height: 15rem;
+  max-width: 11rem;
+  height: 11rem;
 }
 .pressed-drawn svg {
   width: 100%;
@@ -133,7 +126,7 @@
 .cabinet-board .cabinet-clipping::before {
   content: "";
   position: absolute;
-  top: 1.6rem;
+  top: 1.8rem;
   right: 100%;
   width: 2.75rem;
   border-top: 1.5px dashed var(--cabinet-evidence);
@@ -142,7 +135,7 @@
 .cabinet-board .cabinet-clipping::after {
   content: "";
   position: absolute;
-  top: calc(1.6rem - 3.5px);
+  top: calc(1.8rem - 3.5px);
   right: calc(100% - 4px);
   width: 7px;
   height: 7px;
@@ -209,6 +202,16 @@
 .cabinet-specimen-card .cabinet-bloom-header {
   gap: 6px 12px;
 }
+/* A pruned or withdrawn bloom keeps its words legible; only the plant fades. */
+.cabinet-bloom[data-response="prune"] .pressed-sheet,
+.cabinet-bloom[data-response="withdrawn"] .pressed-sheet {
+  opacity: 0.4;
+  filter: grayscale(0.7);
+}
+.cabinet-bloom[data-response="prune"] .cabinet-interpretation,
+.cabinet-bloom[data-response="withdrawn"] .cabinet-interpretation {
+  border-left-style: dashed;
+}
 @keyframes clipping-collect {
   from {
     opacity: 0;
@@ -243,9 +246,15 @@
     display: none;
   }
   .pressed-sheet {
-    min-height: 11rem;
+    min-height: 8rem;
   }
   .pressed-drawn {
-    height: 11rem;
+    height: 8rem;
+  }
+  .pressed-photo {
+    max-width: 9rem;
+  }
+  .cabinet-specimen-card .cabinet-interpretation {
+    font-size: 1.25rem;
   }
 }

@@ -12,6 +12,8 @@ import {
   type ResolvedClipping,
 } from "../returns-cabinet";
 import { buildContinuation } from "../returns-continue";
+import { MorningReturn } from "../morning-return";
+import { syntheticGarden, syntheticTending } from "../meadow-preview/fixtures";
 import { EntryEditor } from "../entry-editor";
 import { queueContinuation } from "@/lib/garden/continuation";
 import {
@@ -26,7 +28,8 @@ import {
 export function ReturnsPreview() {
   const scene = useSearchParams().get("scene") ?? "all";
   const current =
-    fixtureScenes.find((s) => s.slug === scene) ?? fixtureScenes[0];
+    fixtureScenes.find((s) => s.slug === scene) ??
+    fixtureScenes.find((s) => s.slug === "all")!;
   const [passes, setPasses] = useState<CabinetPass[]>(fixturePasses);
   const [responses, setResponses] =
     useState<CabinetResponse[]>(fixtureResponses);
@@ -128,7 +131,12 @@ export function ReturnsPreview() {
         </ul>
       </nav>
       <p>{current.description}</p>
-      <section className="return-cabinet" aria-labelledby="preview-cabinet">
+      {current.slug === "morning" && <MorningPreview />}
+      <section
+        className="return-cabinet"
+        aria-labelledby="preview-cabinet"
+        hidden={current.slug === "morning"}
+      >
         <ReturnCabinet
           headingId="preview-cabinet"
           headingRef={heading}
@@ -171,5 +179,50 @@ export function ReturnsPreview() {
         )}
       </section>
     </main>
+  );
+}
+
+/** Synthetic garden and tending only; receipts live in this browser. */
+function MorningPreview() {
+  const garden = useMemo(() => syntheticGarden(3, 12), []);
+  const tending = useMemo(() => syntheticTending(garden, "full"), [garden]);
+  const [note, setNote] = useState("");
+  return (
+    <section aria-label="Morning return preview" style={{ padding: "12px 0 32px" }}>
+      <MorningReturn
+        tending={tending}
+        seeds={garden.seeds}
+        plots={garden.plots}
+        onOpenThought={(id) =>
+          setNote(
+            `Would open the thought “${garden.seeds.find((s) => s.id === id)?.title ?? id}”.`,
+          )
+        }
+        onOpenReturns={() => setNote("Would open Returns.")}
+      />
+      <p role="status" className="cabinet-note" style={{ textAlign: "center" }}>
+        {note}
+      </p>
+      <p style={{ textAlign: "center" }}>
+        <button
+          type="button"
+          className="plain-button"
+          style={{ minHeight: 44 }}
+          onClick={() => {
+            try {
+              for (const key of Object.keys(window.localStorage))
+                if (key.startsWith("slow-garden:seen-blooms:"))
+                  window.localStorage.removeItem(key);
+            } catch {
+              // Nothing to clear when storage is blocked.
+            }
+            window.dispatchEvent(new Event("slow-garden:blooms-seen"));
+            setNote("");
+          }}
+        >
+          Fixture only · show the reveal again
+        </button>
+      </p>
+    </section>
   );
 }
