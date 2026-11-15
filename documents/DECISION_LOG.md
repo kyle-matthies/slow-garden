@@ -256,3 +256,23 @@ budget without relaxing it, beds render at most 14 plants when the scene is ≤ 
 wide (24 otherwise). The most recently tended thoughts are shown; the rest stay in
 List and search, and the bed sign shows "+N more in List". Plants also hold their sway
 while the camera turns.
+
+## D-023: Field-journal level system and a promoted return
+
+- Date: 2026-11-15
+- Status: Proposed by product review; implemented on `claude/charming-mccarthy-1irh6k` for owner acceptance at PR review.
+- Context: A product review found Garden, Topic, Thought and Entry visually
+  indistinguishable, "Garden" used for both a container and a view, and the overnight
+  return buried below the fold. See [market readiness plan](product/MARKET_READINESS_PLAN.md).
+- Decision: Each level has its own name, glyph, header shape and scale, tied together
+  by one depth trail that replaces other breadcrumbs. The two views are named Meadow
+  and Pages; "Garden" only means the container. Topic AI state is one control:
+  Tending off, Tending on, Tending on with cross-topic connection. Returns is a
+  top-level destination, and unseen blooms are announced once at the top of a garden.
+  Gold is reserved for AI-returned material so authorship stays distinguishable.
+- Extends: D-020 (clear web hierarchy) and D-022 (tending is first-class). D-022's
+  growth rule is unchanged: tending is shown with light and vellum material, never as
+  botanical growth.
+- Not decided here: model activation, pricing, external pilot, or any hosted change.
+- Revisit when: comprehension testing shows people still cannot name their level from
+  a screenshot, or the morning reveal reads as a nudge.
