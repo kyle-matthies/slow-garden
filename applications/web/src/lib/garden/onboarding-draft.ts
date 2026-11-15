@@ -10,6 +10,23 @@ import {
 
 const SEED = "first-run-onboarding";
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/** Sensible starting names so the first screen can begin with writing. */
+export const DEFAULT_GARDEN_NAME = "My garden";
+export const DEFAULT_TOPIC_NAME = "Notes";
+
+/**
+ * A thought needs a title. When the person has not given one, use the opening
+ * of their own first line, unaltered apart from trimming to a short length.
+ */
+export function titleFromFirstLine(body: string, limit = 60): string {
+  const line = body.split(/\r?\n/).map((l) => l.trim()).find(Boolean) ?? "";
+  if (!line) return "First thought";
+  if (line.length <= limit) return line;
+  const cut = line.slice(0, limit);
+  const space = cut.lastIndexOf(" ");
+  return `${(space > limit / 2 ? cut.slice(0, space) : cut).trimEnd()}…`;
+}
+
 export type OnboardingDraft = {
   version: 1;
   completed: boolean;
@@ -32,7 +49,7 @@ export type OnboardingDraft = {
 
 export const emptyOnboardingDraft = (): OnboardingDraft => ({
   version: 1, completed: false, step: 1, gardenId: "", topicId: "", thoughtId: "",
-  gardenName: "", topicName: "", thoughtTitle: "", body: "", starters: [],
+  gardenName: DEFAULT_GARDEN_NAME, topicName: DEFAULT_TOPIC_NAME, thoughtTitle: "", body: "", starters: [],
   gardenRequestId: "", topicRequestId: "", thoughtRequestId: "", starterIds: {},
   entryId: "", revisionId: "",
 });

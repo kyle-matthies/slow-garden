@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { createStorageBackend, LIVE_TABS_KEY, markDraftsCleared, resetTabIdentityForTests } from "./drafts";
-import { emptyOnboardingDraft, loadOnboardingDraft, onboardingRecord, parseOnboardingDraft } from "./onboarding-draft";
+import { emptyOnboardingDraft, loadOnboardingDraft, onboardingRecord, parseOnboardingDraft, titleFromFirstLine } from "./onboarding-draft";
 
 afterEach(() => { resetTabIdentityForTests(); sessionStorage.clear(); localStorage.clear(); });
 
@@ -55,5 +55,14 @@ describe("onboarding checkpoint", () => {
     expect(await loadOnboardingDraft("alice", store, false, "tab-b")).toBeNull();
     expect((await loadOnboardingDraft("alice", store, false, "tab-a"))?.state.body).toBe("A's original unsaved words");
     expect((await store.get(a.key))?.body).toBe(a.body);
+  });
+
+  it("starts with sensible names and titles a thought from the person's own first line", () => {
+    expect(emptyOnboardingDraft()).toMatchObject({ gardenName: "My garden", topicName: "Notes", thoughtTitle: "", body: "" });
+    expect(titleFromFirstLine("\n  Why this again?  \nsecond line")).toBe("Why this again?");
+    expect(titleFromFirstLine("   ")).toBe("First thought");
+    const long = titleFromFirstLine("I keep saying I want a quieter job and then I volunteer for the loudest project every time");
+    expect(long.length).toBeLessThanOrEqual(61);
+    expect(long).toBe("I keep saying I want a quieter job and then I volunteer for…");
   });
 });

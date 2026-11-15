@@ -25,13 +25,28 @@ export const viewport: Viewport = {
   ],
 };
 
+const promise = "Write by day. Wake to a bloom.";
+const description =
+  "A private journal with a method. You write, uninterrupted. Overnight, the garden is tended and returns at most three blooms that quote your own words. The thinking stays yours.";
+
 export const metadata: Metadata = {
   title: {
-    default: "Slow Garden",
+    default: `Slow Garden · ${promise}`,
     template: "%s · Slow Garden",
   },
-  description:
-    "A private thinking garden where unfinished thoughts can grow without interruption.",
+  description,
+  applicationName: "Slow Garden",
+  openGraph: {
+    type: "website",
+    siteName: "Slow Garden",
+    title: `Slow Garden · ${promise}`,
+    description,
+  },
+  twitter: {
+    card: "summary",
+    title: `Slow Garden · ${promise}`,
+    description,
+  },
 };
 
 export default function RootLayout({

@@ -3,6 +3,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { createClient, isSupabaseConfigured } from "@/lib/supabase/server";
 import { LoginForm } from "./login-form";
+import { Sprout } from "./sprout";
+import "./login.css";
 
 export const metadata: Metadata = { title: "Sign in" };
 
@@ -15,20 +17,26 @@ export default async function LoginPage() {
     if (!error && data?.claims?.sub) redirect("/garden");
   }
   return (
-    <main className="auth-page">
+    <main className="calm-page">
       <a className="skip-link" href="#main-content">
         Skip to main content
       </a>
-      <div className="auth-shell" id="main-content">
-        <section className="auth-copy">
+      <div className="calm-shell" id="main-content">
+        <section className="calm-copy">
           <Link className="wordmark" href="/">
+            <Sprout />
             Slow Garden
           </Link>
-          <h1>Your garden is yours alone.</h1>
+          <h1>Write by day. <em>Wake to a bloom.</em></h1>
           <p>
-            Each account is isolated at the database boundary. Signing in does
-            not create a public profile or expose your notes to other people.
+            Your garden is yours alone. Signing in does not create a public
+            profile or show your notes to anyone else.
           </p>
+          <ol className="calm-steps" aria-label="How signing in works">
+            <li><span><strong>Enter your email.</strong> There is no password to choose or remember.</span></li>
+            <li><span><strong>We send a six-digit code.</strong> It works for a few minutes, and only the newest one counts.</span></li>
+            <li><span><strong>Type it here.</strong> First time? The same code opens a new garden for you.</span></li>
+          </ol>
         </section>
         <LoginForm configured={isSupabaseConfigured()} />
       </div>

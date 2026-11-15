@@ -1,62 +1,298 @@
+/*
+ * First visit: one page to write on, not an empty workspace. While this screen
+ * is mounted the empty sidebar and breadcrumb of the surrounding shell are set
+ * aside so the page is the only thing asking for attention.
+ */
+.thinking-garden:has(.first-run) .garden-frame {
+  grid-template-columns: minmax(0, 1fr);
+}
+.thinking-garden:has(.first-run) .plot-rail,
+.thinking-garden:has(.first-run) .garden-breadcrumb,
+.thinking-garden:has(.first-run) .depth-trail {
+  display: none;
+}
+
 .first-run {
-  max-width: 580px;
-  margin: 60px auto;
+  display: grid;
+  grid-template-columns: minmax(0, 0.82fr) minmax(0, 1.18fr);
+  gap: clamp(32px, 6vw, 88px);
+  align-items: start;
+  /* Keeps its own gutters whether or not the surrounding page provides any. */
+  width: min(1080px, 100vw - 44px);
+  max-width: 100%;
+  margin: clamp(20px, 5vh, 56px) auto 40px;
 }
 
 .first-run h1 {
   font-family: var(--font-editorial), serif;
-  font-weight: 450;
-  font-size: clamp(2.5rem, 5vw, 4.8rem);
-  letter-spacing: -0.045em;
-  line-height: 1.08;
-  margin: 12px 0 20px;
-  overflow-wrap: anywhere;
+  font-weight: 500;
+  font-size: clamp(2.6rem, 4.6vw, 4.2rem);
+  letter-spacing: -0.04em;
+  line-height: 1.02;
+  margin: 14px 0 18px;
+  text-wrap: balance;
 }
 
 .first-run p {
-  color: var(--ink-muted, #526752);
+  color: var(--ink-muted);
   line-height: 1.6;
 }
 
-.first-run-step {
+.first-run .first-run-lede {
+  max-width: 26rem;
+  margin: 0;
+  font-size: 1.02rem;
+}
+
+/* Garden > Topic > Thought > Entry, drawn as growth rather than explained. */
+.first-run-model {
+  margin: 36px 0 0;
+  padding: 0;
+}
+.first-run-model figcaption {
+  color: var(--moss);
   font-size: 0.72rem;
-  letter-spacing: 0.1em;
+  font-weight: 750;
+  letter-spacing: 0.13em;
   text-transform: uppercase;
 }
-
-.first-run .first-run-backup {
-  border-left: 2px solid var(--line);
-  padding-left: 12px;
-  font-size: 0.82rem;
+.first-run-model ol {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+}
+.first-run-model li {
+  position: relative;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  padding: 7px 0;
+}
+.first-run-model li:nth-child(2) { margin-left: 22px; }
+.first-run-model li:nth-child(3) { margin-left: 44px; }
+.first-run-model li:nth-child(4) { margin-left: 66px; }
+/* The elbow that tucks each level inside the one above it. */
+.first-run-model li + li::before {
+  content: "";
+  position: absolute;
+  left: -9px;
+  top: -8px;
+  width: 9px;
+  height: calc(50% + 8px);
+  border-left: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  border-bottom-left-radius: 8px;
+}
+.first-run-model svg {
+  display: block;
+  overflow: visible;
+}
+.sprout-soil,
+.sprout-stem {
+  fill: none;
+  stroke: var(--plant, var(--moss));
+  stroke-width: 1.4;
+  stroke-linecap: round;
+}
+.sprout-soil { opacity: 0.7; }
+.sprout-fill {
+  fill: var(--plant, var(--moss));
+  opacity: 0.8;
+  transition: opacity 400ms ease;
+}
+.first-run-model li[data-saved] .sprout-fill { opacity: 1; }
+.first-run-level {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 10px;
+  min-width: 0;
+  line-height: 1.3;
+}
+.first-run-level strong {
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+.first-run-level-value {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-editorial), serif;
+  font-size: 1.2rem;
+  font-weight: 550;
+  color: var(--ink);
+}
+.first-run-level small {
+  flex-basis: 100%;
+  color: var(--ink-muted);
+  font-size: 0.8rem;
+}
+.first-run-model li[data-saved] strong::after {
+  content: " · saved";
+  color: var(--moss);
+  letter-spacing: 0.04em;
 }
 
-.first-run-form {
+/* The sheet: a journal page that already has your garden's name on it. */
+.first-run-sheet {
+  position: relative;
   display: grid;
   gap: 14px;
-  margin-top: 28px;
+  padding: clamp(20px, 3vw, 34px) clamp(18px, 3vw, 36px) clamp(18px, 2.4vw, 28px);
+  color: var(--sheet-ink, var(--ink));
+  background: var(--sheet, var(--surface-solid));
+  border: 1px solid var(--sheet-edge, var(--line));
+  border-radius: 6px 18px 18px 6px;
+  box-shadow: var(--sheet-shadow, var(--card-shadow));
 }
-
-.first-run-form .field > p {
-  font-size: 0.8rem;
-  margin: 0;
+/* Binding edge. */
+.first-run-sheet::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 10px;
+  border-radius: 6px 0 0 6px;
+  background: linear-gradient(90deg, var(--sheet-edge, var(--line)), transparent);
+  pointer-events: none;
 }
-
-.first-run-starters {
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  padding: 12px 14px;
+.first-run-sheet label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--sheet-muted, var(--ink-muted));
+}
+.first-run-garden-name {
   display: grid;
-  gap: 8px;
+  gap: 2px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--sheet-edge, var(--line));
 }
-
-.first-run-starters label {
-  display: flex;
-  gap: 8px;
-  align-items: center;
+.first-run-garden-name input {
+  width: 100%;
+  min-height: 48px;
+  padding: 4px 8px;
+  margin-left: -8px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  color: inherit;
+  background: transparent;
+  font-family: var(--font-editorial), serif;
+  font-size: clamp(1.7rem, 2.6vw, 2.2rem);
+  font-weight: 550;
+  letter-spacing: -0.02em;
 }
-
+.first-run-garden-name input:hover:not(:disabled) {
+  border-color: var(--sheet-edge, var(--line));
+}
+.first-run-garden-name input:disabled {
+  opacity: 1;
+  -webkit-text-fill-color: currentColor;
+}
+.first-run-page {
+  display: grid;
+  gap: 6px;
+}
 .first-run-writing {
-  min-height: 220px;
+  --rule: 2.1rem;
+  width: 100%;
+  min-height: calc(var(--rule) * 7 + 4px);
+  padding: 0 6px;
+  border: 0;
+  border-radius: 4px;
   resize: vertical;
-  line-height: 1.55;
+  color: inherit;
+  background:
+    repeating-linear-gradient(
+      transparent 0,
+      transparent calc(var(--rule) - 1px),
+      var(--sheet-edge, var(--line)) calc(var(--rule) - 1px),
+      var(--sheet-edge, var(--line)) var(--rule)
+    );
+  background-attachment: local;
+  font-family: var(--font-editorial), serif;
+  font-size: 1.4rem;
+  font-weight: 500;
+  line-height: var(--rule);
+}
+.first-run-writing::placeholder {
+  color: var(--placeholder, var(--ink-muted));
+  font-style: italic;
+  opacity: 1;
+}
+
+.first-run-more summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  cursor: pointer;
+  color: var(--sheet-muted, var(--ink-muted));
+  font-size: 0.86rem;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.first-run-more-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 6px;
+}
+.first-run-more .field input {
+  min-height: 44px;
+  background: var(--input-bg, var(--surface-solid));
+}
+.first-run-more > p {
+  margin: 10px 0 0;
+  font-size: 0.8rem;
+}
+.first-run-actions {
+  margin-top: 2px;
+}
+.first-run-actions .plain-button {
+  min-height: 44px;
+  padding-inline: 12px;
+}
+.first-run .first-run-status {
+  min-height: 1.5em;
+  margin: 0;
+  font-size: 0.86rem;
+  color: var(--sheet-ink, var(--ink));
+}
+.first-run .first-run-status:empty { display: none; }
+.first-run .first-run-backup,
+.first-run .form-note {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--sheet-muted, var(--ink-muted));
+}
+
+@media (max-width: 860px) {
+  .first-run {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 22px;
+    margin-top: 20px;
+  }
+  .first-run h1 { margin: 8px 0 10px; }
+  .first-run .first-run-lede { font-size: 0.95rem; }
+  /* Writing comes first on a phone; the map of levels follows the page. */
+  .first-run-intro { display: contents; }
+  .first-run-intro > .panel-kicker,
+  .first-run-intro > h1,
+  .first-run-intro > .first-run-lede { order: 0; }
+  .first-run-intro > .panel-kicker { margin: 0 0 -14px; }
+  .first-run-intro > h1 { margin-bottom: -8px; }
+  .first-run-sheet { order: 1; }
+  .first-run-model { order: 2; margin-top: 8px; }
+  .first-run-writing { min-height: calc(var(--rule) * 5 + 4px); font-size: 1.3rem; }
+  .first-run-more-fields { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sprout-fill { transition: none; }
 }

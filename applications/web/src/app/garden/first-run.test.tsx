@@ -22,17 +22,76 @@ it("keeps the request id across a failed garden save and a reload", async () => 
   const view = render(<FirstRun tenantId="alice" onDone={vi.fn()} />);
   const input = screen.getByLabelText("Name your garden");
   await waitFor(() => expect(input).toBeEnabled());
+  expect(input).toHaveValue("My garden");
   fireEvent.change(input, { target: { value: "Notebook" } });
-  fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+  fireEvent.change(screen.getByLabelText("Write a first entry"), { target: { value: "Words I typed" } });
+  fireEvent.click(screen.getByRole("button", { name: "Save entry" }));
   await screen.findByText("Could not save. Please retry.");
   const request = vi.mocked(createArea).mock.calls[0][3];
   view.unmount();
-  vi.mocked(createArea).mockResolvedValueOnce({ ok: true, id: garden });
-  render(<FirstRun tenantId="alice" onDone={vi.fn()} />);
+  vi.mocked(createArea).mockResolvedValueOnce({ ok: true, id: garden }).mockResolvedValueOnce({ ok: true, id: topic }).mockResolvedValueOnce({ ok: true, id: thought });
+  vi.mocked(saveEntry).mockResolvedValueOnce({ ok: true });
+  const done = vi.fn();
+  render(<FirstRun tenantId="alice" onDone={done} />);
   await waitFor(() => expect(screen.getByLabelText("Name your garden")).toHaveValue("Notebook"));
-  fireEvent.click(screen.getByRole("button", { name: "Continue" }));
-  await screen.findByLabelText("Name a first topic");
+  expect(screen.getByLabelText("Write a first entry")).toHaveValue("Words I typed");
+  fireEvent.click(screen.getByRole("button", { name: "Save entry" }));
+  await waitFor(() => expect(done).toHaveBeenCalled());
   expect(vi.mocked(createArea).mock.calls[1]).toEqual(["garden", "Notebook", "", request]);
+});
+
+it("reaches the first saved entry from one screen, defaulting the topic and titling the thought from the first line", async () => {
+  vi.mocked(createArea).mockResolvedValueOnce({ ok: true, id: garden }).mockResolvedValueOnce({ ok: true, id: topic }).mockResolvedValueOnce({ ok: true, id: thought });
+  vi.mocked(saveEntry).mockResolvedValueOnce({ ok: true });
+  const done = vi.fn();
+  render(<FirstRun tenantId="alice" onDone={done} />);
+  const writing = screen.getByLabelText("Write a first entry");
+  await waitFor(() => expect(writing).toBeEnabled());
+  fireEvent.change(writing, { target: { value: "Why do I keep circling this?\nMore below." } });
+  fireEvent.click(screen.getByRole("button", { name: "Save entry" }));
+  await waitFor(() => expect(done).toHaveBeenCalled());
+  const calls = vi.mocked(createArea).mock.calls;
+  expect(calls.map((c) => c.slice(0, 3))).toEqual([
+    ["garden", "My garden", ""],
+    ["plot", "Notes", garden],
+    ["seed", "Why do I keep circling this?", topic],
+  ]);
+  const saved = vi.mocked(saveEntry).mock.calls[0][0];
+  expect(saved).toMatchObject({ seedId: thought, body: "Why do I keep circling this?\nMore below.", expectedRevisionId: null });
+  expect(done).toHaveBeenCalledWith({ gardenId: garden, topicId: topic, thoughtId: thought, entryId: saved.entryId });
+});
+
+it("resumes after a partial save without repeating what was already saved", async () => {
+  vi.mocked(createArea).mockResolvedValueOnce({ ok: true, id: garden }).mockResolvedValueOnce({ ok: false, message: "Topic failed" });
+  const view = render(<FirstRun tenantId="alice" onDone={vi.fn()} />);
+  const writing = screen.getByLabelText("Write a first entry");
+  await waitFor(() => expect(writing).toBeEnabled());
+  fireEvent.change(writing, { target: { value: "Kept words" } });
+  fireEvent.click(screen.getByRole("button", { name: "Save entry" }));
+  await screen.findByText("Topic failed");
+  const topicRequest = vi.mocked(createArea).mock.calls[1][3];
+  view.unmount();
+  vi.mocked(createArea).mockResolvedValueOnce({ ok: true, id: topic }).mockResolvedValueOnce({ ok: true, id: thought });
+  vi.mocked(saveEntry).mockResolvedValueOnce({ ok: true });
+  const done = vi.fn();
+  render(<FirstRun tenantId="alice" onDone={done} />);
+  await waitFor(() => expect(screen.getByLabelText("Write a first entry")).toHaveValue("Kept words"));
+  expect(screen.getByLabelText("Name your garden")).toBeDisabled();
+  fireEvent.click(screen.getByRole("button", { name: "Save entry" }));
+  await waitFor(() => expect(done).toHaveBeenCalled());
+  expect(vi.mocked(createArea).mock.calls.map((c) => c[0])).toEqual(["garden", "plot", "plot", "seed"]);
+  expect(vi.mocked(createArea).mock.calls[2]).toEqual(["plot", "Notes", garden, topicRequest]);
+});
+
+it("sets up only the garden and topic when the person chooses to write later", async () => {
+  vi.mocked(createArea).mockResolvedValueOnce({ ok: true, id: garden }).mockResolvedValueOnce({ ok: true, id: topic });
+  const done = vi.fn();
+  render(<FirstRun tenantId="alice" onDone={done} />);
+  const later = screen.getByRole("button", { name: "Write later" });
+  await waitFor(() => expect(later).toBeEnabled());
+  fireEvent.click(later);
+  await waitFor(() => expect(done).toHaveBeenCalledWith({ gardenId: garden, topicId: topic, thoughtId: "" }));
+  expect(saveEntry).not.toHaveBeenCalled();
 });
 
 it("recovers an unfinished first entry, replays its saved ids, and clears setup after success", async () => {
@@ -109,7 +168,7 @@ it("does not show one account's recovered writing after the tenant changes", asy
   await waitFor(() => expect(screen.getByLabelText("Name your garden")).toHaveValue("Alice's private name"));
   view.rerender(<FirstRun tenantId="bob" onDone={vi.fn()} />);
   await waitFor(() => expect(screen.getByLabelText("Name your garden")).toBeEnabled());
-  expect(screen.getByLabelText("Name your garden")).toHaveValue("");
+  expect(screen.getByLabelText("Name your garden")).toHaveValue("My garden");
 });
 
 it("leaves A's live draft intact while B starts and completes its own setup", async () => {
@@ -127,14 +186,12 @@ it("leaves A's live draft intact while B starts and completes its own setup", as
   const b = render(<FirstRun tenantId="alice" onDone={done} />);
   const input = screen.getByLabelText("Name your garden");
   await waitFor(() => expect(input).toBeEnabled());
-  expect(input).toHaveValue("");
+  expect(input).toHaveValue("My garden");
+  expect(screen.getByLabelText("Write a first entry")).toHaveValue("");
   fireEvent.change(input, { target: { value: "B garden" } });
-  fireEvent.click(screen.getByRole("button", { name: "Continue" }));
-  fireEvent.change(await screen.findByLabelText("Name a first topic"), { target: { value: "B topic" } });
-  fireEvent.click(screen.getByRole("button", { name: "Continue" }));
-  fireEvent.change(await screen.findByLabelText("Name a first thought"), { target: { value: "B thought" } });
-  fireEvent.click(screen.getByRole("button", { name: "Continue" }));
-  fireEvent.change(await screen.findByLabelText("Write a first entry"), { target: { value: "B's own writing" } });
+  fireEvent.change(screen.getByLabelText("Topic"), { target: { value: "B topic" } });
+  fireEvent.change(screen.getByLabelText("Thought title"), { target: { value: "B thought" } });
+  fireEvent.change(screen.getByLabelText("Write a first entry"), { target: { value: "B's own writing" } });
   fireEvent.click(screen.getByRole("button", { name: "Save entry" }));
   await waitFor(() => expect(done).toHaveBeenCalled());
   expect((await store.get(a.key))?.body).toBe(a.body);
