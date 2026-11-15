@@ -64,7 +64,9 @@ it("recovers a thrown request without claiming that the import completed", async
   await screen.findByDisplayValue("Retry");
   fireEvent.click(screen.getByRole("button", { name: "Import 1 thought into Notes" }));
   await screen.findByText(/The connection was interrupted/);
-  expect(screen.getByText(/0 thoughts imported\. 1 thought needs a retry/)).toBeInTheDocument();
+  // The per-thought status commits as soon as the request throws; the summary
+  // waits for the transition to settle, which can be a later render.
+  expect(await screen.findByText(/0 thoughts imported\. 1 thought needs a retry/)).toBeInTheDocument();
   expect(screen.queryByRole("link", { name: "Open garden" })).not.toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Retry 1 thought into Notes" })).toBeEnabled();
 });
@@ -92,6 +94,8 @@ it("locks controls while saving and releases the destination only for a delibera
   expect(screen.getByLabelText("Files")).toBeDisabled();
   expect(screen.getByLabelText("Title for Pending.md")).toBeDisabled();
   await act(async () => saving.resolve({ ok: true, id: "s1", created: 1, skipped: 0 }));
+  // Disabled until the transition settles; a click before that would be ignored.
+  await waitFor(() => expect(screen.getByRole("button", { name: "Start another import" })).toBeEnabled());
   fireEvent.click(screen.getByRole("button", { name: "Start another import" }));
   expect(screen.getByLabelText("Garden")).toBeEnabled();
   expect(screen.getByLabelText("Topic")).toBeEnabled();

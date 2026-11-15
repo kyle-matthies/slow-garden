@@ -15,7 +15,7 @@ export function liveBlooms(tending: Tending) {
 /**
  * The Returns page: everything on it is AI-derived, so it is drawn in the
  * return-gold material and never in the paper used for the person's writing.
- * It shows at most three blooms; the Cabinet below holds the full record.
+ * It shows at most three blooms; the full record below holds every return.
  */
 export function ReturnsPage({
   tending,
@@ -31,7 +31,7 @@ export function ReturnsPage({
   tendingActive: boolean;
   onOpenThought: (seedId: string) => void;
   onSeen: (ids: string[]) => void;
-  /** The Cabinet (GardenReturns). */
+  /** The full record (GardenReturns). */
   children: ReactNode;
 }) {
   const blooms = liveBlooms(tending).slice(0, 3);
@@ -106,11 +106,11 @@ export function ReturnsPage({
           })}
         </ol>
       )}
-      <section className="returns-cabinet-host" aria-label="The Cabinet">
-        <h2>The Cabinet</h2>
+      <section className="returns-cabinet-host" aria-label="The full record">
+        <h2>The full record</h2>
         <p>
-          The full record: every bloom with its evidence, your responses, and
-          each tending pass.
+          Every bloom with its evidence, your responses, and each tending
+          pass.
         </p>
         {children}
       </section>

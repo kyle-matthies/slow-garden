@@ -164,14 +164,14 @@ export function GardenReturns({
           refresh();
         }}
       >
-        Open Returns · what the garden noticed
+        Open the full record
       </button>
     );
   return (
     <section className="return-cabinet" aria-labelledby={headingId}>
       <div className="cabinet-toolbar">
         <button type="button" className="plain-button" onClick={close}>
-          Return to writing
+          Close the full record
         </button>
         <button
           type="button"
@@ -233,10 +233,10 @@ export function GardenReturns({
         ) : (
           <p className="cabinet-note">
             {!data.aiAvailable
-              ? "AI reflections are not available yet. Your permissions are saved. You can keep writing and review existing returns."
+              ? "Tending is not active for this account yet. Your tending choices are saved. You can keep writing and review existing returns."
               : current?.archived_at || garden?.status === "archived"
                 ? "Restore this garden and topic before requesting a reflection."
-                : "AI permission is off for this topic. Enable Allow AI tending in Topic settings to request a reflection."}
+                : "Tending is off for this topic. Choose Tending on in Topic settings to request a reflection."}
           </p>
         )}
         <p role="status" aria-live="polite" className="cabinet-status">

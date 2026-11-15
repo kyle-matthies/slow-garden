@@ -29,12 +29,13 @@ import { NewArea } from "./new-area";
 import { ToolsMenu } from "./tools-menu";
 import { GardenRing } from "./scene/garden-ring";
 import { GardenScene } from "./scene/garden-scene";
-import { useSeenTending } from "@/lib/garden/use-seen-tending";
+import { useSeenReceiptsReady, useSeenTending } from "@/lib/garden/use-seen-tending";
 import { ThoughtPlant, TopicPlants } from "./scene/thought-plant";
 import { LevelEyebrow, LevelGlyph } from "./level-glyphs";
 import { LevelTrail, type TrailStep } from "./level-trail";
 import { TENDING_LABEL, tendingLabel, tendingState, type TendingState } from "./level-vocabulary";
 import { ReturnsPage, liveBlooms } from "./level-returns";
+import { MorningReturn } from "./morning-return";
 
 /**
  * "" is Meadow (the living scene), "list" is Pages (the same garden on paper),
@@ -175,6 +176,9 @@ function EntryCard({
 }
 export function GardenWorkspace({ data }: { data: GardenData }) {
   const { tending, markBloomsSeen } = useSeenTending(data.tenantId, data.tending);
+  // "New" is known only once this browser's receipts are read: announce nothing
+  // on the server or mid-hydration, so a dismissed reveal never flashes back.
+  const receiptsReady = useSeenReceiptsReady();
   const [editorGeneration, setEditorGeneration] = useState(0);
   const router = useRouter();
   const params = useSearchParams();
@@ -185,6 +189,7 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
     [quietPage, setQuietPage] = useState(false),
     [firstRun, setFirstRun] = useState(() => data.gardens.length === 0);
   const firstRunCompleted = useRef(false);
+  const sceneHost = useRef<HTMLDivElement>(null);
   // Setup may already have saved a garden before a reload. Recover the remaining
   // steps without letting a delayed read reopen a flow completed in this mount.
   useEffect(() => {
@@ -219,7 +224,7 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
             ? "gardens"
             : "";
   const ringMode = view === "gardens" && !firstRun && data.gardens.length > 0;
-  // The living garden is the default overview; the list view, timeline and
+  // The living garden is the default overview; Pages, timeline and
   // archive keep the structured workspace.
   const sceneMode = view === "" && !!garden && !firstRun;
   const requestedFocus = params.get("focus") ?? "";
@@ -282,7 +287,7 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
   /** Meadow or Pages, whichever the person is in or last chose. */
   const homeView = (): "list" | "" =>
     view === "" || view === "list" ? view : readViewPreference();
-  // Return to the list view on later visits if that was the last choice.
+  // Return to Pages on later visits if that was the last choice.
   useEffect(() => {
     if (!params.get("view") && readViewPreference() === "list")
       window.history.replaceState(
@@ -461,8 +466,30 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
   const plural = (n: number, one: string, many = `${one}s`) =>
     `${n} ${n === 1 ? one : many}`;
 
-  const unseenBlooms = liveBlooms(tending).filter((b) => b.isNew).length;
+  const unseenBlooms = receiptsReady
+    ? liveBlooms(tending).filter((b) => b.isNew).length
+    : 0;
   const showChrome = !!garden && !firstRun;
+  // The reveal and the status note float over the Meadow. Tell the stylesheet
+  // how much room the scene's own title card and topic dock take, so neither
+  // is ever covered.
+  const overScene = sceneMode && !seed;
+  useEffect(() => {
+    const host = sceneHost.current;
+    if (!overScene || !host || typeof ResizeObserver === "undefined") return;
+    const measure = () => {
+      const top = host.getBoundingClientRect().top;
+      const title = host.querySelector(".scene-title")?.getBoundingClientRect();
+      const dock = host.querySelector(".scene-dock")?.getBoundingClientRect();
+      if (title) host.style.setProperty("--scene-title-bottom", `${Math.ceil(title.bottom - top)}px`);
+      if (dock) host.style.setProperty("--scene-dock-top", `${Math.floor(dock.top - top)}px`);
+    };
+    const observer = new ResizeObserver(measure);
+    observer.observe(host);
+    for (const part of host.querySelectorAll(".scene-title, .scene-dock")) observer.observe(part);
+    measure();
+    return () => observer.disconnect();
+  }, [overScene, plotId, focusId]);
 
   // The depth trail: All gardens > Garden > Topic > Thought.
   const lens = timeline && !seed;
@@ -511,7 +538,8 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
         />
       )}
       {/* One top bar: where you can go (Meadow, Pages, Returns, All gardens)
-          and one menu for everything about the account. */}
+          and one menu for everything about the account. First run keeps only
+          the wordmark and that menu: nothing else is rendered, not hidden. */}
       <header className="garden-top">
         <Link href={`/garden?garden=${data.gardenId}`} className="wordmark">
           <span className="wordmark-text">Slow Garden</span>
@@ -576,7 +604,7 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
                 >
                   {settings ? "Close settings" : "Settings & export"}
                 </button>
-                {data.gardenId && (
+                {data.gardenId && !firstRun && (
                   <Link
                     className="plain-button"
                     href={`/garden/import?garden=${data.gardenId}`}
@@ -717,19 +745,18 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
           />
         </div>
       ) : sceneOverview && garden ? (
-        <div id="garden-content" className="scene-host">
-          {/* ── MORNING RETURN MOUNT POINT · MEADOW ─────────────────────────
-              Garden level only. The lead mounts Team C's component here:
-              {!plotId && !focusId && (
-                <MorningReturn
-                  tending={tending}
-                  seeds={data.seeds}
-                  plots={data.plots}
-                  onOpenThought={openThought}
-                  onOpenReturns={openReturns}
-                />
-              )}
-              ─────────────────────────────────────────────────────────────── */}
+        <div id="garden-content" className="scene-host" ref={sceneHost}>
+          {/* The morning reveal: garden level only, and only while blooms are unseen. */}
+          {receiptsReady && !plotId && !focusId && (
+            <MorningReturn
+              tending={tending}
+              seeds={data.seeds}
+              plots={data.plots}
+              onOpenThought={openThought}
+              onOpenReturns={openReturns}
+              onSeen={markBloomsSeen}
+            />
+          )}
           <GardenScene
             garden={garden}
             plots={activePlots}
@@ -1172,18 +1199,17 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
             /* LEVEL 1 · GARDEN: a landscape banner, then every topic as a
                wide bed with its plants standing in it. */
             <>
-              {/* ── MORNING RETURN MOUNT POINT · PAGES ──────────────────────
-                  Garden level only. The lead mounts Team C's component here:
-                  {!archived && (
-                    <MorningReturn
-                      tending={tending}
-                      seeds={data.seeds}
-                      plots={data.plots}
-                      onOpenThought={openThought}
-                      onOpenReturns={openReturns}
-                    />
-                  )}
-                  ─────────────────────────────────────────────────────────── */}
+              {/* The morning reveal is the one announcement of new blooms here. */}
+              {receiptsReady && !archived && (
+                <MorningReturn
+                  tending={tending}
+                  seeds={data.seeds}
+                  plots={data.plots}
+                  onOpenThought={openThought}
+                  onOpenReturns={openReturns}
+                  onSeen={markBloomsSeen}
+                />
+              )}
               <header className="garden-banner">
                 <svg
                   className="garden-banner-land"
@@ -1225,16 +1251,6 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
                     )}
                   </p>
                 </div>
-                {unseenBlooms > 0 && !archived && (
-                  <button
-                    type="button"
-                    className="banner-returns"
-                    onClick={openReturns}
-                  >
-                    <LevelGlyph level="returns" size={18} />
-                    {plural(unseenBlooms, "new bloom")} in Returns
-                  </button>
-                )}
               </header>
               <div className="meadow-tools">
                 <GardenSearch

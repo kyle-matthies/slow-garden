@@ -16,15 +16,42 @@ const webDir = path.resolve(here, "..");
 const receipts = process.env.AXE_RECEIPTS
   ? path.resolve(process.env.AXE_RECEIPTS)
   : path.resolve(here, "../../../documents/initiatives/receipts/08");
-const BASE = "http://localhost:3211";
+// AXE_BASE checks a fixture server that is already running (GARDEN_AXE_FIXTURES=1)
+// instead of booting one on :3211, e.g. AXE_BASE=http://localhost:3147.
+const EXTERNAL = process.env.AXE_BASE?.replace(/\/$/, "");
+const BASE = EXTERNAL || "http://localhost:3211";
 const PLOT = "00000000-0000-4000-8000-000000000100";
 const SEED = "00000000-0000-4000-8000-000000001000";
+// A synthetic tended garden: 100 thoughts, unseen blooms, marks.
+const TENDED = "/dev/axe-fixtures?state=scale&thoughts=100";
+
+// The morning reveal covers part of the page until it is dismissed.
+async function dismissReveal(page) {
+  await page.getByRole("button", { name: "Dismiss and mark as seen" }).click();
+  await page.locator(".morning-return").waitFor({ state: "detached" });
+}
 
 // Phones fold secondary tools behind "More"; open it first when it is showing.
 async function openSettings(page) {
   const more = page.getByRole("button", { name: "More" });
   if (await more.isVisible()) await more.click();
   await page.getByRole("button", { name: "Settings & export" }).click();
+}
+
+// Entrance animations fade content in; measure colours once they have landed.
+// Looping animations never finish, so the wait is capped.
+async function settle(page) {
+  await page.evaluate(() =>
+    Promise.race([
+      Promise.allSettled(
+        document
+          .getAnimations()
+          .filter((a) => Number.isFinite(a.effect?.getComputedTiming().endTime))
+          .map((a) => a.finished),
+      ),
+      new Promise((resolve) => setTimeout(resolve, 3000)),
+    ]),
+  );
 }
 
 const STATES = [
@@ -41,19 +68,36 @@ const STATES = [
   }],
   ["garden-topic", `/dev/axe-fixtures?topic=${PLOT}`],
   ["garden-focus", `/dev/axe-fixtures?focus=${SEED}`],
-  // The structured list view keeps the September workspace.
+  // Pages: the same garden on paper, one layout per level.
   ["garden-list", "/dev/axe-fixtures?view=list"],
   ["garden-topic-list", `/dev/axe-fixtures?topic=${PLOT}&view=list`],
+  ["garden-thought-list", `/dev/axe-fixtures?topic=${PLOT}&thought=${SEED}&view=list`],
+  // The thought page over the Meadow backdrop.
   ["garden-thought", `/dev/axe-fixtures?topic=${PLOT}&thought=${SEED}`],
+  // Returns: the latest blooms, then the full record opened in place.
+  ["garden-returns", `${TENDED}&view=returns`],
+  ["garden-returns-empty", "/dev/axe-fixtures?view=returns"],
+  [
+    "garden-returns-record",
+    `${TENDED}&view=returns`,
+    async (page) => {
+      await page.getByRole("button", { name: "Open the full record" }).click();
+      await page.locator(".cabinet-header").waitFor();
+    },
+  ],
+  // The morning reveal: unseen blooms announced once, over Meadow and in Pages.
+  ["morning-reveal", TENDED],
+  ["morning-reveal-list", `${TENDED}&view=list`],
   ["garden-archive", "/dev/axe-fixtures?view=archive"],
   ["garden-ring", "/dev/axe-fixtures?view=gardens"],
   // Many gardens: a ring of 24 (the owner's 20+ requirement).
   ["garden-ring-24", "/dev/axe-fixtures?state=scale&thoughts=100&gardens=24&view=gardens"],
-  // Phone cap: beds over 14 plants show "+N more in List".
-  ["garden-scale", "/dev/axe-fixtures?state=scale&thoughts=100"],
+  // Phone cap: beds over 14 plants show "+N more in Pages". The reveal is
+  // dismissed first so the whole scene is checked, as before it existed.
+  ["garden-scale", TENDED, dismissReveal],
+  ["garden-scale-list", `${TENDED}&view=list`, dismissReveal],
   ["cabinet", "/garden/returns-preview?scene=three-blooms"],
-  // Settings, including the overnight tending preference (ADR-008), open in place.
-  // The phone header's "More" disclosure, open over the scene.
+  // The "More" menu, open over the scene.
   [
     "garden-menu",
     "/dev/axe-fixtures",
@@ -62,12 +106,25 @@ const STATES = [
       if (await more.isVisible()) await more.click();
     },
   ],
+  // Settings, including the overnight tending preference (ADR-008), open in place.
   [
     "garden-settings",
     "/dev/axe-fixtures?view=list",
     openSettings,
   ],
+  // Topic settings: the three-state tending control, opened.
+  [
+    "garden-topic-settings",
+    `/dev/axe-fixtures?topic=${PLOT}&view=list`,
+    async (page) => {
+      await page.locator(".plot-permissions > summary").click();
+    },
+  ],
 ];
+// AXE_STATES=garden-ring,morning-reveal reruns only those states while fixing
+// them. A partial run never replaces the contrast receipt.
+const ONLY = process.env.AXE_STATES?.split(",").map((s) => s.trim()).filter(Boolean);
+const wanted = (state) => !ONLY || ONLY.includes(state);
 // Findings reported as warnings instead of failures. Keep empty unless a finding is
 // tracked in an initiative record with an owner.
 const KNOWN_ISSUES = new Set();
@@ -79,7 +136,14 @@ const SHOT_STATES = new Set([
   "garden-resume",
   "garden-focus",
   "garden-list",
+  "garden-topic-list",
   "garden-thought",
+  "garden-thought-list",
+  "garden-returns",
+  "garden-returns-record",
+  "morning-reveal",
+  "morning-reveal-list",
+  "garden-first-run",
   "garden-ring",
   "garden-ring-24",
   "garden-scale",
@@ -106,7 +170,10 @@ const CONTRAST = [
       ".text-link",
       ".quiet-link",
       ".landing-privacy article p",
-      ".landing-notebook article p",
+      ".landing-section-intro p:not(.eyebrow)",
+      ".landing-steps li p",
+      ".landing-never-list li p",
+      ".landing-signin-note",
       ".landing-example-disclosure",
     ],
   },
@@ -114,16 +181,30 @@ const CONTRAST = [
     state: "login",
     url: "/login",
     token: "--paper",
-    selectors: [".auth-copy p", ".field label", ".status-message", ".form-note"],
+    selectors: [
+      ".calm-copy > p",
+      ".calm-steps li",
+      ".panel-kicker",
+      ".field label",
+      ".status-message",
+      ".form-note",
+    ],
   },
   {
     state: "garden-thought",
     url: `/dev/axe-fixtures?topic=${PLOT}&thought=${SEED}`,
     token: "--thought-bg",
     selectors: [
-      ".rail-link",
-      ".rail-link small",
+      // The depth trail replaced the topic rail: every ancestor is a button.
       ".garden-breadcrumb button",
+      ".level-trail-back",
+      ".level-trail-level",
+      ".level-trail-here .level-trail-name",
+      ".specimen-label .level-eyebrow",
+      ".specimen-facts dt",
+      ".specimen-facts dd",
+      ".entry-page .level-eyebrow",
+      ".entry-revision",
       ".journal-entry time",
       ".entry-body",
       ".writing-form textarea",
@@ -134,7 +215,85 @@ const CONTRAST = [
     state: "garden-list",
     url: "/dev/axe-fixtures?view=list",
     token: "--garden-bg",
-    selectors: [".plant-label", ".seed-plant small"],
+    selectors: [
+      ".garden-banner .level-eyebrow",
+      ".garden-banner-meta",
+      ".level-section-title",
+      ".level-section-title span",
+      ".bed-card-level",
+      ".bed-card-name",
+      ".bed-card .bed-meta",
+      ".bed-card .tending-chip",
+      ".view-toggle button[aria-pressed='true']",
+      ".view-toggle button[aria-pressed='false']",
+      ".top-link",
+    ],
+  },
+  {
+    // Thought cards moved from the garden overview to the topic page.
+    state: "garden-topic-list",
+    url: `/dev/axe-fixtures?topic=${PLOT}&view=list`,
+    token: "--garden-bg",
+    selectors: [
+      ".bed-header .level-eyebrow",
+      ".bed-header .bed-meta",
+      ".bed-header .tending-chip",
+      ".plant-label",
+      ".seed-plant small",
+      ".plot-permissions summary",
+    ],
+  },
+  {
+    state: "garden-topic-settings",
+    url: `/dev/axe-fixtures?topic=${PLOT}&view=list`,
+    open: async (page) => {
+      await page.locator(".plot-permissions > summary").click();
+    },
+    token: "--garden-bg",
+    selectors: [
+      ".tending-choice legend",
+      ".tending-choice strong",
+      ".tending-choice small",
+      ".plot-permissions > p",
+    ],
+  },
+  {
+    state: "garden-returns",
+    url: `${TENDED}&view=returns`,
+    token: "--garden-bg",
+    selectors: [
+      ".returns-eyebrow",
+      ".returns-header > p:not([class])",
+      ".returns-tended",
+      ".returns-bloom-kind",
+      ".returns-new",
+      ".returns-bloom-text",
+      ".returns-bloom-sources",
+      ".returns-bloom-sources button",
+      ".returns-cabinet-host > p",
+      ".level-trail-here .level-trail-name",
+    ],
+  },
+  {
+    state: "garden-returns-empty",
+    url: "/dev/axe-fixtures?view=returns",
+    token: "--garden-bg",
+    selectors: [".returns-empty"],
+  },
+  {
+    state: "morning-reveal-list",
+    url: `${TENDED}&view=list`,
+    token: "--garden-bg",
+    selectors: [
+      ".morning-return-kicker",
+      ".morning-return h2",
+      ".morning-return-kind",
+      ".morning-return-line",
+      ".morning-return-touches-label",
+      ".morning-return-thought",
+      ".morning-return-open",
+      ".morning-return-dismiss",
+    ],
   },
   {
     state: "garden-overview",
@@ -190,13 +349,15 @@ function cleanEnv() {
   return env;
 }
 
-const server = spawn("npx", ["next", "dev", "-p", "3211"], {
-  cwd: webDir,
-  env: cleanEnv(),
-  stdio: ["ignore", "pipe", "pipe"],
-  detached: true,
-});
-server.stderr.on("data", (d) => process.stderr.write(`[next] ${d}`));
+const server = EXTERNAL
+  ? null
+  : spawn("npx", ["next", "dev", "-p", "3211"], {
+      cwd: webDir,
+      env: cleanEnv(),
+      stdio: ["ignore", "pipe", "pipe"],
+      detached: true,
+    });
+server?.stderr.on("data", (d) => process.stderr.write(`[next] ${d}`));
 
 async function waitForServer(timeoutMs = 120000) {
   const start = Date.now();
@@ -207,7 +368,7 @@ async function waitForServer(timeoutMs = 120000) {
     } catch {}
     await new Promise((r) => setTimeout(r, 1000));
   }
-  throw new Error("next dev did not start on :3211");
+  throw new Error(`no fixture server answered at ${BASE}`);
 }
 
 async function shot(page, file) {
@@ -245,7 +406,7 @@ try {
     }
   };
 
-  for (const [state, url, open] of STATES) {
+  for (const [state, url, open] of STATES.filter(([state]) => wanted(state))) {
     for (const scheme of SCHEMES) {
       for (const vp of VIEWPORTS) {
         const ctx = await browser.newContext({
@@ -257,6 +418,7 @@ try {
         const page = await ctx.newPage();
         await page.goto(`${BASE}${url}`, { waitUntil: "networkidle" });
         await open?.(page);
+        await settle(page);
         // Hide the Next.js dev-tools badge so receipts show only the app.
         await page.addStyleTag({
           content: "nextjs-portal{display:none!important}",
@@ -320,7 +482,10 @@ try {
     ["landing", "/"],
     ["login", "/login"],
     ["garden-thought", `/dev/axe-fixtures?topic=${PLOT}&thought=${SEED}`],
-  ]) {
+    ["garden-thought-list", `/dev/axe-fixtures?topic=${PLOT}&thought=${SEED}&view=list`],
+    ["garden-returns", `${TENDED}&view=returns`],
+    ["morning-reveal-list", `${TENDED}&view=list`],
+  ].filter(([state]) => wanted(state))) {
     const ctx = await browser.newContext({
       viewport: { width: 640, height: 400 },
       deviceScaleFactor: 1,
@@ -347,14 +512,17 @@ try {
 
   // Contrast receipts at 1280 in both schemes.
   for (const scheme of SCHEMES) {
-    const ctx = await browser.newContext({
-      colorScheme: scheme,
-      viewport: { width: 1280, height: 800 },
-    });
-    const page = await ctx.newPage();
-    for (const block of CONTRAST) {
+    for (const block of CONTRAST.filter((block) => wanted(block.state))) {
+      // A fresh browser profile per state: first-view receipts kept in
+      // localStorage must not hide the morning reveal from a later state.
+      const ctx = await browser.newContext({
+        colorScheme: scheme,
+        viewport: { width: 1280, height: 800 },
+      });
+      const page = await ctx.newPage();
       await page.goto(`${BASE}${block.url}`, { waitUntil: "networkidle" });
       await block.open?.(page);
+      await settle(page);
       for (const sel of block.selectors) {
         const rows = await page.evaluate(
           ({ sel, token }) => {
@@ -452,20 +620,21 @@ try {
           note: row.note ?? "",
         });
       }
+      await ctx.close();
     }
-    await ctx.close();
   }
 
   await browser.close();
 } finally {
-  try {
-    process.kill(-server.pid, "SIGTERM");
-  } catch {
-    server.kill("SIGTERM");
-  }
+  if (server)
+    try {
+      process.kill(-server.pid, "SIGTERM");
+    } catch {
+      server.kill("SIGTERM");
+    }
 }
 
-writeFileSync(
+if (!ONLY) writeFileSync(
   path.join(receipts, "contrast.json"),
   JSON.stringify(
     contrastRows.map(({ state, scheme, selector, fg, bg, ratio, passesAA }) => ({

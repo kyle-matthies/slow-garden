@@ -304,7 +304,7 @@ export function ReturnCabinet({
   return (
     <div className="cabinet">
       <header className="cabinet-header">
-        <p className="cabinet-kicker">Cabinet</p>
+        <p className="cabinet-kicker">The full record</p>
         <h2 id={headingId} ref={headingRef} tabIndex={-1}>
           Returns
         </h2>
@@ -705,7 +705,9 @@ function BloomSpecimen({
             <PressedSpecimen seedId={specimenSeed} collected={bloom.created_at} />
           </div>
         </div>
-        <section
+        {/* A labelled group, not a landmark: every bloom has one with the same name. */}
+        <div
+          role="group"
           className="cabinet-clippings"
           aria-labelledby={`${id}-clippings`}
         >
@@ -735,9 +737,10 @@ function BloomSpecimen({
               ))}
             </ol>
           )}
-        </section>
+        </div>
       </div>
-      <section
+      <div
+        role="group"
         className="cabinet-responses"
         aria-labelledby={`${id}-responses`}
       >
@@ -883,7 +886,7 @@ function BloomSpecimen({
         <p role="status" aria-live="polite" className="cabinet-status">
           {status}
         </p>
-      </section>
+      </div>
     </article>
   );
 }

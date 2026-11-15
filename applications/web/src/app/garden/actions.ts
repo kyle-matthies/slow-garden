@@ -192,7 +192,7 @@ export async function inviteReflection(
         message:
           error.code === "55000"
             ? "A reflection is already pending, the AI budget is reached, or the quality gate is not active. Try again later."
-            : "Check the selected topics and their AI permissions before retrying.",
+            : "Check the selected topics and their tending settings before retrying.",
       };
     revalidatePath("/garden");
     return { ok: true, id };

@@ -1,17 +1,8 @@
 /*
- * First visit: one page to write on, not an empty workspace. While this screen
- * is mounted the empty sidebar and breadcrumb of the surrounding shell are set
- * aside so the page is the only thing asking for attention.
+ * First visit: one page to write on, not an empty workspace. The workspace
+ * renders no depth trail, view toggle, Returns or All gardens while this screen
+ * is mounted, so the page is the only thing asking for attention.
  */
-.thinking-garden:has(.first-run) .garden-frame {
-  grid-template-columns: minmax(0, 1fr);
-}
-.thinking-garden:has(.first-run) .plot-rail,
-.thinking-garden:has(.first-run) .garden-breadcrumb,
-.thinking-garden:has(.first-run) .depth-trail {
-  display: none;
-}
-
 .first-run {
   display: grid;
   grid-template-columns: minmax(0, 0.82fr) minmax(0, 1.18fr);

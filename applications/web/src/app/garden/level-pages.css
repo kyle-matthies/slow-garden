@@ -161,26 +161,6 @@
   content: "·";
   margin-right: 10px;
 }
-.banner-returns {
-  position: absolute;
-  top: 30px;
-  right: max(var(--page-pad-x), calc((100% - var(--bed-column)) / 2));
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 44px;
-  padding: 0 16px;
-  border: 1px solid var(--return-gold-line);
-  border-radius: var(--radius-pill);
-  background: var(--return-gold-soft);
-  color: var(--return-gold-ink);
-  font-size: var(--text-sm);
-  font-weight: 700;
-  cursor: pointer;
-}
-.banner-returns:hover {
-  border-color: var(--return-gold);
-}
 .bed-list {
   display: grid;
   gap: 16px;
@@ -732,12 +712,6 @@
     padding: 22px var(--page-pad-x) 86px;
     margin-bottom: 18px;
   }
-  .banner-returns {
-    position: relative;
-    top: auto;
-    right: auto;
-    margin-top: 12px;
-  }
   .bed-card {
     grid-template-columns: minmax(0, 1fr);
     gap: 4px;
@@ -843,5 +817,39 @@
   }
   .returns-bloom-sources button {
     padding-block: 10px;
+  }
+}
+/* Tablet: fewer plants stand in each bed so its name and tending state keep
+   their own column instead of running under the planting. */
+@media (min-width: 761px) and (max-width: 1000px) {
+  .bed-plant:nth-child(n + 6) {
+    display: none;
+  }
+  .bed-meta {
+    gap: 4px 14px;
+  }
+  .bed-meta > span + span:not(.tending-chip)::before {
+    content: none;
+  }
+}
+
+/* Settings: the overnight tending card's text and select stay inside its
+   padding on a phone (its grid track must be allowed to shrink). */
+.garden-settings .tending-settings {
+  grid-template-columns: minmax(0, 1fr);
+}
+.garden-settings .tending-settings select {
+  width: 100%;
+  min-height: 44px;
+}
+
+/* Meadow status note (a location that no longer exists, a save result): on
+   narrow screens it sits just above the topic dock instead of over the
+   garden's title card. The workspace measures the dock into the property. */
+@media (max-width: 900px) {
+  .scene-host > .scene-status {
+    top: auto;
+    bottom: calc(100% - var(--scene-dock-top, 100% - 190px) + 10px);
+    width: min(26rem, calc(100% - 32px));
   }
 }

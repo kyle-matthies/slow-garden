@@ -7,6 +7,8 @@ import {
   type TendingBloom,
 } from "@/lib/garden/scene/tending";
 import type { Plot, Seed } from "@/lib/garden/types";
+import { useSeenTending } from "@/lib/garden/use-seen-tending";
+import { liveBlooms } from "./level-returns";
 import { MorningReturn } from "./morning-return";
 
 const plots: Plot[] = [
@@ -26,11 +28,20 @@ function bloom(id: string, kind: BloomKind, over: Partial<TendingBloom> = {}): T
   };
 }
 const tending = (blooms: TendingBloom[]): Tending => ({ marks: [], themes: [], blooms });
+/** The workspace's wiring: one receipt store feeds the card and the Returns dot. */
+function Harness(props: { source: Tending; onOpenThought(id: string): void; onOpenReturns(): void }) {
+  const { tending: seenTending, markBloomsSeen } = useSeenTending("tenant-1", props.source);
+  const unseen = liveBlooms(seenTending).filter((b) => b.isNew).length;
+  return (
+    <>
+      <MorningReturn tending={seenTending} seeds={seeds} plots={plots} onOpenThought={props.onOpenThought} onOpenReturns={props.onOpenReturns} onSeen={markBloomsSeen} />
+      {unseen > 0 && <output data-testid="returns-dot">{unseen}</output>}
+    </>
+  );
+}
 function show(t: Tending) {
   const onOpenThought = vi.fn(), onOpenReturns = vi.fn();
-  const view = render(
-    <MorningReturn tending={t} seeds={seeds} plots={plots} onOpenThought={onOpenThought} onOpenReturns={onOpenReturns} />,
-  );
+  const view = render(<Harness source={t} onOpenThought={onOpenThought} onOpenReturns={onOpenReturns} />);
   return { ...view, onOpenThought, onOpenReturns };
 }
 
@@ -77,4 +88,15 @@ it("opens the touched thought and Returns through its callbacks", () => {
   expect(view.onOpenReturns).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole("button", { name: "Open Returns" }));
   expect(view.onOpenReturns).toHaveBeenCalledOnce();
+});
+
+it("shares one receipt store with the Returns dot, keyed by account", () => {
+  const blooms = tending([bloom("a", "connection"), bloom("b", "tension"), bloom("c", "echo"), bloom("d", "change")]);
+  show(blooms);
+  expect(screen.getByTestId("returns-dot")).toHaveTextContent("4");
+  fireEvent.click(screen.getByRole("button", { name: "Open Returns" }));
+  // Every unseen bloom is receipted, including the one past the three shown.
+  expect(screen.queryByTestId("returns-dot")).not.toBeInTheDocument();
+  expect(JSON.parse(window.localStorage.getItem("slow-garden:seen-blooms:tenant-1")!).sort()).toEqual(["a", "b", "c", "d"]);
+  expect(window.localStorage.getItem("slow-garden:seen-blooms:g1")).toBeNull();
 });

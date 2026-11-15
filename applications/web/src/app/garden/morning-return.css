@@ -172,6 +172,85 @@
   outline-offset: 2px;
 }
 
+/*
+ * Meadow: the reveal floats over the scene instead of pushing it down, so the
+ * garden keeps its full height behind it. It stays clear of the scene's own
+ * controls: inside the turn arrows at either edge, and above the topic dock
+ * (the workspace measures the dock and title card into the two properties).
+ * When the room is short it scrolls inside itself.
+ */
+.scene-host > .morning-return {
+  --reveal-gutter: 76px;
+  --reveal-top: 16px;
+  position: absolute;
+  top: var(--reveal-top);
+  right: var(--reveal-gutter);
+  z-index: 6;
+  width: min(30rem, calc(100% - 2 * var(--reveal-gutter)));
+  max-height: calc(var(--scene-dock-top, 100% - 180px) - var(--reveal-top) - 12px);
+  margin: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.scene-host > .morning-return h2 {
+  font-size: 1.45rem;
+}
+.scene-host > .morning-return .morning-return-line {
+  font-size: 1.08rem;
+}
+/* Narrower than a desktop: under the garden's title card, between the arrows. */
+@media (max-width: 900px) {
+  .scene-host > .morning-return {
+    --reveal-top: calc(var(--scene-title-bottom, 96px) + 10px);
+    right: auto;
+    left: 50%;
+    transform: translateX(-50%);
+    animation: none;
+  }
+}
+/* Phone: compact. The thoughts behind each bloom are one tap away in Returns. */
+@media (max-width: 560px) {
+  .scene-host > .morning-return {
+    --reveal-gutter: 58px;
+    padding: 14px 14px 10px;
+  }
+  .scene-host > .morning-return .morning-return-header {
+    gap: 10px;
+  }
+  .scene-host > .morning-return .morning-return-sun,
+  .scene-host > .morning-return .morning-return-glyph,
+  .scene-host > .morning-return .morning-return-touches {
+    display: none;
+  }
+  .scene-host > .morning-return h2 {
+    font-size: 1.2rem;
+  }
+  .scene-host > .morning-return .morning-return-blooms {
+    margin-top: 10px;
+  }
+  .scene-host > .morning-return .morning-return-bloom {
+    padding: 10px 0;
+  }
+  .scene-host > .morning-return .morning-return-line {
+    font-size: 1rem;
+    line-height: 1.35;
+  }
+  .scene-host > .morning-return .morning-return-footer {
+    gap: 6px;
+    padding-top: 10px;
+  }
+  .scene-host > .morning-return .morning-return-open,
+  .scene-host > .morning-return .morning-return-dismiss {
+    flex: 1 1 100%;
+  }
+  .scene-host > .morning-return .morning-return-open {
+    order: 1;
+  }
+  .scene-host > .morning-return .morning-return-dismiss {
+    order: 2;
+  }
+}
+
 @media (max-width: 560px) {
   .morning-return {
     padding: 18px 16px 14px;

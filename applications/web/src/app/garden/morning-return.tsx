@@ -6,7 +6,6 @@ import {
   type Tending,
 } from "@/lib/garden/scene/tending";
 import type { Plot, Seed } from "@/lib/garden/types";
-import { useSeenTending } from "@/lib/garden/use-seen-tending";
 import { KindGlyph } from "./returns-cabinet";
 import "./morning-return.css";
 
@@ -24,19 +23,22 @@ export function MorningReturn(props: {
   plots: Plot[];
   onOpenThought(seedId: string): void;
   onOpenReturns(): void;
+  /**
+   * Records first-view receipts. The workspace owns them (useSeenTending, per
+   * account in this browser), so this card, the Returns dot and every "New"
+   * badge agree; `tending` arrives with those receipts already applied.
+   */
+  onSeen(bloomIds: string[]): void;
 }) {
-  const { seeds, plots, onOpenThought, onOpenReturns } = props;
+  const { tending, seeds, plots, onOpenThought, onOpenReturns, onSeen } = props;
   const headingId = useId();
-  // First-view receipts are bloom IDs only, kept in this browser per garden.
-  const scope = plots[0]?.garden_id ?? seeds[0]?.garden_id ?? "garden";
-  const { tending, markBloomsSeen } = useSeenTending(scope, props.tending);
   const unseen = tending.blooms.filter(
     (b) => b.isNew && b.response !== "prune",
   );
   if (unseen.length === 0) return null;
   const shown = unseen.slice(0, MAX_BLOOMS);
   const more = unseen.length - shown.length;
-  const markSeen = () => markBloomsSeen(unseen.map((b) => b.id));
+  const markSeen = () => onSeen(unseen.map((b) => b.id));
   return (
     <section className="morning-return" aria-labelledby={headingId}>
       <header className="morning-return-header">

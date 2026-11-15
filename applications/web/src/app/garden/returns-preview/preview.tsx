@@ -13,6 +13,7 @@ import {
 } from "../returns-cabinet";
 import { buildContinuation } from "../returns-continue";
 import { MorningReturn } from "../morning-return";
+import { useSeenTending } from "@/lib/garden/use-seen-tending";
 import { syntheticGarden, syntheticTending } from "../meadow-preview/fixtures";
 import { EntryEditor } from "../entry-editor";
 import { queueContinuation } from "@/lib/garden/continuation";
@@ -110,10 +111,10 @@ export function ReturnsPreview() {
 
   return (
     <main className="garden-shell" style={{ padding: "24px" }}>
-      <p className="cabinet-kicker" style={{ color: "var(--tend)" }}>
+      <h1 className="cabinet-kicker" style={{ color: "var(--tend)", margin: "0 0 1em" }}>
         Development fixture preview · synthetic data only · never served in
         production
-      </p>
+      </h1>
       <nav aria-label="Fixture scenes">
         <ul className="action-row" style={{ listStyle: "none", padding: 0 }}>
           {fixtureScenes.map((s) => (
@@ -185,12 +186,14 @@ export function ReturnsPreview() {
 /** Synthetic garden and tending only; receipts live in this browser. */
 function MorningPreview() {
   const garden = useMemo(() => syntheticGarden(3, 12), []);
-  const tending = useMemo(() => syntheticTending(garden, "full"), [garden]);
+  const source = useMemo(() => syntheticTending(garden, "full"), [garden]);
+  const { tending, markBloomsSeen } = useSeenTending("returns-preview", source);
   const [note, setNote] = useState("");
   return (
     <section aria-label="Morning return preview" style={{ padding: "12px 0 32px" }}>
       <MorningReturn
         tending={tending}
+        onSeen={markBloomsSeen}
         seeds={garden.seeds}
         plots={garden.plots}
         onOpenThought={(id) =>

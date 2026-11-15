@@ -8,7 +8,7 @@ const isProduction = process.env.NODE_ENV === "production";
 export const metadata: Metadata = isProduction
   ? { robots: { index: false, follow: false } }
   : {
-      title: "Cabinet fixture preview",
+      title: "Returns fixture preview",
       robots: { index: false, follow: false },
     };
 
@@ -20,7 +20,7 @@ export const metadata: Metadata = isProduction
 export default function ReturnsPreviewPage() {
   if (isProduction) notFound();
   return (
-    <Suspense fallback={<p>Opening the fixture Cabinet…</p>}>
+    <Suspense fallback={<p>Opening the fixture Returns…</p>}>
       <ReturnsPreview />
     </Suspense>
   );
