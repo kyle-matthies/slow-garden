@@ -20,7 +20,12 @@ import {
 import type { Garden } from "@/lib/garden/types";
 import { nearestAngle, wrap } from "@/lib/garden/scene/camera";
 import { hashString, seededRandom } from "@/lib/garden/scene/hash";
-import { paletteFor, type Palette } from "@/lib/garden/scene/palette";
+import {
+  BED_HUES,
+  paletteFor,
+  type Palette,
+} from "@/lib/garden/scene/palette";
+import { mix } from "./atmosphere";
 import "./scene.css";
 
 const subscribeDark = (callback: () => void) => {
@@ -32,7 +37,7 @@ const getDark = () => window.matchMedia("(prefers-color-scheme: dark)").matches;
 
 const SPRING = { type: "spring" as const, stiffness: 80, damping: 18 };
 
-/** A small painted vista of one garden: its own light, hills and meadow. */
+/** A small painted vista of one garden: its own light, hills, beds and meadow. */
 function Vista({ garden, palette }: { garden: Garden; palette: Palette }) {
   const art = useMemo(() => {
     const random = seededRandom(hashString(`vista:${garden.id}`));
@@ -40,35 +45,74 @@ function Vista({ garden, palette }: { garden: Garden; palette: Palette }) {
       const phases = freqs.map(() => random() * Math.PI * 2);
       const amps = freqs.map((f) => (0.4 + random() * 0.6) / Math.sqrt(f));
       const norm = amps.reduce((a, b) => a + b, 0);
-      let d = `M0,200L0,${base}`;
-      for (let x = 0; x <= 320; x += 8) {
+      const at = (x: number) => {
         let y = 0;
         freqs.forEach(
           (f, i) =>
             (y += amps[i] * Math.sin((f * x * Math.PI) / 160 + phases[i])),
         );
-        d += `L${x},${(base - amp * (0.5 + (0.5 * y) / norm)).toFixed(1)}`;
-      }
-      return `${d}L320,200Z`;
+        return base - amp * (0.5 + (0.5 * y) / norm);
+      };
+      let d = `M0,200L0,${base}`;
+      for (let x = 0; x <= 320; x += 8) d += `L${x},${at(x).toFixed(1)}`;
+      return { d: `${d}L320,200Z`, at };
     };
-    const specks = Array.from({ length: 26 }, () => ({
+    const hills = [
+      ridge(110, 26, [1, 2, 3]),
+      ridge(113, 19, [1, 3, 5]),
+      ridge(117, 13, [2, 5, 7]),
+      ridge(121, 8, [3, 4, 6]),
+    ];
+    const trees = Array.from({ length: 16 }, () => {
+      const x = random() * 320;
+      return { x, y: hills[3].at(x) + 1, r: 1.6 + random() * 2.2 };
+    });
+    const clouds = Array.from({ length: 3 }, (_, i) => {
+      const x = 40 + i * 110 + random() * 50;
+      const y = 18 + random() * 44;
+      const w = 30 + random() * 34;
+      return [
+        { x, y, rx: w * 1.3, ry: 2.6 },
+        { x: x - w * 0.2, y: y - 2.6, rx: w * 0.8, ry: 3 },
+        { x: x + w * 0.3, y: y - 4.4, rx: w * 0.5, ry: 3.2 },
+      ];
+    });
+    // Three small beds across the middle ground, each with its own hue.
+    const first = hashString(`vista-hue:${garden.id}`);
+    const beds = [-1, 0, 1].map((side, i) => {
+      const cx = 160 + side * 104;
+      const hue = BED_HUES[(first + i * 3) % BED_HUES.length];
+      const flowers = Array.from({ length: 12 }, () => ({
+        x: cx + (random() - 0.5) * 62,
+        y: 152 - random() * 15,
+        r: 0.9 + random() * 1.2,
+        l: (random() - 0.5) * 16,
+      }));
+      const stems = Array.from({ length: 5 }, () => ({
+        x: cx + (random() - 0.5) * 48,
+        h: 9 + random() * 15,
+        lean: (random() - 0.5) * 5,
+      }));
+      return { cx, hue, flowers, stems, front: side === 0 };
+    });
+    const specks = Array.from({ length: 22 }, () => ({
       x: random() * 320,
-      y: 128 + Math.pow(random(), 0.7) * 70,
-      r: 0.8 + random() * 2.2,
+      y: 164 + Math.pow(random(), 0.7) * 34,
+      r: 0.7 + random() * 1.5,
       c: palette.specks[Math.floor(random() * palette.specks.length)],
     }));
-    return {
-      hills: [
-        ridge(112, 30, [1, 2, 3]),
-        ridge(118, 18, [2, 5, 7]),
-        ridge(126, 12, [3, 4, 6]),
-      ],
-      specks,
-    };
+    return { hills, trees, clouds, beds, specks };
   }, [garden.id, palette]);
   const id = `v${hashString(garden.id).toString(36)}`;
-  const sunX = 160 + Math.max(-130, Math.min(130, palette.lightAngle * 1.6));
-  const sunY = 118 - palette.lightHeight * 100;
+  const sunX = 160 + Math.max(-120, Math.min(120, palette.lightAngle * 2));
+  const sunY = 110 - palette.lightHeight * 96;
+  const hillTones = [
+    mix(palette.far, palette.mist, 0.6),
+    mix(palette.far, palette.mist, 0.38),
+    mix(palette.treeline, palette.mist, 0.24),
+    mix(palette.treeline, palette.mist, 0.06),
+  ];
+  const tree = mix(palette.treeline, "#0c1410", 0.2);
   return (
     <svg
       className="ring-vista"
@@ -78,55 +122,118 @@ function Vista({ garden, palette }: { garden: Garden; palette: Palette }) {
     >
       <defs>
         <linearGradient id={`${id}-sky`} x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0" stopColor={palette.skyTop} />
-          <stop offset=".6" stopColor={palette.skyHorizon} />
+          <stop offset="0" stopColor={palette.skyZenith} />
+          <stop offset=".26" stopColor={palette.skyTop} />
+          <stop offset=".52" stopColor={palette.skyHorizon} />
+          <stop offset=".62" stopColor={palette.horizonGlow} />
         </linearGradient>
         <linearGradient id={`${id}-ground`} x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0" stopColor={palette.near} />
-          <stop offset=".3" stopColor={palette.groundTop} />
+          <stop offset="0" stopColor={mix(palette.near, palette.mist, 0.3)} />
+          <stop offset=".28" stopColor={palette.groundTop} />
           <stop offset="1" stopColor={palette.groundBottom} />
         </linearGradient>
         <radialGradient id={`${id}-sun`}>
           <stop offset="0" stopColor={palette.light} />
-          <stop offset=".35" stopColor={palette.lightGlow} />
-          <stop offset="1" stopColor="rgba(255,255,255,0)" />
+          <stop offset=".12" stopColor={palette.light} />
+          <stop offset=".2" stopColor={palette.lightGlow} />
+          <stop offset="1" stopColor={palette.lightGlow} stopOpacity="0" />
         </radialGradient>
-        <pattern
-          id={`${id}-grass`}
-          width="7"
-          height="9"
-          patternUnits="userSpaceOnUse"
-        >
-          <path
-            d="M1 9 Q2 4 1.5 0 M4 9 Q5 5 6 2"
-            stroke={palette.grass[3]}
-            strokeWidth=".8"
-            fill="none"
-          />
-        </pattern>
+        <linearGradient id={`${id}-mist`} x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0" stopColor={palette.mist} stopOpacity="0" />
+          <stop offset=".5" stopColor={palette.mist} stopOpacity=".55" />
+          <stop offset="1" stopColor={palette.mist} stopOpacity="0" />
+        </linearGradient>
+        <linearGradient id={`${id}-soil`} x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0" stopColor={palette.soil[0]} />
+          <stop offset="1" stopColor={palette.soil[1]} />
+        </linearGradient>
       </defs>
       <rect width="320" height="200" fill={`url(#${id}-sky)`} />
       <circle
         cx={sunX}
         cy={sunY}
-        r={palette.night ? 30 : 46}
+        r={palette.night ? 40 : 70}
         fill={`url(#${id}-sun)`}
       />
-      <g className="ring-vista-clouds" opacity={palette.night ? 0.12 : 0.7}>
-        <ellipse cx="80" cy="40" rx="46" ry="9" fill="#fff" opacity=".55" />
-        <ellipse cx="230" cy="26" rx="58" ry="10" fill="#fff" opacity=".45" />
+      <g className="ring-vista-clouds" opacity={palette.night ? 0.35 : 0.8}>
+        {art.clouds.map((cloud, i) => (
+          <g key={i}>
+            {cloud.map((c, j) => (
+              <ellipse
+                key={j}
+                cx={c.x.toFixed(1)}
+                cy={c.y.toFixed(1)}
+                rx={c.rx.toFixed(1)}
+                ry={c.ry}
+                fill={j === 0 ? palette.cloudShade : palette.cloud}
+                opacity={j === 0 ? 0.5 : 0.7}
+              />
+            ))}
+          </g>
+        ))}
       </g>
-      <path d={art.hills[0]} fill={palette.far} />
-      <path d={art.hills[0]} fill={palette.haze} opacity=".5" />
-      <path d={art.hills[1]} fill={palette.treeline} />
-      <path d={art.hills[2]} fill={palette.near} />
-      <rect y="124" width="320" height="76" fill={`url(#${id}-ground)`} />
-      <rect
-        y="124"
-        width="320"
-        height="76"
-        fill={`url(#${id}-grass)`}
-        opacity=".7"
+      {art.hills.map((hill, i) => (
+        <path key={i} d={hill.d} fill={hillTones[i]} />
+      ))}
+      {art.trees.map((t, i) => (
+        <circle
+          key={i}
+          cx={t.x.toFixed(1)}
+          cy={(t.y - t.r * 0.6).toFixed(1)}
+          r={t.r.toFixed(1)}
+          fill={tree}
+        />
+      ))}
+      <rect y="122" width="320" height="78" fill={`url(#${id}-ground)`} />
+      <rect y="108" width="320" height="30" fill={`url(#${id}-mist)`} />
+      <path
+        d="M150 157C154 170 142 184 120 200L200 200C178 184 166 170 170 157Z"
+        fill={palette.light}
+        opacity=".16"
+      />
+      {art.beds.map((bed, i) => (
+        <g key={i} opacity={bed.front ? 1 : 0.72}>
+          <ellipse
+            cx={bed.cx}
+            cy="150"
+            rx="40"
+            ry="7"
+            fill={mix(palette.stone[0], palette.stone[1], 0.4)}
+          />
+          <ellipse cx={bed.cx} cy="149.5" rx="37.5" ry="5.6" fill={`url(#${id}-soil)`} />
+          {bed.stems.map((s, j) => (
+            <path
+              key={j}
+              d={`M${s.x.toFixed(1)},151q${(s.lean / 2).toFixed(1)},${(-s.h / 2).toFixed(1)} ${s.lean.toFixed(1)},${(-s.h).toFixed(1)}`}
+              stroke={palette.grass[4]}
+              strokeWidth="0.9"
+              fill="none"
+            />
+          ))}
+          {bed.stems.map((s, j) => (
+            <circle
+              key={j}
+              cx={(s.x + s.lean).toFixed(1)}
+              cy={(151 - s.h).toFixed(1)}
+              r="1.9"
+              fill={`hsl(${bed.hue[0]} ${palette.night ? bed.hue[1] * 0.5 : bed.hue[1]}% ${(palette.night ? 0.6 : 1) * (bed.hue[2] + 6)}%)`}
+            />
+          ))}
+          {bed.flowers.map((f, j) => (
+            <circle
+              key={j}
+              cx={f.x.toFixed(1)}
+              cy={f.y.toFixed(1)}
+              r={f.r.toFixed(1)}
+              fill={`hsl(${bed.hue[0]} ${palette.night ? bed.hue[1] * 0.5 : bed.hue[1]}% ${(palette.night ? 0.6 : 1) * (bed.hue[2] + f.l)}%)`}
+            />
+          ))}
+        </g>
+      ))}
+      <path
+        d="M0 200L0 176Q40 168 80 178T160 176T240 180T320 172L320 200Z"
+        fill={palette.grass[5]}
+        opacity=".55"
       />
       {art.specks.map((s, i) => (
         <circle
@@ -135,6 +242,7 @@ function Vista({ garden, palette }: { garden: Garden; palette: Palette }) {
           cy={s.y.toFixed(1)}
           r={s.r.toFixed(1)}
           fill={s.c}
+          opacity=".9"
         />
       ))}
     </svg>
@@ -256,6 +364,10 @@ export function GardenRing({
         aria-label="All your gardens"
         style={
           {
+            "--sky-zenith": palette.skyZenith,
+            "--horizon-glow": palette.horizonGlow,
+            "--mist": palette.mist,
+            "--light-glow": palette.lightGlow,
             "--sky-top": palette.skyTop,
             "--sky-horizon": palette.skyHorizon,
             "--ground-top": palette.groundTop,
@@ -332,7 +444,9 @@ export function GardenRing({
                 aria-current={g.id === currentId ? "true" : undefined}
                 onClick={() => (i === selected ? enter(g.id) : select(i))}
               >
-                <Vista garden={g} palette={paletteFor(g.id, night)} />
+                <span className="ring-plate">
+                  <Vista garden={g} palette={paletteFor(g.id, night)} />
+                </span>
                 <span className="ring-label">
                   <span className="ring-name">{g.name}</span>
                   {g.status === "archived" && (

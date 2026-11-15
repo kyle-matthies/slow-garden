@@ -19,21 +19,20 @@ import {
 } from "react";
 import type { Entry, Garden, Plot, Seed } from "@/lib/garden/types";
 import {
-  bedWidth,
+  bedOpacity,
   fieldOfView,
-  isVisible,
   nearestAngle,
   nearestBed,
-  pixelsPerDegree,
+  sceneFrame,
   wrap,
 } from "@/lib/garden/scene/camera";
-import { hashString } from "@/lib/garden/scene/hash";
+import { hashString, lerp, seededRandom } from "@/lib/garden/scene/hash";
 import {
   MAX_PLANTS_PER_BED,
   PHONE_PLANTS_PER_BED,
   buildBeds,
 } from "@/lib/garden/scene/model";
-import { paletteFor } from "@/lib/garden/scene/palette";
+import { bedHues, paletteFor, type Palette } from "@/lib/garden/scene/palette";
 import { EMPTY_TENDING, type Tending } from "@/lib/garden/scene/tending";
 import { PlantFocus } from "./plant-focus";
 import { BedSign, SceneBed, type SceneMetrics } from "./scene-bed";
@@ -114,7 +113,7 @@ export function GardenScene({
     [garden.id, night],
   );
   // Phones show fewer plants per bed (ADR-007 budget); the sign says how many
-  // more wait in the list.
+  // more wait in Pages.
   const narrow = size.width > 0 && size.width <= 480;
   const beds = useMemo(
     () =>
@@ -129,9 +128,14 @@ export function GardenScene({
     [plots, seeds, entries, tending, narrow, focusId],
   );
   const angles = useMemo(() => beds.map((b) => b.angle), [beds]);
+  const hues = useMemo(() => bedHues(plots.map((p) => p.id)), [plots]);
   const topicIndex = beds.findIndex((b) => b.plot.id === topicId);
   const theta = useMotionValue(topicIndex >= 0 ? angles[topicIndex] : 0);
   const zoom = useMotionValue(1);
+  // The zoom the beds are laid out for. While the camera steps closer or
+  // back the laid-out beds are scaled; once it settles they are laid out
+  // afresh at the new size, so plants and soil stay crisp.
+  const [layoutZoom, setLayoutZoom] = useState(1);
 
   useEffect(() => {
     const element = root.current;
@@ -151,25 +155,48 @@ export function GardenScene({
     };
   }, []);
 
+  const frame = useMemo(
+    () => (size.width ? sceneFrame(size.width, beds.length) : null),
+    [size.width, beds.length],
+  );
   const metrics = useMemo<SceneMetrics | null>(() => {
     const { width, height } = size;
-    if (!width || !height) return null;
+    if (!width || !height || !frame) return null;
     const fov = fieldOfView(width, height);
-    const horizonY = height * (height < 620 ? 0.34 : 0.42);
+    const horizonY = height * (height < 620 ? 0.34 : width <= 640 ? 0.36 : 0.4);
     const groundH = height - horizonY;
+    // At a topic the bed's front edge stands just above the dock and its sign.
+    const phone = width <= 640;
+    const front = Math.max(
+      horizonY + groundH * 0.3,
+      height - (phone ? 176 : 146),
+    );
+    const z = frame.topicZoom;
+    const yFront = horizonY + (front - horizonY) / z;
+    const yBack = horizonY + (yFront - horizonY) * (phone ? 0.46 : 0.6);
+    // A tall flowering plant in the front row is a little under half the
+    // scene's height at a topic, and never wider than its bed allows.
+    const plantScale =
+      Math.min(height * 0.56, frame.bedWidth * z * 0.86) / 280 / z;
+    const lz = layoutZoom;
     return {
       width,
       height,
       horizonY,
       groundH,
       fov,
-      ppd: pixelsPerDegree(width, fov),
-      bedWidthDeg: bedWidth(Math.max(1, beds.length), fov),
-      plantScale: (groundH * 0.68) / 280,
-      signTop: height - (interactive ? dockHeight + 24 : 16) - 118,
+      ppd: frame.ppd * lz,
+      bedWidthDeg: frame.bedWidth / frame.ppd,
+      plantScale: plantScale * lz,
+      signTop: height - (interactive ? dockHeight + 10 : 16),
       night,
+      bedWidth: frame.bedWidth * lz,
+      spacing: frame.spacing,
+      yBack: horizonY + (yBack - horizonY) * lz,
+      yFront: horizonY + (yFront - horizonY) * lz,
+      layoutZoom: lz,
     };
-  }, [size, beds.length, night, dockHeight, interactive]);
+  }, [size, frame, night, dockHeight, interactive, layoutZoom]);
 
   const [settled, setSettled] = useState(true);
   useMotionValueEvent(theta, "animationStart", () => setSettled(false));
@@ -178,7 +205,8 @@ export function GardenScene({
   // While the camera turns, plants hold their sway (see .is-turning in
   // scene.css).
   const [dragging, setDragging] = useState(false);
-  const turning = dragging || !settled;
+  const [stepping, setStepping] = useState(false);
+  const turning = dragging || !settled || stepping;
 
   useAtmosphere({
     far,
@@ -192,21 +220,50 @@ export function GardenScene({
     theta,
     width: size.width,
     height: size.height,
+    zoom,
+    // Grass and beds travel together when the camera turns.
+    thetaScale:
+      frame && metrics ? frame.ppd / (metrics.width / metrics.fov) : 1,
   });
 
-  // Turn toward the selected topic, and step closer while it is selected.
+  // Turn toward the selected topic.
   useEffect(() => {
     const target =
       topicIndex >= 0 ? nearestAngle(theta.get(), angles[topicIndex]) : null;
-    if (target !== null) {
-      if (reduced) theta.set(target);
-      else animate(theta, target, SPRING);
+    if (target === null) return;
+    if (reduced) theta.set(target);
+    else animate(theta, target, SPRING);
+  }, [topicIndex, angles, theta, reduced]);
+
+  // Step closer while a topic is selected, and back for the whole garden.
+  const topicZoom = frame?.topicZoom ?? 0;
+  const placed = useRef(false);
+  useEffect(() => {
+    if (!topicZoom) return;
+    const next = topicIndex >= 0 && interactive ? topicZoom : 1;
+    if (reduced || !placed.current) {
+      placed.current = true;
+      zoom.set(next);
+      return;
     }
-    const nextZoom = topicIndex >= 0 && interactive ? 1.1 : 1;
-    if (reduced) zoom.set(nextZoom);
-    else
-      animate(zoom, nextZoom, { type: "spring", stiffness: 60, damping: 20 });
-  }, [topicIndex, angles, theta, zoom, reduced, interactive]);
+    if (Math.abs(zoom.get() - next) < 0.001) return;
+    const controls = animate(zoom, next, {
+      type: "spring",
+      stiffness: 60,
+      damping: 20,
+    });
+    return () => controls.stop();
+  }, [topicIndex, topicZoom, zoom, reduced, interactive]);
+  // Lay the beds out afresh once the camera has arrived (or was simply set).
+  useMotionValueEvent(zoom, "change", (z) => {
+    if (!zoom.isAnimating()) setLayoutZoom(z);
+  });
+  useMotionValueEvent(zoom, "animationStart", () => setStepping(true));
+  useMotionValueEvent(zoom, "animationComplete", () => {
+    setLayoutZoom(zoom.get());
+    setStepping(false);
+  });
+  useMotionValueEvent(zoom, "animationCancel", () => setStepping(false));
 
   // Which beds to render follows the camera, but React re-renders only when a
   // bed enters or leaves the view, not as the camera turns.
@@ -214,9 +271,7 @@ export function GardenScene({
     (t: number) =>
       metrics
         ? beds.flatMap((b, i) =>
-            isVisible(b.angle, t, metrics.fov, metrics.bedWidthDeg * 0.7 + 4)
-              ? [i]
-              : [],
+            bedOpacity(wrap(b.angle - t), metrics.spacing) > 0 ? [i] : [],
           )
         : [],
     [beds, metrics],
@@ -393,8 +448,14 @@ export function GardenScene({
           {
             "--sky-top": palette.skyTop,
             "--sky-horizon": palette.skyHorizon,
+            "--sky-zenith": palette.skyZenith,
+            "--horizon-glow": palette.horizonGlow,
+            "--mist": palette.mist,
             "--light": palette.light,
             "--light-glow": palette.lightGlow,
+            "--bed-top": metrics ? `${metrics.yBack}px` : "50%",
+            "--bed-bottom": metrics ? `${metrics.yFront}px` : "80%",
+            "--bed-width": metrics ? `${metrics.bedWidth}px` : "50%",
             "--horizon": metrics ? `${metrics.horizonY}px` : "42%",
           } as React.CSSProperties
         }
@@ -402,21 +463,48 @@ export function GardenScene({
         <div className="scene-sky" aria-hidden="true">
           <SceneLight theta={theta} metrics={metrics} palette={palette} />
           {palette.night && <span className="scene-stars" />}
-          <span className="scene-clouds" />
+          <SceneClouds palette={palette} seed={garden.id} />
         </div>
-        <SceneWorld zoom={zoom} metrics={metrics}>
+        <div className="scene-world">
           <canvas ref={far} className="scene-canvas" aria-hidden="true" />
+          <span className="scene-haze" aria-hidden="true" />
+          <SceneLight theta={theta} metrics={metrics} palette={palette} wash />
           <canvas ref={back} className="scene-canvas" aria-hidden="true" />
+          <span className="scene-pool" aria-hidden="true" />
+          <svg
+            className={`scene-path${topicBed ? " is-near" : ""}`}
+            viewBox="0 0 100 100"
+            preserveAspectRatio="none"
+            aria-hidden="true"
+          >
+            <defs>
+              <filter id="scene-path-soft" x="-20%" y="-20%" width="140%" height="140%">
+                <feGaussianBlur stdDeviation="2.2 1.4" />
+              </filter>
+              <linearGradient id="scene-path-fill" x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0" stopColor={palette.light} stopOpacity=".34" />
+                <stop offset="1" stopColor={palette.light} stopOpacity=".1" />
+              </linearGradient>
+            </defs>
+            <path
+              d="M43 4C47 2 53 2 57 4C60 40 72 70 92 100L8 100C28 70 40 40 43 4Z"
+              fill="url(#scene-path-fill)"
+              filter="url(#scene-path-soft)"
+            />
+          </svg>
           {metrics &&
             visible.map((i) => (
               <SceneBed
                 key={beds[i].plot.id}
                 bed={beds[i]}
                 theta={theta}
+                zoom={zoom}
                 metrics={metrics}
+                palette={palette}
+                hue={hues.get(beds[i].plot.id)!}
                 focusId={focusId}
                 interactive={interactive}
-                showThreads={settled && beds[i].plot.id === topicId}
+                showThreads
                 tending={tending}
                 onPlant={onPlant}
               />
@@ -432,14 +520,17 @@ export function GardenScene({
                 key={beds[i].plot.id}
                 bed={beds[i]}
                 theta={theta}
+                zoom={zoom}
                 metrics={metrics}
+                hue={hues.get(beds[i].plot.id)!}
                 current={beds[i].plot.id === topicId}
                 interactive={interactive}
                 onSelect={onSign}
                 onMore={onListView}
               />
             ))}
-        </SceneWorld>
+        </div>
+        <span className="scene-vignette" aria-hidden="true" />
         {interactive && (
           <>
             <div className="scene-title">
@@ -449,7 +540,7 @@ export function GardenScene({
                 <p className="scene-subtitle">
                   in {garden.name}
                   {topicBed.resting > 0 &&
-                    ` · ${topicBed.resting} more resting in the list`}
+                    ` · ${topicBed.resting} more resting in Pages`}
                 </p>
               )}
             </div>
@@ -518,6 +609,16 @@ export function GardenScene({
                             className="dock-chip"
                             onClick={() => onTopic?.(b.plot.id)}
                           >
+                            <span
+                              className="dock-chip-hue"
+                              aria-hidden="true"
+                              style={{
+                                background: hueCss(
+                                  hues.get(b.plot.id)!,
+                                  night,
+                                ),
+                              }}
+                            />
                             {b.plot.name}
                           </button>
                         </li>
@@ -534,7 +635,7 @@ export function GardenScene({
               )}
               <p className="visually-hidden">
                 Use the left and right arrow keys or the topic buttons to turn
-                through this garden. The list view shows every thought.
+                through this garden. Pages shows every thought.
               </p>
             </nav>
             {focusId && (
@@ -574,31 +675,130 @@ export function GardenScene({
   );
 }
 
-function SceneWorld({
-  zoom,
-  metrics,
-  children,
-}: {
-  zoom: ReturnType<typeof useMotionValue<number>>;
-  metrics: SceneMetrics | null;
-  children: ReactNode;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-  useMotionValueEvent(zoom, "change", (z) => {
-    if (ref.current) ref.current.style.transform = `scale(${z.toFixed(4)})`;
-  });
+function hueCss(
+  [h, sat, l]: readonly [number, number, number],
+  night: boolean,
+) {
+  return `hsl(${h} ${night ? sat * 0.6 : sat}% ${night ? l * 0.7 : l}%)`;
+}
+
+/**
+ * Soft layered cloud, painted once per garden: high streaks, a few heaped
+ * banks lit from above, and long bars of light low over the horizon.
+ */
+function SceneClouds({ palette, seed }: { palette: Palette; seed: string }) {
+  const art = useMemo(() => {
+    const random = seededRandom(hashString(`clouds:${seed}`));
+    const streaks = Array.from({ length: 7 }, () => ({
+      x: random() * 1600,
+      y: lerp(30, 150, random()),
+      rx: lerp(120, 340, random()),
+      ry: lerp(3, 9, random()),
+      o: lerp(0.18, 0.42, random()),
+      tilt: lerp(-4, 2, random()),
+    }));
+    const banks = Array.from({ length: 4 }, (_, i) => {
+      const x = (i + 0.2 + random() * 0.6) * 400;
+      const y = lerp(150, 320, random());
+      const w = lerp(140, 320, random());
+      const puffs = Array.from({ length: 6 + Math.floor(random() * 4) }, () => {
+        const t = random();
+        return {
+          x: x + (t - 0.5) * w * 1.5,
+          y: y - Math.sin(t * Math.PI) * lerp(8, 30, random()),
+          rx: lerp(50, 120, random()),
+          ry: lerp(10, 22, random()),
+        };
+      });
+      return { x, y, w, puffs };
+    });
+    const bars = Array.from({ length: 6 }, () => ({
+      x: random() * 1600,
+      y: lerp(372, 468, random()),
+      rx: lerp(160, 420, random()),
+      ry: lerp(3, 8, random()),
+      o: lerp(0.3, 0.6, random()),
+    }));
+    return { streaks, banks, bars };
+  }, [seed]);
+  const id = `cl${hashString(seed).toString(36)}`;
   return (
-    <div
-      ref={ref}
-      className="scene-world"
-      style={{
-        transformOrigin: metrics
-          ? `50% ${Math.round(metrics.horizonY + metrics.groundH * 0.55)}px`
-          : "50% 70%",
-      }}
+    <svg
+      className="scene-clouds"
+      viewBox="0 0 1600 500"
+      preserveAspectRatio="xMidYMax slice"
+      aria-hidden="true"
     >
-      {children}
-    </div>
+      <defs>
+        <linearGradient id={`${id}-bank`} x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0" stopColor={palette.cloud} />
+          <stop offset=".55" stopColor={palette.cloud} stopOpacity=".9" />
+          <stop offset="1" stopColor={palette.cloudShade} stopOpacity=".75" />
+        </linearGradient>
+        <filter id={`${id}-soft`} x="-10%" y="-40%" width="120%" height="180%">
+          <feGaussianBlur stdDeviation="6 4" />
+        </filter>
+        <filter id={`${id}-softer`} x="-10%" y="-200%" width="120%" height="500%">
+          <feGaussianBlur stdDeviation="4 2" />
+        </filter>
+      </defs>
+      <g filter={`url(#${id}-softer)`} fill={palette.cloud}>
+        {art.streaks.map((c, i) => (
+          <ellipse
+            key={i}
+            cx={c.x.toFixed(0)}
+            cy={c.y.toFixed(0)}
+            rx={c.rx.toFixed(0)}
+            ry={c.ry.toFixed(1)}
+            opacity={c.o.toFixed(2)}
+            transform={`rotate(${c.tilt.toFixed(1)} ${c.x.toFixed(0)} ${c.y.toFixed(0)})`}
+          />
+        ))}
+      </g>
+      <g filter={`url(#${id}-soft)`}>
+        {art.banks.map((bank, i) => (
+          <g key={i} opacity=".88">
+            <ellipse
+              cx={bank.x.toFixed(0)}
+              cy={(bank.y + 9).toFixed(0)}
+              rx={(bank.w * 1.05).toFixed(0)}
+              ry="10"
+              fill={palette.cloudShade}
+              opacity=".45"
+            />
+            <g fill={`url(#${id}-bank)`}>
+              <ellipse
+                cx={bank.x.toFixed(0)}
+                cy={bank.y.toFixed(0)}
+                rx={bank.w.toFixed(0)}
+                ry="13"
+              />
+              {bank.puffs.map((p, j) => (
+                <ellipse
+                  key={j}
+                  cx={p.x.toFixed(0)}
+                  cy={p.y.toFixed(0)}
+                  rx={p.rx.toFixed(0)}
+                  ry={p.ry.toFixed(0)}
+                />
+              ))}
+            </g>
+          </g>
+        ))}
+      </g>
+      <g filter={`url(#${id}-softer)`} fill={palette.horizonGlow}>
+        {art.bars.map((c, i) => (
+          <ellipse
+            key={i}
+            cx={c.x.toFixed(0)}
+            cy={c.y.toFixed(0)}
+            rx={c.rx.toFixed(0)}
+            ry={c.ry.toFixed(1)}
+            opacity={c.o.toFixed(2)}
+          />
+        ))}
+      </g>
+    </svg>
   );
 }
 
@@ -606,19 +806,24 @@ function SceneLight({
   theta,
   metrics,
   palette,
+  wash = false,
 }: {
   theta: ReturnType<typeof useMotionValue<number>>;
   metrics: SceneMetrics | null;
   palette: ReturnType<typeof paletteFor>;
+  /** The light's spill over the land, drawn above the hills. */
+  wash?: boolean;
 }) {
   const ref = useRef<HTMLSpanElement>(null);
   const place = useCallback(
     (t: number) => {
       if (!ref.current || !metrics) return;
+      // The light keeps its side of the sky and drifts a little as you turn.
       const x =
-        metrics.width / 2 + wrap(palette.lightAngle - t * 0.05) * metrics.ppd;
+        metrics.width *
+        (0.5 + palette.lightAngle / 200 - Math.sin((t * Math.PI) / 180) * 0.04);
       const y =
-        metrics.horizonY * (1 - palette.lightHeight) - metrics.horizonY * 0.05;
+        metrics.horizonY * (1 - palette.lightHeight) - metrics.horizonY * 0.04;
       ref.current.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px)`;
     },
     [metrics, palette],
@@ -629,6 +834,16 @@ function SceneLight({
     <span
       ref={ref}
       className={`scene-light${palette.night ? " is-moon" : ""}`}
-    />
+      aria-hidden="true"
+    >
+      {wash ? (
+        <span className="scene-light-wash" />
+      ) : (
+        <>
+          <span className="scene-light-halo" />
+          <span className="scene-light-disc" />
+        </>
+      )}
+    </span>
   );
 }

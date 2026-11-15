@@ -15,6 +15,14 @@ import { LivingPlant } from "./living-plant";
 
 const EXCERPT = 280;
 
+const STAGE_WORD = {
+  seed: "Seed",
+  sprout: "Sprout",
+  leafing: "In leaf",
+  budding: "In bud",
+  flowering: "In flower",
+} as const;
+
 function excerpt(body: string) {
   return body.length > EXCERPT ? `${body.slice(0, EXCERPT).trimEnd()}…` : body;
 }
@@ -97,14 +105,24 @@ export function PlantFocus({
       {...motion}
     >
       <div className="focus-specimen" aria-hidden="true">
-        <LivingPlant
-          genome={genome}
-          stage={growth.stage}
-          vigor={growth.vigor}
-          night={night}
-          fit
-        />
-        <p className="focus-latin">{genome.species.latin}</p>
+        <div className="specimen-plate">
+          <span className="specimen-tape" />
+          <div className="specimen-plant">
+            <LivingPlant
+              genome={genome}
+              stage={growth.stage}
+              vigor={growth.vigor}
+              night={night}
+              fit
+              fitMin={64}
+            />
+          </div>
+          <span className="specimen-rule" />
+          <p className="focus-latin">{genome.species.latin}</p>
+          <p className="specimen-note">
+            {genome.species.common} · {STAGE_WORD[growth.stage]}
+          </p>
+        </div>
       </div>
       <div className="focus-body">
         <p className="scene-kicker">Thought · {topicName}</p>

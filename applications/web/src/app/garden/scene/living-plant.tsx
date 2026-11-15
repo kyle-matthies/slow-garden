@@ -56,6 +56,7 @@ export const LivingPlant = memo(function LivingPlant({
   detail = true,
   shape: given,
   fit = false,
+  fitMin = 120,
   pressed = false,
 }: {
   genome: Genome;
@@ -68,6 +69,8 @@ export const LivingPlant = memo(function LivingPlant({
   shape?: PlantShape;
   /** Crop the view to the plant itself, as for a specimen. */
   fit?: boolean;
+  /** Smallest height (plant units) the fitted view may crop to. */
+  fitMin?: number;
   /** Flattened, face-on and dried, as a pressed specimen in the Cabinet. */
   pressed?: boolean;
 }) {
@@ -86,7 +89,7 @@ export const LivingPlant = memo(function LivingPlant({
   let viewBox = vb;
   if (fit) {
     const { left, right, top } = shape.bounds;
-    const h = Math.max(120, -top + 24);
+    const h = Math.max(fitMin, -top + 24);
     const w = Math.max(right - left + 24, h * 0.55);
     viewBox = `${round1((left + right) / 2 - w / 2)} ${round1(12 - h)} ${round1(w)} ${round1(h)}`;
   }
