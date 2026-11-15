@@ -8,6 +8,8 @@
   height: calc(100svh - var(--garden-top-height, 74px));
   min-height: 34rem;
   overflow: hidden;
+  /* clip, unlike hidden, cannot be scrolled by focus or scrollIntoView. */
+  overflow: clip;
   isolation: isolate;
   background: var(--sky-horizon);
   color: var(--sheet-ink);
@@ -250,11 +252,27 @@
 .plant-marker {
   position: absolute;
   bottom: 0;
-  border-radius: 28% 28% 12% 12%;
+  border-radius: 30% 30% 0 0;
   pointer-events: none;
-  transform: translate(-50%, -8%) rotate(7deg);
-  background: linear-gradient(100deg, #efe4c9, #d9c8a2 70%, #b9a67e);
-  box-shadow: 0 1px 2px rgba(20, 16, 8, 0.4);
+  transform: translate(-50%, -6%) rotate(7deg);
+  /* A broad label on a narrow stake pushed into the soil. */
+  clip-path: polygon(0 0, 100% 0, 100% 52%, 66% 62%, 58% 100%, 42% 100%, 34% 62%, 0 52%);
+  background:
+    linear-gradient(transparent 16%, rgba(90, 74, 44, 0.5) 16% 22%, transparent 22% 30%, rgba(90, 74, 44, 0.4) 30% 35%, transparent 35%),
+    linear-gradient(100deg, #fbf3dc, #e6d6ae 70%, #c2ad80);
+}
+/* The freshly worked soil round a seed or sprout is paler and raised. */
+.plant-mound.is-young {
+  background: radial-gradient(
+    ellipse closest-side,
+    rgba(120, 88, 58, 0.9) 0,
+    rgba(96, 68, 44, 0.7) 52%,
+    rgba(30, 20, 12, 0.28) 78%,
+    transparent 100%
+  );
+}
+.palette-night .plant-mound.is-young {
+  opacity: 0.5;
 }
 .palette-night .plant-marker {
   background: linear-gradient(100deg, #8d8672, #6d6756);
@@ -273,9 +291,9 @@
   transform: translate(-50%, -50%);
   background: radial-gradient(
     circle closest-side,
-    rgba(255, 226, 150, 0.7) 0,
-    var(--scene-gold-glow) 30%,
-    rgba(255, 198, 92, 0.22) 62%,
+    rgba(255, 228, 150, 0.86) 0,
+    rgba(255, 205, 104, 0.7) 30%,
+    rgba(255, 198, 92, 0.3) 62%,
     transparent 100%
   );
 }
@@ -284,8 +302,8 @@
   transform: translate(-50%, 34%);
   background: radial-gradient(
     ellipse closest-side,
-    rgba(255, 214, 120, 0.62) 0,
-    rgba(255, 200, 96, 0.26) 58%,
+    rgba(255, 214, 120, 0.8) 0,
+    rgba(255, 200, 96, 0.36) 58%,
     transparent 100%
   );
 }
@@ -424,7 +442,18 @@
 .plant-tend.is-bloom {
   background: var(--scene-gold-deep);
 }
+.plant-tend.is-bloom {
+  height: 24px;
+}
 .plant-tend.is-bloom span {
+  left: -10px;
+  width: 20px;
+  height: 25px;
+  font-size: 13px;
+  box-shadow:
+    0 0 0 1px var(--scene-gold),
+    0 0 10px var(--scene-gold-glow),
+    0 2px 5px rgba(0, 0, 0, 0.22);
   border-color: var(--scene-gold-deep);
   color: var(--return-gold-ink, #74530a);
   background: var(--return-gold-soft, #f5e9c8);
@@ -488,10 +517,23 @@
 .bed-sign-post::after {
   content: "";
   width: 4px;
-  height: 38px;
+  height: 16px;
   margin-top: -3px;
   border-radius: 2px;
   background: linear-gradient(90deg, #6b5539, #9a7d57 45%, #5c4830);
+}
+.bed-sign-wrap {
+  position: relative;
+  display: block;
+}
+/* A bed that holds something tending returned carries a small gold mark. */
+.bed-sign-bloom {
+  position: absolute;
+  top: 0.2rem;
+  right: 0.4rem;
+  color: var(--scene-gold-deep);
+  font-size: 0.85rem;
+  line-height: 1;
 }
 .bed-sign {
   position: relative;
@@ -546,8 +588,10 @@
 }
 /* A small slip under the sign when some thoughts rest in Pages. */
 .bed-sign-more {
+  position: absolute;
+  left: calc(100% + 4px);
+  bottom: 0;
   min-height: 32px;
-  margin-top: 4px;
   padding: 0.2rem 0.6rem;
   border: 1px solid var(--sheet-edge);
   border-radius: 3px;
@@ -981,6 +1025,19 @@
     width: calc(100% - 1rem);
     max-width: none;
   }
+  .dock-topic .dock-actions {
+    flex-wrap: nowrap;
+    gap: 0.25rem;
+  }
+  .dock-topic .dock-actions > * {
+    flex: 0 1 auto;
+    white-space: nowrap;
+  }
+  .dock-topic .dock-actions button {
+    min-height: 44px;
+    padding-inline: 0.55rem;
+    font-size: 0.86rem;
+  }
   .plant-focus {
     top: auto;
     right: 0.5rem;
@@ -1210,6 +1267,7 @@
   flex: 1 1 auto;
   min-height: 34rem;
   overflow: hidden;
+  overflow: clip;
   background:
     radial-gradient(ellipse 46% 12% at 50% 73%, rgba(10, 18, 10, 0.34), transparent 72%),
     radial-gradient(ellipse 90% 80% at 50% 44%, transparent 58%, rgba(22, 28, 20, 0.34) 100%),

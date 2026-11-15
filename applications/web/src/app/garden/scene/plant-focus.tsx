@@ -58,7 +58,7 @@ export function PlantFocus({
   /** Keep or prune a tending mark; resolves with an error message, if any. */
   onRespondMark?: (markId: string, response: "keep" | "prune") => Promise<string | null>;
   onViewBlooms?: (ids: string[]) => void;
-  /** Open the Cabinet where blooms are reviewed in full. */
+  /** Open the place where blooms are reviewed in full. */
   onReviewBlooms?: () => void;
 }) {
   const [status, setStatus] = useState("");
@@ -233,7 +233,7 @@ export function PlantFocus({
                 className="plain-button review-cabinet"
                 onClick={onReviewBlooms}
               >
-                Review clippings in the Cabinet
+                Review clippings
               </button>
             )}
             <p className="tending-status" role="status">

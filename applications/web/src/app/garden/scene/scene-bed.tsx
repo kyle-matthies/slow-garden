@@ -163,7 +163,7 @@ const ScenePlant = memo(function ScenePlant({
   // Everything tending returns is light and vellum around the plant; the
   // plant itself is drawn only from the person's own writing.
   const width = (bounds.right - bounds.left) * k;
-  const glow = Math.max(width * 1.7, 84 * k);
+  const glow = Math.max(width * 1.9, 96 * k);
   const dressing = (
     <>
       <span
@@ -171,8 +171,8 @@ const ScenePlant = memo(function ScenePlant({
         aria-hidden="true"
         style={{
           left: -bounds.left * k,
-          width: Math.max(26, shape.shadow * 2.1) * k,
-          height: Math.max(7, shape.shadow * 0.5) * k,
+          width: Math.max(young ? 46 : 26, shape.shadow * 2.1) * k,
+          height: Math.max(young ? 13 : 7, shape.shadow * 0.5) * k,
         }}
       />
       {young && (
@@ -180,9 +180,9 @@ const ScenePlant = memo(function ScenePlant({
           className="plant-marker"
           aria-hidden="true"
           style={{
-            left: (-bounds.left + 15) * k,
-            width: 7 * k,
-            height: 17 * k,
+            left: -bounds.left * k + Math.max(15 * k, 13),
+            width: Math.max(9 * k, 10),
+            height: Math.max(26 * k, 26),
           }}
         />
       )}
@@ -521,12 +521,12 @@ const BedGround = memo(function BedGround({
           <stop
             offset="0"
             stopColor="#fffdf2"
-            stopOpacity={night ? 0.1 : 0.34}
+            stopOpacity={night ? 0.14 : 0.5}
           />
           <stop
             offset=".6"
             stopColor="#fffdf2"
-            stopOpacity={night ? 0.04 : 0.14}
+            stopOpacity={night ? 0.06 : 0.22}
           />
           <stop offset="1" stopColor="#fffdf2" stopOpacity="0" />
         </radialGradient>
@@ -558,16 +558,22 @@ const BedGround = memo(function BedGround({
         (d, i) => d && <path key={i} d={d} fill={stoneTones[i]} />,
       )}
       {/* In a sparse bed each plant stands in its own patch of sun. */}
-      {bed.plants.length <= 4 &&
-        bed.plants.map((p) => {
+      {bed.plants
+        .filter(
+          (p) =>
+            bed.plants.length <= 4 ||
+            p.growth.stage === "seed" ||
+            p.growth.stage === "sprout",
+        )
+        .map((p) => {
           const { x, y, k } = plantPlace(metrics, p.slot);
           return (
             <ellipse
               key={p.seed.id}
               cx={x.toFixed(1)}
               cy={(y + 2 * k).toFixed(1)}
-              rx={(58 * k).toFixed(1)}
-              ry={(15 * k).toFixed(1)}
+              rx={Math.max(64 * k, 34).toFixed(1)}
+              ry={Math.max(17 * k, 9).toFixed(1)}
               fill={`url(#${id}-sun)`}
             />
           );
@@ -700,8 +706,10 @@ export function BedSign({
     layoutZoom,
     bedWidth,
     yFront,
+    yBack,
     signTop,
   } = metrics;
+  const signHeight = useRef(76);
   const angle = bed.angle;
   const place = useCallback(
     (t: number, z: number) => {
@@ -710,7 +718,10 @@ export function BedSign({
       const k = z / layoutZoom;
       const x = width / 2 + (rel * ppd - bedWidth * 0.27) * k;
       const front = horizonY + (yFront - horizonY) * k;
-      const foot = Math.min(front + Math.max(bedWidth * k * 0.2, 104), signTop);
+      // The sign stands in the grass in front of the bed, clear of its
+      // stones and edging flowers.
+      const edge = front + ((yFront - yBack) * 0.13 + bedWidth * 0.03) * k;
+      const foot = Math.min(edge + signHeight.current + 8, signTop);
       band.current.style.transform = `translate(${x.toFixed(1)}px, ${foot.toFixed(1)}px)`;
       band.current.style.opacity = bedOpacity(rel, spacing).toFixed(3);
     },
@@ -723,9 +734,14 @@ export function BedSign({
       layoutZoom,
       bedWidth,
       yFront,
+      yBack,
       signTop,
     ],
   );
+  useLayoutEffect(() => {
+    const post = band.current?.firstElementChild as HTMLElement | null;
+    if (post) signHeight.current = post.offsetHeight;
+  });
   useCamera(theta, zoom, place);
   const label = (
     <>
@@ -736,6 +752,11 @@ export function BedSign({
           background: `hsl(${h} ${metrics.night ? sat * 0.6 : sat}% ${metrics.night ? l * 0.7 : l}%)`,
         }}
       />
+      {bed.plants.some((p) => p.blooms.length > 0) && (
+        <span className="bed-sign-bloom" aria-hidden="true">
+          ❦
+        </span>
+      )}
       <span className="bed-sign-name">{bed.plot.name}</span>
       <span className="bed-sign-count">
         {bed.total === 0
@@ -747,30 +768,32 @@ export function BedSign({
   return (
     <div ref={band} className="scene-band scene-band-signs">
       <span className="bed-sign-post">
-        {interactive ? (
-          <button
-            type="button"
-            className="bed-sign"
-            aria-current={current ? "location" : undefined}
-            onClick={() => onSelect(bed.plot.id)}
-          >
-            {label}
-          </button>
-        ) : (
-          <span className="bed-sign" aria-hidden="true">
-            {label}
-          </span>
-        )}
-        {interactive && onMore && bed.resting > 0 && (
-          <button
-            type="button"
-            className="bed-sign-more"
-            onClick={() => onMore(bed.plot.id)}
-          >
-            +{bed.resting} more in Pages
-            <span className="visually-hidden"> for {bed.plot.name}</span>
-          </button>
-        )}
+        <span className="bed-sign-wrap">
+          {interactive ? (
+            <button
+              type="button"
+              className="bed-sign"
+              aria-current={current ? "location" : undefined}
+              onClick={() => onSelect(bed.plot.id)}
+            >
+              {label}
+            </button>
+          ) : (
+            <span className="bed-sign" aria-hidden="true">
+              {label}
+            </span>
+          )}
+          {interactive && onMore && bed.resting > 0 && (
+            <button
+              type="button"
+              className="bed-sign-more"
+              onClick={() => onMore(bed.plot.id)}
+            >
+              +{bed.resting} more in Pages
+              <span className="visually-hidden"> for {bed.plot.name}</span>
+            </button>
+          )}
+        </span>
       </span>
     </div>
   );

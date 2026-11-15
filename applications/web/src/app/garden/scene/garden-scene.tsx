@@ -167,13 +167,14 @@ export function GardenScene({
     const groundH = height - horizonY;
     // At a topic the bed's front edge stands just above the dock and its sign.
     const phone = width <= 640;
+    // Room below it for the stones, the sign on its stake, and the dock.
     const front = Math.max(
       horizonY + groundH * 0.3,
-      height - (phone ? 176 : 146),
+      height - (phone ? 206 : 194),
     );
     const z = frame.topicZoom;
     const yFront = horizonY + (front - horizonY) / z;
-    const yBack = horizonY + (yFront - horizonY) * (phone ? 0.46 : 0.6);
+    const yBack = horizonY + (yFront - horizonY) * (phone ? 0.46 : 0.55);
     // A tall flowering plant in the front row is a little under half the
     // scene's height at a topic, and never wider than its bed allows.
     const plantScale =
@@ -444,6 +445,13 @@ export function GardenScene({
         onPointerCancel={onPointerUp}
         onClickCapture={onClickCapture}
         onKeyDown={onKeyDown}
+        // Focus moving to something off to one side must never scroll the
+        // picture: the camera turns instead.
+        onScroll={(event) => {
+          if (event.target !== event.currentTarget) return;
+          event.currentTarget.scrollLeft = 0;
+          event.currentTarget.scrollTop = 0;
+        }}
         style={
           {
             "--sky-top": palette.skyTop,
@@ -582,7 +590,7 @@ export function GardenScene({
                       className="plain-button"
                       onClick={() => onListView?.(topicBed.plot.id)}
                     >
-                      Topic settings &amp; Cabinet
+                      Topic settings
                     </button>
                     <button
                       type="button"
