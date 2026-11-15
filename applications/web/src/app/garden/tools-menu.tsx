@@ -2,8 +2,8 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 
 /**
- * Secondary garden tools. Inline on wide screens; on phones they fold behind a
- * "More" disclosure so the header stays one row above the scene.
+ * The one account and settings menu: export, import, archive and sign out live
+ * here at every width, so the top bar only carries places to go.
  */
 export function ToolsMenu({
   children,
@@ -43,7 +43,8 @@ export function ToolsMenu({
         aria-controls={id}
         onClick={() => setOpen(!open)}
       >
-        More
+        <span>More</span>
+        <span className="tools-more-caret" aria-hidden="true">▾</span>
       </button>
       <div id={id} className="tools-secondary">
         {children(() => setOpen(false))}

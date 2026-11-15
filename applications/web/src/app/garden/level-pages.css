@@ -1,0 +1,847 @@
+/*
+ * Pages view: one treatment per level, so a glance tells which level this is.
+ *   Garden  — full-width landscape banner, topics as wide beds
+ *   Topic   — boxed, soil-edged bed header, thoughts as small specimen cards
+ *   Thought — specimen sheet: plate on the left, pages on the right
+ *   Entry   — a dated, ruled paper page with its revision trail
+ *   Returns — gold: everything on it is AI-derived
+ * Imported by workspace.tsx.
+ */
+.level-page {
+  --page-pad-x: clamp(18px, 5vw, 72px);
+  --page-pad-top: 28px;
+  min-width: 0;
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: var(--page-pad-top) var(--page-pad-x) 64px;
+  background: transparent;
+}
+.level-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--moss);
+  font-size: var(--text-xs);
+  font-weight: 750;
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+}
+.level-eyebrow-note {
+  padding-left: 8px;
+  border-left: 1px solid currentColor;
+  color: var(--garden-muted);
+}
+.level-section-title {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin: 28px 0 14px;
+  font-family: var(--font-editorial), serif;
+  font-size: var(--text-xl);
+  font-weight: 550;
+}
+.level-section-title span {
+  color: var(--garden-muted);
+  font-family: var(--font-geist-sans), sans-serif;
+  font-size: var(--text-sm);
+  font-weight: 400;
+}
+.lens-chip,
+.tending-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 10px;
+  border: var(--border-strong);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-xs);
+  font-weight: 650;
+  white-space: nowrap;
+}
+.tending-chip::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border: 1.5px solid currentColor;
+  border-radius: 50%;
+}
+.tending-chip[data-state="off"] {
+  border-style: dashed;
+  color: var(--garden-muted);
+  font-weight: 500;
+}
+.tending-chip[data-state="on"]::before,
+.tending-chip[data-state="across"]::before {
+  background: currentColor;
+}
+.tending-chip[data-state="across"]::before {
+  box-shadow: 5px 0 0 -1.5px var(--surface-solid), 5px 0 0 0 currentColor;
+  margin-right: 5px;
+}
+.bed-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin: 0;
+  color: var(--garden-muted);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+.bed-meta > span + span:not(.tending-chip)::before {
+  content: "·";
+  margin-right: 10px;
+}
+
+/* ── Level 1 · Garden ───────────────────────────────────────────────── */
+.level-garden {
+  --bed-column: 1096px;
+  max-width: none;
+}
+.level-garden > :not(.garden-banner) {
+  max-width: var(--bed-column);
+  margin-inline: auto;
+}
+.level-garden > .level-section-title {
+  margin-block: 28px 14px;
+}
+.garden-banner {
+  position: relative;
+  overflow: hidden;
+  min-height: 268px;
+  margin: calc(-1 * var(--page-pad-top)) calc(-1 * var(--page-pad-x)) 28px;
+  padding: 34px max(var(--page-pad-x), calc((100% + 2 * var(--page-pad-x) - var(--bed-column)) / 2)) 110px;
+  border-bottom: 3px solid var(--hill-near);
+  background: linear-gradient(var(--sky-wash), var(--paper) 62%);
+}
+.garden-banner-land {
+  position: absolute;
+  inset: auto 0 0 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.banner-sun {
+  fill: var(--paper);
+  stroke: var(--hill-far);
+  stroke-width: 2;
+}
+.banner-hill-far {
+  fill: var(--hill-far);
+}
+.banner-hill-mid {
+  fill: var(--hill-mid);
+}
+.banner-hill-near {
+  fill: var(--hill-near);
+}
+.garden-banner-text {
+  position: relative;
+  max-width: 46rem;
+}
+.garden-banner h1 {
+  margin: 8px 0 10px;
+  font-family: var(--font-editorial), serif;
+  font-size: var(--text-display);
+  font-weight: 500;
+  letter-spacing: -0.035em;
+  line-height: var(--leading-tight);
+  overflow-wrap: anywhere;
+}
+.garden-banner-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin: 0;
+  color: var(--garden-ink);
+  font-size: var(--text-sm);
+}
+.garden-banner-meta span + span::before {
+  content: "·";
+  margin-right: 10px;
+}
+.banner-returns {
+  position: absolute;
+  top: 30px;
+  right: max(var(--page-pad-x), calc((100% - var(--bed-column)) / 2));
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--return-gold-line);
+  border-radius: var(--radius-pill);
+  background: var(--return-gold-soft);
+  color: var(--return-gold-ink);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  cursor: pointer;
+}
+.banner-returns:hover {
+  border-color: var(--return-gold);
+}
+.bed-list {
+  display: grid;
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.bed-card {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 24px;
+  width: 100%;
+  min-height: 132px;
+  padding: 20px 28px 34px;
+  overflow: hidden;
+  border: var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface-solid);
+  box-shadow: var(--shadow-sm);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: box-shadow 0.15s, transform 0.15s;
+}
+/* The bed's soil: every plant in the row stands in it. */
+.bed-card::after,
+.bed-header::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 16px;
+  background:
+    radial-gradient(circle, var(--soil-light) 1px, transparent 1.6px) 0 0 / 11px 8px,
+    radial-gradient(circle, var(--soil-light) 1px, transparent 1.6px) 5px 4px / 13px 8px,
+    var(--soil);
+  border-top: 1px solid var(--soil-light);
+}
+.bed-card:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+.bed-card-text {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  align-self: center;
+}
+.bed-card-level {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--moss);
+  font-size: 0.68rem;
+  font-weight: 750;
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+}
+.bed-card-name {
+  font-family: var(--font-editorial), serif;
+  font-size: var(--text-2xl);
+  font-weight: 550;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+.bed-card-plants {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  margin-bottom: -22px;
+}
+.bed-plant {
+  width: 46px;
+  height: 92px;
+  color: var(--plant);
+}
+
+/* ── Level 2 · Topic ────────────────────────────────────────────────── */
+.bed-header {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  overflow: hidden;
+  margin: 6px 0 22px;
+  padding: 24px 32px 46px;
+  border: var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--earth-soft);
+}
+.bed-header::after {
+  height: 26px;
+}
+.bed-header-text {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+.bed-header h1 {
+  margin: 0;
+  font-family: var(--font-editorial), serif;
+  font-size: clamp(1.9rem, 3.4vw, 2.6rem);
+  font-weight: 550;
+  letter-spacing: -0.025em;
+  line-height: 1.12;
+  overflow-wrap: anywhere;
+}
+.bed-header .topic-plants {
+  flex: none;
+  width: 190px;
+  height: 120px;
+  margin-bottom: -26px;
+}
+.bed-header .topic-plants svg {
+  width: 62px;
+}
+.specimen-grid {
+  grid-template-columns: repeat(auto-fill, minmax(158px, 1fr));
+  gap: 14px;
+  margin: 0 0 36px;
+}
+.specimen-card {
+  justify-content: flex-start;
+  gap: 0;
+  padding: 14px 10px 0;
+  border: var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-solid);
+  box-shadow: var(--shadow-sm);
+}
+.specimen-card:hover {
+  border-color: var(--moss);
+  background: var(--surface-solid);
+}
+.specimen-card .plant-drawing {
+  width: 72px;
+  height: 92px;
+}
+/* The collector's tag under each specimen. */
+.specimen-tag {
+  display: grid;
+  gap: 4px;
+  align-self: stretch;
+  margin: 10px -10px 0;
+  padding: 10px 10px 12px;
+  border-top: 1px dashed var(--garden-line);
+  background: var(--thought-bg);
+  text-align: left;
+  flex: 1;
+  align-content: start;
+}
+.specimen-tag .plant-label {
+  padding: 0;
+  font-size: 1.02rem;
+  line-height: 1.25;
+  text-align: left;
+}
+.specimen-tag small {
+  text-align: left;
+  line-height: 1.4;
+}
+.tending-choice {
+  display: grid;
+  gap: 4px;
+  margin: 14px 0;
+  padding: 12px 16px;
+  border: var(--border);
+  border-radius: var(--radius-md);
+}
+.tending-choice legend {
+  padding: 0 6px;
+  font-weight: 700;
+}
+.plot-permissions .tending-choice label {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-height: 44px;
+  margin: 0;
+  padding: 8px 0;
+}
+.plot-permissions .tending-choice input {
+  flex: none;
+  margin: 2px 0 0;
+}
+.tending-choice label span {
+  display: grid;
+  gap: 2px;
+}
+.tending-choice small {
+  color: var(--garden-muted);
+  font-size: var(--text-sm);
+}
+
+/* ── Level 3 · Thought ──────────────────────────────────────────────── */
+.level-thought {
+  max-width: 1180px;
+}
+.specimen-sheet {
+  display: grid;
+  grid-template-columns: 290px minmax(0, 1fr);
+  gap: clamp(24px, 4vw, 56px);
+  align-items: start;
+}
+.specimen-plate {
+  position: sticky;
+  top: 16px;
+  display: grid;
+  gap: 18px;
+}
+.specimen-frame {
+  display: grid;
+  place-items: end center;
+  height: 250px;
+  padding: 18px 18px 0;
+  border: var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-solid);
+  box-shadow:
+    inset 0 0 0 6px var(--surface-solid),
+    inset 0 0 0 7px var(--garden-line),
+    var(--shadow-sm);
+}
+.specimen-frame .plant-drawing {
+  width: 150px;
+  height: 205px;
+  margin-bottom: 8px;
+}
+.specimen-label {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+.specimen-label h1 {
+  margin: 0;
+  font-family: var(--font-editorial), serif;
+  font-size: var(--text-2xl);
+  font-weight: 550;
+  letter-spacing: -0.02em;
+  line-height: 1.18;
+  overflow-wrap: anywhere;
+}
+.specimen-facts {
+  display: grid;
+  margin: 4px 0 0;
+  border-top: var(--border);
+  font-size: var(--text-sm);
+}
+.specimen-facts div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 0;
+  border-bottom: 1px dotted var(--garden-line);
+}
+.specimen-facts dt {
+  color: var(--garden-muted);
+}
+.specimen-facts dd {
+  margin: 0;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+.specimen-facts a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.specimen-manage .form-note {
+  margin: 0 0 6px;
+  font-size: var(--text-xs);
+}
+.specimen-manage .plain-button {
+  min-height: 44px;
+  padding: 0;
+}
+.specimen-pages {
+  min-width: 0;
+}
+/* The blank page comes first: writing is what this level is for. */
+.specimen-pages > .writing-form {
+  padding: 22px clamp(18px, 3vw, 34px) 20px;
+  border: var(--border-strong);
+  border-top: 4px solid var(--moss-deep);
+  border-radius: var(--radius-sm);
+  background: var(--surface-solid);
+  box-shadow: var(--shadow-page);
+}
+.specimen-pages > .writing-form textarea {
+  min-height: 200px;
+  padding: 14px 0;
+}
+.specimen-pages .journal-entries {
+  margin: 34px 0 0;
+  padding-top: 0;
+  border-top: 0;
+}
+.journal-entries > h2 {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin: 0 0 4px;
+  font-family: var(--font-editorial), serif;
+  font-size: var(--text-xl);
+  font-weight: 550;
+}
+.journal-entries > h2 span {
+  color: var(--garden-muted);
+  font-family: var(--font-geist-sans), sans-serif;
+  font-size: var(--text-sm);
+  font-weight: 400;
+}
+.garden-frame.quiet-page .specimen-sheet {
+  grid-template-columns: minmax(0, 1fr);
+  max-width: 820px;
+  margin-inline: auto;
+}
+.garden-frame.quiet-page .specimen-plate {
+  display: none;
+}
+
+/* ── Level 4 · Entry ────────────────────────────────────────────────── */
+.journal-entry.entry-page {
+  position: relative;
+  margin: 16px 0 22px;
+  padding: 20px clamp(18px, 3vw, 34px) 16px clamp(46px, 6vw, 72px);
+  border: var(--border);
+  border-radius: 2px;
+  background: var(--surface-solid);
+  box-shadow: var(--shadow-page);
+}
+/* The page's margin rule. */
+.entry-page::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 clamp(30px, 4vw, 50px);
+  width: 1px;
+  background: var(--margin-rule);
+}
+.entry-page-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 16px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--rule);
+}
+.entry-page-head .level-eyebrow {
+  flex-basis: 100%;
+}
+.entry-page-date {
+  margin: 0;
+  font-family: var(--font-editorial), serif;
+  font-size: var(--text-xl);
+  font-weight: 550;
+}
+.journal-entry .entry-page-date time {
+  color: var(--garden-ink);
+  font-size: inherit;
+}
+.entry-revision {
+  margin: 0 0 0 auto;
+  color: var(--garden-muted);
+  font-size: var(--text-xs);
+}
+.journal-entry .entry-revision time {
+  font-size: inherit;
+}
+.entry-page .entry-body {
+  margin: 0;
+  padding: 0.45em 0 0;
+  font-size: 1.16rem;
+  line-height: 1.8;
+  background: repeating-linear-gradient(
+    transparent 0 calc(1.8em - 1px),
+    var(--rule) calc(1.8em - 1px) 1.8em
+  );
+  background-position: 0 0.45em;
+}
+.entry-page > [role="status"] {
+  margin: 0;
+  color: var(--error);
+  font-size: var(--text-sm);
+}
+.entry-page .entry-actions {
+  margin-top: 12px;
+}
+.entry-page .entry-actions button {
+  min-height: 44px;
+  padding: 0;
+}
+.entry-page .writing-form {
+  padding: 12px 0;
+  border: 0;
+}
+/* The revision trail: earlier versions as paler pages behind this one. */
+.entry-page .revision-list {
+  display: grid;
+  gap: 12px;
+  margin: 12px 0 0;
+  padding: 0 0 0 18px;
+  border-left: 2px dashed var(--garden-line);
+}
+.entry-page .revision-list li {
+  margin: 0;
+  padding: 10px 16px 12px;
+  border: var(--border);
+  border-radius: 2px;
+  background: var(--thought-bg);
+}
+.revision-stamp {
+  margin: 0 0 4px;
+  color: var(--garden-muted);
+  font-size: var(--text-xs);
+  font-weight: 650;
+  letter-spacing: 0.04em;
+}
+.entry-page .revision-list .entry-body {
+  font-size: 1rem;
+  background: none;
+  padding: 0;
+  color: var(--garden-muted);
+}
+
+/* ── Returns ────────────────────────────────────────────────────────── */
+.level-returns {
+  max-width: 940px;
+}
+.returns-header {
+  padding: 22px 26px;
+  border: 1px solid var(--return-gold-line);
+  border-left: 6px solid var(--return-gold);
+  border-radius: var(--radius-md);
+  background: var(--return-gold-soft);
+}
+.returns-eyebrow {
+  color: var(--return-gold-ink);
+}
+.returns-header h1 {
+  margin: 8px 0;
+  font-family: var(--font-editorial), serif;
+  font-size: var(--text-3xl);
+  font-weight: 550;
+  letter-spacing: -0.025em;
+  line-height: 1.12;
+}
+.returns-header p {
+  max-width: 44rem;
+  margin: 0;
+  line-height: var(--leading-body);
+}
+.returns-header .returns-tended {
+  margin-top: 10px;
+  color: var(--return-gold-ink);
+  font-size: var(--text-sm);
+  font-weight: 650;
+}
+.returns-empty {
+  margin: 28px 0;
+  padding: 22px 26px;
+  border: 1px dashed var(--return-gold-line);
+  border-radius: var(--radius-md);
+  color: var(--garden-muted);
+  line-height: var(--leading-body);
+}
+.returns-blooms {
+  display: grid;
+  gap: 14px;
+  margin: 22px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.returns-bloom {
+  padding: 18px 22px;
+  border: 1px solid var(--return-gold-line);
+  border-radius: var(--radius-md);
+  background: var(--surface-solid);
+  box-shadow: inset 4px 0 0 var(--return-gold);
+}
+.returns-bloom-kind {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--return-gold-ink);
+  font-size: var(--text-xs);
+  font-weight: 750;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.returns-new {
+  padding: 1px 8px;
+  border-radius: var(--radius-pill);
+  background: var(--return-gold-soft);
+  border: 1px solid var(--return-gold-line);
+  letter-spacing: 0.06em;
+}
+.returns-bloom-text {
+  margin: 8px 0;
+  font-family: var(--font-editorial), serif;
+  font-size: var(--text-xl);
+  font-style: italic;
+  line-height: 1.45;
+}
+.returns-bloom-sources {
+  margin: 0;
+  color: var(--garden-muted);
+  font-size: var(--text-sm);
+  line-height: 1.7;
+}
+.returns-bloom-sources button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--moss-deep);
+  font: inherit;
+  font-weight: 650;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.returns-cabinet-host {
+  margin-top: 34px;
+  padding-top: 22px;
+  border-top: var(--border);
+}
+.returns-cabinet-host > h2 {
+  margin: 0;
+  font-family: var(--font-editorial), serif;
+  font-size: var(--text-xl);
+  font-weight: 550;
+}
+.returns-cabinet-host > p {
+  margin: 4px 0 16px;
+  color: var(--garden-muted);
+  font-size: var(--text-sm);
+}
+
+@media (max-width: 760px) {
+  .level-page {
+    --page-pad-x: 16px;
+    --page-pad-top: 18px;
+    padding-bottom: 44px;
+  }
+  .garden-banner {
+    min-height: 210px;
+    padding: 22px var(--page-pad-x) 86px;
+    margin-bottom: 18px;
+  }
+  .banner-returns {
+    position: relative;
+    top: auto;
+    right: auto;
+    margin-top: 12px;
+  }
+  .bed-card {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+    padding: 16px 16px 30px;
+  }
+  .bed-card-name {
+    font-size: var(--text-xl);
+  }
+  .bed-meta {
+    gap: 4px 14px;
+  }
+  .bed-meta > span + span:not(.tending-chip)::before {
+    content: none;
+  }
+  .bed-card-plants {
+    justify-content: flex-start;
+    gap: 2px;
+    margin-top: 6px;
+  }
+  .bed-plant {
+    width: 36px;
+    height: 64px;
+  }
+  .bed-plant:nth-child(n + 8) {
+    display: none;
+  }
+  .bed-header {
+    padding: 16px 16px 40px;
+  }
+  .bed-header .topic-plants {
+    width: 96px;
+    height: 84px;
+  }
+  .bed-header .topic-plants svg {
+    width: 32px;
+  }
+  .specimen-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .specimen-sheet {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+  }
+  /* On a phone the plate folds to a caption so the blank page is near the top. */
+  .specimen-plate {
+    position: static;
+    grid-template-columns: 84px minmax(0, 1fr);
+    gap: 14px;
+    align-items: start;
+  }
+  .specimen-frame {
+    height: 112px;
+    padding: 8px 8px 0;
+    box-shadow: var(--shadow-sm);
+  }
+  .specimen-frame .plant-drawing {
+    width: 60px;
+    height: 92px;
+    margin-bottom: 4px;
+  }
+  .specimen-label h1 {
+    font-size: var(--text-xl);
+  }
+  .specimen-facts div:nth-child(n + 3),
+  .specimen-manage .form-note {
+    display: none;
+  }
+  .journal-entry.entry-page {
+    padding-left: 34px;
+  }
+  .entry-page::before {
+    left: 22px;
+  }
+  .entry-revision {
+    margin-left: 0;
+  }
+  .returns-header,
+  .returns-bloom {
+    padding: 16px;
+  }
+  .returns-header h1 {
+    font-size: var(--text-2xl);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bed-card:hover {
+    transform: none;
+  }
+}
+/* A notice above the banner (archive, restored location) keeps its own room. */
+.level-garden > .garden-banner:not(:first-child) {
+  margin-top: 20px;
+}
+/* Phone touch targets for the quieter controls on level pages. */
+@media (max-width: 760px) {
+  .level-page .plain-button,
+  .level-page .lens-link {
+    min-height: 44px;
+  }
+  .level-page .plot-permissions summary {
+    padding-block: 11px;
+  }
+  .returns-bloom-sources button {
+    padding-block: 10px;
+  }
+}

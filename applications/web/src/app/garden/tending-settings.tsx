@@ -4,7 +4,7 @@ import { setTendingPreferences } from "./actions";
 
 /**
  * Overnight tending (ADR-008). Saving this preference never starts processing:
- * only topics that allow AI tending are read, only when something new was
+ * only topics set to "Tending on" are read, only when something new was
  * written, and only once the service's tending gate is open.
  */
 export function TendingSettings({
@@ -69,15 +69,17 @@ export function TendingSettings({
       <h3 id={`${id}-title`}>Overnight tending</h3>
       <p>
         When the service&apos;s overnight schedule is active, tending checks for
-        new writing around 2 a.m. in your time zone. It only reads topics that
-        allow AI. Your saved preference does not confirm that scheduling is active.
-        Results appear quietly in the garden; your writing is never changed.
+        new writing around 2 a.m. in your time zone. It only reads topics set
+        to &ldquo;Tending on&rdquo;; a topic with &ldquo;Tending off&rdquo; is
+        never read. Your saved preference does not confirm that scheduling is
+        active. What tending finds comes back as blooms in Returns and marks
+        beside your thoughts; your writing is never changed.
       </p>
       {!aiAvailable && (
         <p className="form-note">
-          AI reflection requests aren&apos;t available in this app right now.
-          Your overnight preference can still be saved. Earlier manual results,
-          if any, remain available.
+          Tending isn&apos;t active for this account right now, so nothing is
+          being read. Your overnight preference can still be saved. Earlier
+          manual results, if any, remain available in Returns.
         </p>
       )}
       <label className="tending-toggle">

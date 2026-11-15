@@ -15,6 +15,7 @@ it("saves permission without claiming that an overnight service started", async 
   await waitFor(() => expect(onSaved).toHaveBeenCalledOnce());
   expect(screen.getByRole("status")).toHaveTextContent("does not start or confirm an overnight run");
   expect(screen.getByText(/Earlier manual results/)).toBeVisible();
+  expect(screen.getByText(/only reads topics set\s+to “Tending on”/)).toBeVisible();
 });
 
 it("restores the saved checkbox and time zone after a rejected update", async () => {
@@ -40,7 +41,7 @@ it("explains completed catalogue-only passes and does not treat them as schedule
   render(<TendingActivity history={{ available: true, passes: [{ id: "p", status: "complete", createdAt: "2026-11-02T10:00:00Z", finishedAt: null }] }} tending={EMPTY_TENDING} />);
   expect(screen.getByText("Completed")).toBeVisible();
   expect(screen.getByText(/manual pass does not confirm an overnight schedule/)).toBeVisible();
-  expect(screen.getByText(/completed pass can return no new reflection/)).toBeVisible();
+  expect(screen.getByText(/completed pass can return no new bloom/)).toBeVisible();
 });
 
 it("does not mistake unavailable history for no passes", () => {

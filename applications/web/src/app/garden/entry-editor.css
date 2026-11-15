@@ -9,9 +9,9 @@
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
-  border-top: 1px solid #dce0d1;
+  border-top: var(--border);
   padding-top: 12px;
-  color: #526752;
+  color: var(--garden-muted);
   font-size: 0.78rem;
 }
 
@@ -26,21 +26,13 @@
 
 .writing-shortcut {
   font-size: 0.75rem;
-  color: #526752;
+  color: var(--garden-muted);
 }
 
 .writing-shortcut kbd {
-  border: 1px solid #c7d0c0;
+  border: var(--border-strong);
   border-radius: 3px;
   padding: 1px 4px;
   font-family: inherit;
   font-size: 0.7rem;
-}
-
-.garden-frame.quiet-page {
-  grid-template-columns: minmax(0, 1fr);
-}
-
-.garden-frame.quiet-page .plot-rail {
-  display: none;
 }

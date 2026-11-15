@@ -1,11 +1,15 @@
 "use client";
 
+import { useRef } from "react";
 import type { GardenData } from "@/lib/garden/types";
 import { recentWriting } from "@/lib/garden/recent-writing";
 import { EntryTime } from "./entry-time";
 import "./recent-writing.css";
 
-/** A quiet, optional route back to saved writing. No reminders or note excerpts. */
+/**
+ * A quiet, optional route back to saved writing. No reminders or note excerpts.
+ * It sits at the end of the depth trail and opens as a small sheet beneath it.
+ */
 export function RecentWriting({
   data,
   plotId = "",
@@ -15,22 +19,28 @@ export function RecentWriting({
   plotId?: string;
   onNavigate: (topicId: string, thoughtId: string, entryId: string) => void;
 }) {
+  const details = useRef<HTMLDetailsElement>(null);
   const items = recentWriting(data, plotId);
   if (!items.length) return null;
 
   return (
-    <details className="recent-writing">
+    <details className="recent-writing" ref={details}>
       <summary>
-        <span>Continue writing</span>
+        <span className="recent-writing-pen" aria-hidden="true">✎</span>
+        <span className="recent-writing-label">Continue writing</span>
         <span className="recent-writing-count">{items.length} recent {items.length === 1 ? "thought" : "thoughts"}</span>
       </summary>
+      <div className="recent-writing-sheet">
       <p className="recent-writing-intro">Open where you last saved{plotId ? " in this topic" : " in this garden"}.</p>
       <ul aria-label="Recent saved thoughts">
         {items.map((item) => (
           <li key={item.thoughtId}>
             <button
               type="button"
-              onClick={() => onNavigate(item.topicId, item.thoughtId, item.entryId)}
+              onClick={() => {
+                if (details.current) details.current.open = false;
+                onNavigate(item.topicId, item.thoughtId, item.entryId);
+              }}
             >
               <strong>{item.thoughtTitle}</strong>
               <span className="recent-writing-topic">{item.topicName}</span>
@@ -40,6 +50,7 @@ export function RecentWriting({
           </li>
         ))}
       </ul>
+      </div>
     </details>
   );
 }

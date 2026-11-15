@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import "./level-pages.css";
 import { loadOnboardingDraft } from "@/lib/garden/onboarding-draft";
 import type { GardenData, Entry, ActionResult } from "@/lib/garden/types";
 import {
@@ -30,9 +31,17 @@ import { GardenRing } from "./scene/garden-ring";
 import { GardenScene } from "./scene/garden-scene";
 import { useSeenTending } from "@/lib/garden/use-seen-tending";
 import { ThoughtPlant, TopicPlants } from "./scene/thought-plant";
+import { LevelEyebrow, LevelGlyph } from "./level-glyphs";
+import { LevelTrail, type TrailStep } from "./level-trail";
+import { TENDING_LABEL, tendingLabel, tendingState, type TendingState } from "./level-vocabulary";
+import { ReturnsPage, liveBlooms } from "./level-returns";
 
-/** "" is the living garden, "gardens" the ring of all gardens, "list" the structured workspace. */
-type GardenView = LensView | "list" | "gardens";
+/**
+ * "" is Meadow (the living scene), "list" is Pages (the same garden on paper),
+ * "gardens" the ring of all gardens and "returns" the page of AI-derived blooms.
+ * The stored values predate the Meadow / Pages names and are kept for old links.
+ */
+type GardenView = LensView | "list" | "gardens" | "returns";
 const VIEW_PREFERENCE = "slow-garden:garden-view";
 
 function readViewPreference(): "list" | "" {
@@ -85,19 +94,31 @@ function EntryCard({
       setError("History could not be loaded. Please retry.");
     }
   }
+  const revised = Date.parse(entry.revised_at) > Date.parse(entry.created_at);
   return (
     <article
-      className="journal-entry"
+      className="journal-entry entry-page"
       id={`entry-${entry.entry_id}`}
       tabIndex={-1}
     >
-      <EntryTime value={entry.created_at} />
-      {Date.parse(entry.revised_at) > Date.parse(entry.created_at) && (
-        <p className="form-note">
-          Revised <EntryTime value={entry.revised_at} />
+      <header className="entry-page-head">
+        <LevelEyebrow level="entry">
+          {entry.archived_at ? "Archived" : undefined}
+        </LevelEyebrow>
+        <h3 className="entry-page-date">
+          <EntryTime value={entry.created_at} />
+        </h3>
+        <p className="entry-revision">
+          {revised ? (
+            <>
+              Revision {entry.revision_number} · revised{" "}
+              <EntryTime value={entry.revised_at} />
+            </>
+          ) : (
+            "As first written"
+          )}
         </p>
-      )}
-      {entry.archived_at && <p className="form-note">Archived entry</p>}
+      </header>
       {editing ? (
         <EntryEditor
           tenantId={tenantId}
@@ -122,6 +143,7 @@ function EntryCard({
         </button>
         <button
           className="plain-button"
+          aria-expanded={!!history}
           onClick={() => (history ? setHistory(null) : viewHistory())}
         >
           {history ? "Close history" : "Revision history"}
@@ -138,7 +160,10 @@ function EntryCard({
         <ol className="revision-list" aria-label="Revision history">
           {history.map((r) => (
             <li key={r.id}>
-              <EntryTime value={r.created_at} />
+              <p className="revision-stamp">
+                Revision {r.revision_number} ·{" "}
+                <EntryTime value={r.created_at} />
+              </p>
               <p className="entry-body">{r.body}</p>
             </li>
           ))}
@@ -181,15 +206,18 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
   const archived = requestedView === "archive";
   const timeline = requestedView === "timeline";
   const listMode = requestedView === "list";
+  const returnsMode = requestedView === "returns";
   const view: GardenView = archived
     ? "archive"
     : timeline
       ? "timeline"
       : listMode
         ? "list"
-        : requestedView === "gardens"
-          ? "gardens"
-          : "";
+        : returnsMode
+          ? "returns"
+          : requestedView === "gardens"
+            ? "gardens"
+            : "";
   const ringMode = view === "gardens" && !firstRun && data.gardens.length > 0;
   // The living garden is the default overview; the list view, timeline and
   // archive keep the structured workspace.
@@ -251,6 +279,9 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
     writeViewPreference(next);
     navigate(plotId, seedId, next);
   }
+  /** Meadow or Pages, whichever the person is in or last chose. */
+  const homeView = (): "list" | "" =>
+    view === "" || view === "list" ? view : readViewPreference();
   // Return to the list view on later visits if that was the last choice.
   useEffect(() => {
     if (!params.get("view") && readViewPreference() === "list")
@@ -398,6 +429,68 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
   }
   const sceneOverview = (sceneMode && !seed) || ringMode;
   const activePlots = data.plots.filter((p) => !p.archived_at);
+  const openThought = (id: string) =>
+    navigate(
+      data.seeds.find((s) => s.id === id)?.plot_id ?? plotId,
+      id,
+      homeView(),
+    );
+  const openReturns = () => navigate(plotId, "", "returns");
+
+  // Per-thought and per-topic facts shown on bed and specimen cards.
+  const countedEntries = data.entries.filter((e) => archived || !e.archived_at);
+  const entryCount = new Map<string, number>();
+  const firstWritten = new Map<string, string>();
+  const lastWritten = new Map<string, string>();
+  for (const e of countedEntries) {
+    entryCount.set(e.seed_id, (entryCount.get(e.seed_id) ?? 0) + 1);
+    if ((firstWritten.get(e.seed_id) ?? "9") > e.created_at)
+      firstWritten.set(e.seed_id, e.created_at);
+    if ((lastWritten.get(e.seed_id) ?? "") < e.created_at)
+      lastWritten.set(e.seed_id, e.created_at);
+  }
+  const bedThoughts = (id: string) =>
+    data.seeds.filter(
+      (s) => s.plot_id === id && (archived || s.status === "active"),
+    );
+  const latestOf = (ids: string[]) =>
+    ids.reduce((latest, id) => {
+      const at = lastWritten.get(id) ?? "";
+      return at > latest ? at : latest;
+    }, "");
+  const plural = (n: number, one: string, many = `${one}s`) =>
+    `${n} ${n === 1 ? one : many}`;
+
+  const unseenBlooms = liveBlooms(tending).filter((b) => b.isNew).length;
+  const showChrome = !!garden && !firstRun;
+
+  // The depth trail: All gardens > Garden > Topic > Thought.
+  const lens = timeline && !seed;
+  const steps: TrailStep[] = [];
+  if (showChrome) {
+    const within = archived ? "archive" : homeView();
+    steps.push({
+      level: "gardens",
+      onOpen: ringMode ? undefined : () => navigate("", "", "gardens"),
+    });
+    if (!ringMode) {
+      const here = returnsMode || lens ? "" : seed ? "thought" : plot ? "topic" : "garden";
+      steps.push({
+        level: "garden",
+        name: garden.name,
+        onOpen: here === "garden" ? undefined : () => navigate("", "", within),
+      });
+      if (plot)
+        steps.push({
+          level: "topic",
+          name: plot.name,
+          onOpen:
+            here === "topic" ? undefined : () => navigate(plot.id, "", within),
+        });
+      if (seed && !returnsMode) steps.push({ level: "thought", name: seed.title });
+    }
+  }
+
   return (
     <main
       className={`thinking-garden${sceneOverview ? " scene-mode" : ""}${sceneMode && seed ? " over-scene" : ""}`}
@@ -417,48 +510,63 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
           mode="backdrop"
         />
       )}
+      {/* One top bar: where you can go (Meadow, Pages, Returns, All gardens)
+          and one menu for everything about the account. */}
       <header className="garden-top">
         <Link href={`/garden?garden=${data.gardenId}`} className="wordmark">
-          Slow Garden<span className="wordmark-dot">✳</span>
+          <span className="wordmark-text">Slow Garden</span>
+          <span className="wordmark-dot" aria-hidden="true">✳</span>
         </Link>
         <nav aria-label="Garden tools">
-          {garden && !firstRun && !archived && !timeline && !ringMode && (
-            <div className="view-toggle" role="group" aria-label="Garden view">
+          {showChrome && (
+            <>
+              <div className="view-toggle" role="group" aria-label="View">
+                <button
+                  type="button"
+                  aria-pressed={view === ""}
+                  onClick={() => chooseView("")}
+                >
+                  Meadow
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={view === "list"}
+                  onClick={() => chooseView("list")}
+                >
+                  Pages
+                </button>
+              </div>
               <button
                 type="button"
-                aria-pressed={view === ""}
-                onClick={() => chooseView("")}
+                className="plain-button top-link returns-link"
+                aria-current={returnsMode ? "page" : undefined}
+                onClick={openReturns}
               >
-                Garden
+                Returns
+                {unseenBlooms > 0 && (
+                  <>
+                    <span className="returns-dot" aria-hidden="true" />
+                    <span className="sr-only">
+                      {" "}
+                      ({plural(unseenBlooms, "new bloom")})
+                    </span>
+                  </>
+                )}
               </button>
               <button
                 type="button"
-                aria-pressed={view === "list"}
-                onClick={() => chooseView("list")}
+                className="plain-button top-link gardens-button"
+                aria-current={ringMode ? "page" : undefined}
+                onClick={() => navigate("", "", "gardens")}
               >
-                List
+                All gardens
+                <span className="sr-only"> ({data.gardens.length})</span>
               </button>
-            </div>
+            </>
           )}
           <ToolsMenu>
             {(close) => (
               <>
-                {sceneMode && !seed && (
-                  <button
-                    type="button"
-                    className="plain-button gardens-button"
-                    onClick={() => {
-                      close();
-                      navigate("", "", "gardens");
-                    }}
-                  >
-                    All gardens
-                    <span className="visually-hidden">
-                      {" "}
-                      ({data.gardens.length})
-                    </span>
-                  </button>
-                )}
                 <button
                   className="plain-button"
                   onClick={() => {
@@ -468,30 +576,73 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
                 >
                   {settings ? "Close settings" : "Settings & export"}
                 </button>
+                {data.gardenId && (
+                  <Link
+                    className="plain-button"
+                    href={`/garden/import?garden=${data.gardenId}`}
+                    onClick={close}
+                  >
+                    Import notes
+                  </Link>
+                )}
+                {showChrome && (
+                  <button
+                    className="plain-button"
+                    onClick={() => {
+                      close();
+                      navigate(
+                        "",
+                        "",
+                        archived ? readViewPreference() : "archive",
+                      );
+                    }}
+                  >
+                    {archived ? "Leave archive" : "Archive"}
+                  </button>
+                )}
                 <button
                   className="plain-button"
                   onClick={() => {
                     close();
-                    navigate(
-                      "",
-                      "",
-                      archived ? readViewPreference() : "archive",
-                    );
+                    leave();
                   }}
                 >
-                  {archived ? "Back to garden" : "Archive"}
+                  Sign out
                 </button>
               </>
             )}
           </ToolsMenu>
         </nav>
       </header>
+      {steps.length > 0 && (
+        <LevelTrail
+          steps={steps}
+          place={
+            returnsMode
+              ? { name: "Returns", returns: true }
+              : lens
+                ? { name: "Timeline" }
+                : undefined
+          }
+        >
+          {archived && <span className="lens-chip">Archive</span>}
+          {!seed && !ringMode && !returnsMode && !archived && !focusId && (
+            <RecentWriting
+              data={data}
+              plotId={plotId}
+              onNavigate={(topic, thought, entry) =>
+                navigate(topic, thought, homeView(), entry)
+              }
+            />
+          )}
+        </LevelTrail>
+      )}
       {settings && (
         <section className="garden-settings">
           <h2>Your space, your control</h2>
           <p>
-            Your writing is stored in your private account. AI is optional and
-            each topic starts with it off.
+            Your writing is stored in your private account. Tending is optional
+            and every topic starts with Tending off.
           </p>
           <div className="action-row">
             <a className="secondary-button" href="/garden/export">
@@ -516,12 +667,6 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
                 </a>
               </>
             )}
-            <Link
-              className="secondary-button"
-              href={`/garden/import?garden=${data.gardenId}`}
-            >
-              Import notes
-            </Link>
           </div>
           <p>
             Exports include archived writing and every revision, with
@@ -538,12 +683,10 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
           {garden && <TendingActivity history={data.tendingHistory} tending={tending} />}
           <p>
             You stay signed in on this browser between visits, until you sign
-            out or the session expires.
+            out or the session expires. Sign out of this device from the More
+            menu.
           </p>
           <div className="action-row">
-            <button className="plain-button" onClick={() => leave()}>
-              Sign out on this device
-            </button>
             <button className="plain-button" onClick={() => leave("global")}>
               Sign out on all devices
             </button>
@@ -557,10 +700,10 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
             currentId={data.gardenId}
             onEnter={(id) =>
               id === data.gardenId
-                ? navigate("", "", "")
+                ? navigate("", "", readViewPreference())
                 : router.push(`/garden?garden=${id}`)
             }
-            onClose={() => navigate("", "", "")}
+            onClose={() => navigate("", "", readViewPreference())}
             newGarden={
               <NewArea
                 kind="garden"
@@ -575,7 +718,18 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
         </div>
       ) : sceneOverview && garden ? (
         <div id="garden-content" className="scene-host">
-          {!focusId && <RecentWriting data={data} plotId={plotId} onNavigate={(topic, thought, entry) => navigate(topic, thought, "", entry)} />}
+          {/* ── MORNING RETURN MOUNT POINT · MEADOW ─────────────────────────
+              Garden level only. The lead mounts Team C's component here:
+              {!plotId && !focusId && (
+                <MorningReturn
+                  tending={tending}
+                  seeds={data.seeds}
+                  plots={data.plots}
+                  onOpenThought={openThought}
+                  onOpenReturns={openReturns}
+                />
+              )}
+              ─────────────────────────────────────────────────────────────── */}
           <GardenScene
             garden={garden}
             plots={activePlots}
@@ -635,101 +789,22 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
         </div>
       ) : (
       <div className={`garden-frame${quietPage ? " quiet-page" : ""}`}>
-        <aside className="plot-rail">
-          <label className="panel-kicker" htmlFor="garden-choice">
-            Your garden
-          </label>
-          <select
-            id="garden-choice"
-            aria-label="Your garden"
-            value={data.gardenId}
-            onChange={(e) => {
-              router.push(`/garden?garden=${e.target.value}`);
-            }}
-          >
-            {data.gardens.map((g) => (
-              <option key={g.id} value={g.id}>
-                {g.name}
-                {g.status === "archived" ? " · archived" : ""}
-              </option>
-            ))}
-          </select>
-          <button
-            className="rail-link"
-            aria-current={!plotId && !seedId ? "page" : undefined}
-            onClick={() => {
-              navigate();
-            }}
-          >
-            Garden overview
-          </button>
-          <p className="panel-kicker">Topics</p>
-          {plots.map((p) => (
-            <button
-              className="rail-link"
-              aria-current={plotId === p.id ? "page" : undefined}
-              key={p.id}
-              onClick={() => {
-                setPlotId(p.id);
-                setSearch("");
-              }}
-            >
-              <span aria-hidden="true">◌</span> {p.name}
-              <small>
-                {!p.ai_enabled
-                  ? "AI off"
-                  : p.cross_pollinate
-                    ? "Cross-pollination on"
-                    : "AI permission on"}
-              </small>
-            </button>
-          ))}
-          {data.gardenId && garden?.status === "active" && !archived && (
-            <NewArea
-              kind="plot"
-              parentId={data.gardenId}
-              onCreated={(id) => {
-                setPlotId(id);
-                refresh();
-              }}
-            />
-          )}
-          {garden && (
-            <div className="more-gardens">
-              <NewArea
-                kind="garden"
-                parentId=""
-                onCreated={(id) => {
-                  router.push(`/garden?garden=${id}`);
-                  refresh();
-                }}
-              />
-            </div>
-          )}
-        </aside>
         <section
           id="garden-content"
-          className={seed ? "thought-page" : "meadow-page"}
+          className={`level-page ${
+            firstRun || !garden
+              ? "level-first-run"
+              : returnsMode
+                ? "level-returns"
+                : lens
+                  ? "level-timeline"
+                  : seed
+                    ? "level-thought"
+                    : plot
+                      ? "level-topic"
+                      : "level-garden"
+          }`}
         >
-          <nav className="garden-breadcrumb" aria-label="Breadcrumb">
-            <button onClick={() => navigate()}>
-              Garden: {garden?.name ?? "New garden"}
-            </button>
-            {plot && (
-              <>
-                <span aria-hidden="true">/</span>
-                <button onClick={() => navigate(plot.id)}>
-                  Topic: {plot.name}
-                </button>
-              </>
-            )}
-            {seed && (
-              <>
-                <span aria-hidden="true">/</span>
-                <span aria-current="page">Thought: {seed.title}</span>
-              </>
-            )}
-          </nav>
           {invalidLocation && (
             <p role="status">
               That location is no longer available. Showing its nearest
@@ -743,6 +818,12 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
                 Archived writing is hidden from active views, not deleted.
                 Restore its garden or topic first, then the thought or entry.
               </p>
+              <button
+                className="plain-button"
+                onClick={() => navigate("", "", readViewPreference())}
+              >
+                Leave archive
+              </button>
             </section>
           )}
           {garden?.status === "archived" && (
@@ -782,7 +863,31 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
                 refresh();
               }}
             />
-          ) : timeline && !seed ? (
+          ) : returnsMode ? (
+            /* Returns: the AI's output has its own page, in its own material. */
+            <ReturnsPage
+              tending={tending}
+              seeds={data.seeds}
+              tendingActive={data.aiAvailable}
+              onOpenThought={openThought}
+              onSeen={markBloomsSeen}
+            >
+              <GardenReturns
+                key={plotId}
+                data={data}
+                plotId={
+                  plotId ||
+                  (activePlots.find((p) => p.ai_enabled) ?? activePlots[0])
+                    ?.id ||
+                  ""
+                }
+                onContinue={(id) => {
+                  openThought(id);
+                  setEditorGeneration((n) => n + 1);
+                }}
+              />
+            </ReturnsPage>
+          ) : lens ? (
             <ChronologyLens
               key={`${data.gardenId}:${plotId}`}
               data={data}
@@ -791,103 +896,156 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
               onNavigate={navigateFromLens}
             />
           ) : seed ? (
-            <>
-              <button
-                className="plain-button back-link"
-                onClick={() => setSeedId("")}
-              >
-                ← Back to {plot?.name ?? "your garden"}
-              </button>
-              <div className="thought-heading">
-                <div>
-                  <p className="panel-kicker">An evolving thought</p>
+            /* LEVEL 3 · THOUGHT: a specimen sheet. Plant and facts on the
+               left, the writing page first on the right, then dated entries. */
+            <div className="specimen-sheet">
+              <aside className="specimen-plate" aria-label="About this thought">
+                <div className="specimen-frame">
+                  <ThoughtPlant seedId={seed.id} entries={data.entries} />
+                </div>
+                <div className="specimen-label">
+                  <LevelEyebrow level="thought">
+                    {seed.status === "archived" ? "Archived" : undefined}
+                  </LevelEyebrow>
                   <h1>{seed.title}</h1>
-                  <p>
-                    A named thread of thought. Add a dated entry whenever you
-                    return.
+                  <dl className="specimen-facts">
+                    <div>
+                      <dt>Topic</dt>
+                      <dd>{plot?.name}</dd>
+                    </div>
+                    <div>
+                      <dt>Entries</dt>
+                      <dd>
+                        <a href="#saved-entries">{entries.length} saved</a>
+                      </dd>
+                    </div>
+                    {firstWritten.has(seed.id) && (
+                      <div>
+                        <dt>First written</dt>
+                        <dd>
+                          <EntryTime
+                            value={firstWritten.get(seed.id)!}
+                            format="date"
+                          />
+                        </dd>
+                      </div>
+                    )}
+                    {lastWritten.has(seed.id) && (
+                      <div>
+                        <dt>Last written</dt>
+                        <dd>
+                          <EntryTime
+                            value={lastWritten.get(seed.id)!}
+                            format="date"
+                          />
+                        </dd>
+                      </div>
+                    )}
+                  </dl>
+                  <div className="specimen-manage">
+                    <p className="form-note">
+                      {seed.status === "archived"
+                        ? "This thought is archived. Restore it to add entries."
+                        : "Archiving hides this thought from active views without deleting its entries."}
+                    </p>
+                    <button
+                      className="plain-button"
+                      disabled={
+                        garden.status === "archived" || !!plot?.archived_at
+                      }
+                      onClick={() =>
+                        archiveItem("seed", seed.id, seed.status === "active")
+                      }
+                    >
+                      {seed.status === "archived"
+                        ? "Restore this thought"
+                        : "Archive thought"}
+                    </button>
+                  </div>
+                </div>
+              </aside>
+              <div className="specimen-pages">
+                {seed.status === "active" &&
+                  garden.status === "active" &&
+                  !data.plots.find((p) => p.id === seed.plot_id)
+                    ?.archived_at && (
+                    <EntryEditor
+                      key={`${data.gardenId}:${seed.id}:${editorGeneration}`}
+                      tenantId={data.tenantId}
+                      seedId={seed.id}
+                      onSaved={(id) => {
+                        setNotice("Entry saved to this thought.");
+                        setSavedEntry(id);
+                        refresh();
+                      }}
+                      quietPage={quietPage}
+                      onQuietPageChange={setQuietPage}
+                    />
+                  )}
+                <div className="journal-entries" id="saved-entries">
+                  <h2>
+                    Entries <span>{plural(entries.length, "dated page")}</span>
+                  </h2>
+                  {entries.length === 0 && (
+                    <p className="empty-garden-note">
+                      No saved entries in this view. Save your first entry
+                      above, or check Archive.
+                    </p>
+                  )}
+                  {/* LEVEL 4 · ENTRY: each one a dated, ruled paper page. */}
+                  {entries.map((e) => (
+                    <EntryCard
+                      key={e.entry_id}
+                      entry={e}
+                      tenantId={data.tenantId}
+                      onRefresh={refresh}
+                      readOnly={
+                        seed.status === "archived" ||
+                        garden.status === "archived" ||
+                        !!plot?.archived_at
+                      }
+                      onArchive={() =>
+                        archiveItem("entry", e.entry_id, !e.archived_at)
+                      }
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+          ) : plot ? (
+            /* LEVEL 2 · TOPIC: one bed. A soil-edged header, then its
+               thoughts as small specimen cards. */
+            <>
+              <header className="bed-header">
+                <div className="bed-header-text">
+                  <LevelEyebrow level="topic">
+                    {archived ? "Archive" : undefined}
+                  </LevelEyebrow>
+                  <h1>{plot.name}</h1>
+                  <p className="bed-meta">
+                    <span>{plural(bedThoughts(plot.id).length, "thought")}</span>
+                    {latestOf(bedThoughts(plot.id).map((s) => s.id)) && (
+                      <span>
+                        Last written{" "}
+                        <EntryTime
+                          value={latestOf(bedThoughts(plot.id).map((s) => s.id))}
+                          format="date"
+                        />
+                      </span>
+                    )}
+                    <span
+                      className="tending-chip"
+                      data-state={tendingState(plot)}
+                    >
+                      {tendingLabel(plot)}
+                    </span>
                   </p>
                 </div>
-                <ThoughtPlant seedId={seed.id} entries={data.entries} />
-              </div>
-              <a className="text-link" href="#saved-entries">
-                View {entries.length} saved{" "}
-                {entries.length === 1 ? "entry" : "entries"}
-              </a>
-              {seed.status === "active" &&
-                garden.status === "active" &&
-                !data.plots.find((p) => p.id === seed.plot_id)?.archived_at && (
-                  <EntryEditor
-                    key={`${data.gardenId}:${seed.id}:${editorGeneration}`}
-                    tenantId={data.tenantId}
-                    seedId={seed.id}
-                    onSaved={(id) => {
-                      setNotice("Entry saved to this thought.");
-                      setSavedEntry(id);
-                      refresh();
-                    }}
-                    quietPage={quietPage}
-                    onQuietPageChange={setQuietPage}
-                  />
-                )}
-              <div className="journal-entries" id="saved-entries">
-                <h2>Saved entries · {entries.length}</h2>
-                {entries.length === 0 && (
-                  <p>
-                    No saved entries in this view. Save your first entry above,
-                    or check Archive.
-                  </p>
-                )}
-                {entries.map((e) => (
-                  <EntryCard
-                    key={e.entry_id}
-                    entry={e}
-                    tenantId={data.tenantId}
-                    onRefresh={refresh}
-                    readOnly={
-                      seed.status === "archived" ||
-                      garden.status === "archived" ||
-                      !!plot?.archived_at
-                    }
-                    onArchive={() =>
-                      archiveItem("entry", e.entry_id, !e.archived_at)
-                    }
-                  />
-                ))}
-              </div>
-              <p className="form-note">
-                {seed.status === "archived"
-                  ? "This thought is archived. Restore it to add entries."
-                  : "Archiving hides this thought from active views without deleting its entries."}
-              </p>
-              <button
-                className="plain-button"
-                disabled={garden.status === "archived" || !!plot?.archived_at}
-                onClick={() =>
-                  archiveItem("seed", seed.id, seed.status === "active")
-                }
-              >
-                {seed.status === "archived"
-                  ? "Restore this thought"
-                  : "Archive thought"}
-              </button>
-            </>
-          ) : (
-            <>
-              <div className="meadow-heading">
-                <p className="panel-kicker">
-                  {archived
-                    ? "Archived writing"
-                    : plot
-                      ? "Topic · related thoughts"
-                      : "Garden overview"}
-                </p>
-                <h1>{plot?.name ?? garden.name}</h1>
-                <p>
-                  {plot
-                    ? "Choose a thought to read its entries or add a new one."
-                    : "Topics group your thoughts. Each thought holds dated entries."}
-                </p>
-              </div>
+                <TopicPlants
+                  seedIds={bedThoughts(plot.id).map((s) => s.id)}
+                  entries={data.entries}
+                />
+              </header>
               <div className="meadow-tools">
                 <GardenSearch
                   key={`${data.gardenId}:${plotId}:${view}`}
@@ -898,249 +1056,282 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
                   onQueryChange={setSearch}
                   onNavigate={navigateFromLens}
                 />
-                {plot &&
-                  garden.status === "active" &&
-                  !plot.archived_at &&
-                  !archived && (
-                    <NewArea
-                      kind="seed"
-                      parentId={plot.id}
-                      onCreated={(id) => {
-                        setSeedId(id);
-                        refresh();
-                      }}
+                {garden.status === "active" && !plot.archived_at && !archived && (
+                  <NewArea
+                    kind="seed"
+                    parentId={plot.id}
+                    onCreated={(id) => {
+                      setSeedId(id);
+                      refresh();
+                    }}
+                  />
+                )}
+              </div>
+              {!search && (
+                <>
+                  <h2 className="level-section-title">
+                    Thoughts <span>planted in this topic</span>
+                  </h2>
+                  <section
+                    className="plant-grid specimen-grid"
+                    aria-label="Thoughts"
+                  >
+                    {seeds.map((s) => (
+                      <button
+                        className="seed-plant specimen-card"
+                        key={s.id}
+                        onClick={() => navigate(s.plot_id, s.id)}
+                      >
+                        <ThoughtPlant seedId={s.id} entries={data.entries} />
+                        <span className="specimen-tag">
+                          <span className="plant-label">{s.title}</span>
+                          <small>
+                            {s.status === "archived" && "Archived · "}
+                            {plural(entryCount.get(s.id) ?? 0, "entry", "entries")}
+                            {lastWritten.has(s.id) && (
+                              <>
+                                {" · "}
+                                <EntryTime
+                                  value={lastWritten.get(s.id)!}
+                                  format="date"
+                                />
+                              </>
+                            )}
+                          </small>
+                        </span>
+                      </button>
+                    ))}
+                  </section>
+                  {seeds.length === 0 && (
+                    <p className="empty-garden-note">
+                      Create a thought in this topic, then save your first
+                      dated entry.
+                    </p>
+                  )}
+                </>
+              )}
+              <details className="plot-permissions">
+                <summary>Topic settings · {tendingLabel(plot)}</summary>
+                <fieldset
+                  className="tending-choice"
+                  disabled={!!plot.archived_at || garden.status === "archived"}
+                >
+                  <legend>Tending for this topic</legend>
+                  {(
+                    [
+                      ["off", "Nothing in this topic is read by AI."],
+                      [
+                        "on",
+                        "This topic may be tended overnight. Its writing and blooms stay inside this topic.",
+                      ],
+                      [
+                        "across",
+                        "This topic may also be connected with other topics in this garden that allow the same.",
+                      ],
+                    ] as [TendingState, string][]
+                  ).map(([state, help]) => (
+                    <label key={state}>
+                      <input
+                        type="radio"
+                        name={`tending-${plot.id}`}
+                        checked={tendingState(plot) === state}
+                        onChange={() =>
+                          mutation(
+                            () =>
+                              setPlotPermissions(
+                                plot.id,
+                                state !== "off",
+                                state === "across",
+                              ),
+                            `${TENDING_LABEL[state]} saved for this topic.`,
+                          )
+                        }
+                      />
+                      <span>
+                        <strong>{TENDING_LABEL[state]}</strong>
+                        <small>{help}</small>
+                      </span>
+                    </label>
+                  ))}
+                </fieldset>
+                <p>
+                  {data.aiAvailable
+                    ? "Choosing a state never starts processing by itself. Anything tending returns appears in Returns, apart from your writing."
+                    : "Tending is not active for this account yet. Your choice is saved for when it is, and nothing is read until then."}
+                </p>
+                <button
+                  className="plain-button"
+                  disabled={garden.status === "archived"}
+                  onClick={() => archiveItem("plot", plot.id, !plot.archived_at)}
+                >
+                  {plot.archived_at ? "Restore topic" : "Archive topic"}
+                </button>
+              </details>
+            </>
+          ) : (
+            /* LEVEL 1 · GARDEN: a landscape banner, then every topic as a
+               wide bed with its plants standing in it. */
+            <>
+              {/* ── MORNING RETURN MOUNT POINT · PAGES ──────────────────────
+                  Garden level only. The lead mounts Team C's component here:
+                  {!archived && (
+                    <MorningReturn
+                      tending={tending}
+                      seeds={data.seeds}
+                      plots={data.plots}
+                      onOpenThought={openThought}
+                      onOpenReturns={openReturns}
                     />
                   )}
-              </div>
-              {!plot && !search && plots.length > 0 && (
-                <div className="plot-overview">
-                  {plots.map((p) => (
-                    <button
-                      className="plot-card"
-                      key={p.id}
-                      onClick={() => setPlotId(p.id)}
-                    >
-                      <TopicPlants
-                        seedIds={data.seeds
-                          .filter((s) => s.plot_id === p.id && s.status === "active")
-                          .map((s) => s.id)}
-                        entries={data.entries}
-                      />
-                      <p className="panel-kicker">
-                        Topic{p.archived_at ? " · archived" : ""}
-                      </p>
-                      <h2>{p.name}</h2>
-                      <p>
-                        {
-                          data.seeds.filter(
-                            (s) => s.plot_id === p.id && s.status === "active",
-                          ).length
-                        }{" "}
-                        open thoughts
-                      </p>
-                    </button>
-                  ))}
+                  ─────────────────────────────────────────────────────────── */}
+              <header className="garden-banner">
+                <svg
+                  className="garden-banner-land"
+                  viewBox="0 0 1200 240"
+                  preserveAspectRatio="none"
+                  aria-hidden="true"
+                  focusable="false"
+                >
+                  <circle className="banner-sun" cx="800" cy="112" r="30" />
+                  <path
+                    className="banner-hill-far"
+                    d="M0 150c120-46 260-58 400-30s250 20 380-14 290-30 420 14v120H0Z"
+                  />
+                  <path
+                    className="banner-hill-mid"
+                    d="M0 190c160-52 330-48 500-14s330 14 470-22 170-20 230-6v92H0Z"
+                  />
+                  <path
+                    className="banner-hill-near"
+                    d="M0 222c200-34 420-30 640-8s400 4 560-18v44H0Z"
+                  />
+                </svg>
+                <div className="garden-banner-text">
+                  <LevelEyebrow level="garden">
+                    {archived ? "Archive" : undefined}
+                  </LevelEyebrow>
+                  <h1>{garden.name}</h1>
+                  <p className="garden-banner-meta">
+                    <span>{plural(plots.length, "topic")}</span>
+                    <span>{plural(seeds.length, "thought")}</span>
+                    {latestOf(seeds.map((s) => s.id)) && (
+                      <span>
+                        Last written{" "}
+                        <EntryTime
+                          value={latestOf(seeds.map((s) => s.id))}
+                          format="date"
+                        />
+                      </span>
+                    )}
+                  </p>
                 </div>
-              )}
-              {!search && (
-                <h2>{plot ? "Thoughts in this topic" : "All thoughts"}</h2>
-              )}
-              <section className="plant-grid" aria-label="Thoughts">
-                {(search ? [] : seeds).map((s) => (
+                {unseenBlooms > 0 && !archived && (
                   <button
-                    className="seed-plant"
-                    key={s.id}
-                    onClick={() => {
-                      navigate(s.plot_id, s.id);
-                    }}
+                    type="button"
+                    className="banner-returns"
+                    onClick={openReturns}
                   >
-                    <ThoughtPlant seedId={s.id} entries={data.entries} />
-                    <small>
-                      Thought{s.status === "archived" ? " · archived" : ""}
-                    </small>
-                    <span className="plant-label">{s.title}</span>
-                    <small>
-                      {data.plots.find((p) => p.id === s.plot_id)?.name}
-                    </small>
-                    <small>
-                      {
-                        data.entries.filter(
-                          (e) => e.seed_id === s.id && !e.archived_at,
-                        ).length
-                      }{" "}
-                      saved entries
-                    </small>
-                    <small>
-                      {(() => {
-                        const latest = data.entries
-                          .filter((e) => e.seed_id === s.id && !e.archived_at)
-                          .sort((a, b) =>
-                            b.created_at.localeCompare(a.created_at),
-                          )[0];
-                        return latest ? (
-                          <>
-                            Latest: <EntryTime value={latest.created_at} />
-                          </>
-                        ) : (
-                          "No entries yet"
-                        );
-                      })()}
-                    </small>
+                    <LevelGlyph level="returns" size={18} />
+                    {plural(unseenBlooms, "new bloom")} in Returns
                   </button>
-                ))}
-              </section>
-              {seeds.length === 0 && !search && (
-                <p className="empty-garden-note">
-                  {plot
-                    ? "Create a thought in this topic, then save your first dated entry."
-                    : "Create a topic for related thoughts, then add a thought and its first entry."}
-                </p>
-              )}
-              {!plot && !archived && !search && (
-                <section className="recent-entries">
-                  <h2>Recent entries</h2>
-                  <p>Your latest saved writing in this garden.</p>
-                  {data.entries
-                    .filter(
-                      (e) =>
-                        !e.archived_at && seeds.some((s) => s.id === e.seed_id),
-                    )
-                    .sort((a, b) => b.created_at.localeCompare(a.created_at))
-                    .slice(0, 10)
-                    .map((e) => {
-                      const thought = data.seeds.find(
-                        (s) => s.id === e.seed_id,
-                      )!;
+                )}
+              </header>
+              <div className="meadow-tools">
+                <GardenSearch
+                  key={`${data.gardenId}:${plotId}:${view}`}
+                  data={data}
+                  plotId={plotId}
+                  archived={archived}
+                  query={search}
+                  onQueryChange={setSearch}
+                  onNavigate={navigateFromLens}
+                />
+                {garden.status === "active" && !archived && (
+                  <NewArea
+                    kind="plot"
+                    parentId={data.gardenId}
+                    onCreated={(id) => {
+                      setPlotId(id);
+                      refresh();
+                    }}
+                  />
+                )}
+              </div>
+              {!search && (
+                <>
+                  <h2 className="level-section-title">
+                    Topics <span>the beds of this garden</span>
+                  </h2>
+                  <ul className="bed-list">
+                    {plots.map((p) => {
+                      const thoughts = bedThoughts(p.id);
+                      const latest = latestOf(thoughts.map((s) => s.id));
+                      // The bed's most-written thoughts stand in its soil.
+                      const standing = [...thoughts]
+                        .sort(
+                          (a, b) =>
+                            (entryCount.get(b.id) ?? 0) -
+                              (entryCount.get(a.id) ?? 0) ||
+                            a.id.localeCompare(b.id),
+                        )
+                        .slice(0, 9);
                       return (
-                        <button
-                          key={e.entry_id}
-                          className="recent-entry"
-                          onClick={() =>
-                            navigate(
-                              thought.plot_id,
-                              thought.id,
-                              "",
-                              e.entry_id,
-                            )
-                          }
-                        >
-                          <strong>{thought.title}</strong>
-                          <span>
-                            {
-                              data.plots.find((p) => p.id === thought.plot_id)
-                                ?.name
-                            }
-                          </span>
-                          <EntryTime value={e.created_at} />
-                          <span>
-                            {e.body.slice(0, 160)}
-                            {e.body.length > 160 ? "…" : ""}
-                          </span>
-                        </button>
+                        <li key={p.id}>
+                          <button
+                            className="bed-card"
+                            onClick={() => setPlotId(p.id)}
+                          >
+                            <span className="bed-card-text">
+                              <span className="bed-card-level">
+                                <LevelGlyph level="topic" size={16} />
+                                Topic{p.archived_at ? " · archived" : ""}
+                              </span>
+                              <span className="bed-card-name">{p.name}</span>
+                              <span className="bed-meta">
+                                <span>
+                                  {plural(thoughts.length, "thought")}
+                                </span>
+                                <span>
+                                  {latest ? (
+                                    <>
+                                      Last written{" "}
+                                      <EntryTime value={latest} format="date" />
+                                    </>
+                                  ) : (
+                                    "Nothing written yet"
+                                  )}
+                                </span>
+                                <span
+                                  className="tending-chip"
+                                  data-state={tendingState(p)}
+                                >
+                                  {tendingLabel(p)}
+                                </span>
+                              </span>
+                            </span>
+                            <span className="bed-card-plants" aria-hidden="true">
+                              {standing.map((s) => (
+                                <ThoughtPlant
+                                  key={s.id}
+                                  seedId={s.id}
+                                  entries={data.entries}
+                                  className="bed-plant"
+                                />
+                              ))}
+                            </span>
+                          </button>
+                        </li>
                       );
                     })}
-                  {!data.entries.some(
-                    (e) =>
-                      !e.archived_at && seeds.some((s) => s.id === e.seed_id),
-                  ) && (
-                    <p>
-                      No saved entries yet. Choose a topic to begin, or check
-                      Archive.
+                  </ul>
+                  {plots.length === 0 && (
+                    <p className="empty-garden-note">
+                      {archived
+                        ? "Nothing in this garden is archived."
+                        : "Create a topic for related thoughts, then add a thought and its first entry."}
                     </p>
                   )}
-                </section>
-              )}
-              {plot && (
-                <GardenReturns
-                  key={plot.id}
-                  data={data}
-                  plotId={plot.id}
-                  onContinue={(id) => {
-                    setSeedId(id);
-                    setEditorGeneration((n) => n + 1);
-                  }}
-                />
-              )}
-              {plot && (
-                <details className="plot-permissions">
-                  <summary>
-                    Topic settings ·{" "}
-                    {!plot.ai_enabled
-                      ? "AI off"
-                      : plot.cross_pollinate
-                        ? "Cross-pollination on"
-                        : "AI permission on"}
-                  </summary>
-                  <p>
-                    AI tending is optional. Cross-pollination lets this topic
-                    exchange context with other participating topics in this
-                    garden.
-                  </p>
-                  {!data.aiAvailable && (
-                    <p>
-                      AI reflections are not available yet. These permissions
-                      are saved for when the service becomes available.
-                    </p>
-                  )}
-                  <label>
-                    <input
-                      type="checkbox"
-                      disabled={
-                        !!plot.archived_at || garden.status === "archived"
-                      }
-                      checked={plot.ai_enabled}
-                      onChange={(e) =>
-                        mutation(() =>
-                          setPlotPermissions(
-                            plot.id,
-                            e.target.checked,
-                            plot.cross_pollinate,
-                          ),
-                        )
-                      }
-                    />{" "}
-                    Allow AI tending
-                  </label>
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={plot.cross_pollinate}
-                      disabled={
-                        !plot.ai_enabled ||
-                        !!plot.archived_at ||
-                        garden.status === "archived"
-                      }
-                      onChange={(e) =>
-                        mutation(() =>
-                          setPlotPermissions(
-                            plot.id,
-                            plot.ai_enabled,
-                            e.target.checked,
-                          ),
-                        )
-                      }
-                    />{" "}
-                    Allow cross-pollination
-                  </label>
-                  <p>
-                    {plot.ai_enabled && !plot.cross_pollinate
-                      ? "This topic’s writing and insights stay isolated from other topics."
-                      : "Every participating topic must give its own permission."}
-                  </p>
-                  <p>
-                    Permissions never trigger processing by themselves. Invite
-                    AI separately when you want a reflection.
-                  </p>
-                  <button
-                    className="plain-button"
-                    disabled={garden.status === "archived"}
-                    onClick={() =>
-                      archiveItem("plot", plot.id, !plot.archived_at)
-                    }
-                  >
-                    {plot.archived_at ? "Restore topic" : "Archive topic"}
-                  </button>
-                </details>
+                </>
               )}
             </>
           )}
