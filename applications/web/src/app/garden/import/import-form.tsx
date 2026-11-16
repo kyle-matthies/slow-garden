@@ -8,7 +8,7 @@ import {
   parseImportFile,
   type ImportedThought,
 } from "@/lib/garden/import";
-import { importThought } from "./actions";
+import { useGardenStore } from "@/lib/garden/store/context";
 import "./import.css";
 
 type Preview = {
@@ -31,6 +31,7 @@ export function ImportForm({
   plots: Plot[];
 }) {
   const router = useRouter();
+  const { importThought } = useGardenStore();
   const [plotId, setPlotId] = useState(plots[0]?.id ?? "");
   const [files, setFiles] = useState<Preview[]>([]);
   const [notice, setNotice] = useState("");

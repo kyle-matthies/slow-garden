@@ -1,10 +1,12 @@
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, screen, within } from "@testing-library/react";
+import { renderWith, storeOf } from "@/lib/garden/store/testing/render";
 import { renderToString } from "react-dom/server";
 import { afterEach, expect, it, vi } from "vitest";
 import { FIXTURE } from "@/app/dev/axe-fixtures/fixture";
 import type { Tending, TendingBloom } from "@/lib/garden/scene/tending";
 import type { GardenData } from "@/lib/garden/types";
 import { GardenWorkspace } from "./workspace";
+import { GardenStoreProvider } from "@/lib/garden/store/provider";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
@@ -16,6 +18,8 @@ vi.mock("./actions", () => ({
   respondToBloom: vi.fn(), cancelReflection: vi.fn(), locateRevisions: vi.fn(), setTendOvernight: vi.fn(),
 }));
 // The scene is another team's canvas; the workspace's own chrome is under test.
+// No test here reaches the store; one that did would fail loudly.
+const render = renderWith(storeOf({}));
 vi.mock("./scene/garden-scene", () => ({ GardenScene: () => <div data-testid="scene" /> }));
 vi.mock("./scene/garden-ring", () => ({ GardenRing: () => <div data-testid="ring" /> }));
 vi.mock("./scene/thought-plant", () => ({ ThoughtPlant: () => null, TopicPlants: () => null }));
@@ -93,7 +97,7 @@ it("renders only the wordmark and the More menu during first run", () => {
 
 it("announces nothing in server HTML, where this browser's receipts are unknown", () => {
   window.history.replaceState(null, "", "/garden?view=list");
-  const html = renderToString(<GardenWorkspace data={tended} />);
+  const html = renderToString(<GardenStoreProvider store={storeOf({})}><GardenWorkspace data={tended} /></GardenStoreProvider>);
   expect(html).toContain("Fixture garden");
   expect(html).not.toContain("morning-return");
   expect(html).not.toContain("returns-dot");

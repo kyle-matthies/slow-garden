@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { useGardenStore } from "@/lib/garden/store/context";
 
 /**
  * Shown inside the account-deletion dialog when the database asks for a
@@ -16,6 +16,7 @@ export function DeleteReauth({
   email: string;
   onDone: () => void;
 }) {
+  const store = useGardenStore();
   const [sent, setSent] = useState(false);
   const [code, setCode] = useState("");
   const [pending, setPending] = useState(false);
@@ -25,11 +26,8 @@ export function DeleteReauth({
     setPending(true);
     setMessage("");
     try {
-      const { error } = await createClient().auth.signInWithOtp({
-        email,
-        options: { shouldCreateUser: false },
-      });
-      if (error) throw error;
+      const result = await store.requestEmailCode(email, { createAccount: false });
+      if (!result.ok) throw new Error(result.message);
       setSent(true);
       setMessage("A six-digit code is on its way. Only the newest code works.");
     } catch {
@@ -42,12 +40,8 @@ export function DeleteReauth({
     setPending(true);
     setMessage("");
     try {
-      const { error } = await createClient().auth.verifyOtp({
-        email,
-        token: code,
-        type: "email",
-      });
-      if (error) throw error;
+      const result = await store.verifyEmailCode(email, code);
+      if (!result.ok) throw new Error(result.message);
       setPending(false);
       onDone();
       return;

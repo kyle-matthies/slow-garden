@@ -1,13 +1,9 @@
 "use client";
 import { useEffect, useId, useRef, useState } from "react";
 import "./delete-control.css";
-import {
-  deleteAccount,
-  deleteItem,
-  previewDeletion,
-  type DeletionCounts,
-  type DeletionKind,
-} from "./actions";
+import { useGardenStore } from "@/lib/garden/store/context";
+import type { DeletionCounts, DeletionKind } from "@/lib/garden/store/rules";
+import { ExportLink } from "./export-link";
 import { DeleteReauth } from "./delete-reauth";
 
 const NOUN: Record<DeletionKind, string> = {
@@ -84,6 +80,7 @@ function DeleteDialogControl({
   disabled = false,
   onDeleted,
 }: Omit<Props, "enabled">) {
+  const { deleteAccount, deleteItem, previewDeletion } = useGardenStore();
   const noun = NOUN[kind];
   const typed = TYPED.includes(kind);
   const dialog = useRef<HTMLDialogElement>(null);
@@ -127,7 +124,7 @@ function DeleteDialogControl({
     return () => {
       current = false;
     };
-  }, [open, kind, id, typed]);
+  }, [open, kind, id, typed, previewDeletion]);
 
   function close() {
     if (busy) return;
@@ -243,24 +240,20 @@ function DeleteDialogControl({
             {(kind === "garden" || kind === "account") && (
               <p className="delete-export">
                 Want a copy?{" "}
-                <a
-                  href={
-                    kind === "garden" && exportGardenId
-                      ? `/garden/export?format=md&garden=${exportGardenId}`
-                      : "/garden/export?format=md"
-                  }
+                <ExportLink
+                  format="md"
+                  gardenId={kind === "garden" ? exportGardenId : undefined}
+                  onFailure={setError}
                 >
                   Export first · Markdown
-                </a>{" "}
-                <a
-                  href={
-                    kind === "garden" && exportGardenId
-                      ? `/garden/export?garden=${exportGardenId}`
-                      : "/garden/export"
-                  }
+                </ExportLink>{" "}
+                <ExportLink
+                  format="json"
+                  gardenId={kind === "garden" ? exportGardenId : undefined}
+                  onFailure={setError}
                 >
                   Export first · JSON
-                </a>
+                </ExportLink>
               </p>
             )}
             {typed && (

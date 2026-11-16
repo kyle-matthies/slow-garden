@@ -8,7 +8,7 @@ import {
   type KeyboardEvent,
 } from "react";
 import type { Entry } from "@/lib/garden/types";
-import { saveEntry } from "./actions";
+import { useGardenStore } from "@/lib/garden/store/context";
 import {
   appendContinuation,
   takeContinuation,
@@ -53,6 +53,7 @@ export function EntryEditor({
   quietPage?: boolean;
   onQuietPageChange?: (quiet: boolean) => void;
 }) {
+  const { saveEntry } = useGardenStore();
   const baseBody = entry?.body ?? "";
   const scope: DraftRecord["scope"] = entry ? "revise" : "new";
   const [draft, setDraft] = useState<Draft>({

@@ -1,13 +1,8 @@
 "use client";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { GardenData } from "@/lib/garden/types";
-import {
-  inviteReflection,
-  readReturns,
-  cancelReflection,
-  respondToBloom,
-} from "./actions";
-import { locateRevisions } from "./returns-lookup";
+import { useGardenReload, useGardenStore } from "@/lib/garden/store/context";
+import type { ReturnsData } from "@/lib/garden/store/types";
 import {
   ReturnCabinet,
   makeClippingResolver,
@@ -20,7 +15,7 @@ import {
 import { queueContinuation } from "@/lib/garden/continuation";
 import { buildContinuation } from "./returns-continue";
 
-type Returns = Awaited<ReturnType<typeof readReturns>>;
+type Returns = ReturnsData;
 
 export function GardenReturns({
   data,
@@ -31,6 +26,16 @@ export function GardenReturns({
   plotId: string;
   onContinue: (seedId: string) => void;
 }) {
+  const {
+    loadReturns: readReturns,
+    locateRevisions,
+    requestPass: inviteReflection,
+    cancelPass: cancelReflection,
+    respondToBloom,
+  } = useGardenStore();
+  // Browser mode only: the pass list in Settings is client state there. On
+  // the server path the action's revalidation refreshes it, as before.
+  const reloadGarden = useGardenReload();
   const [open, setOpen] = useState(false),
     [returns, setReturns] = useState<Returns | null>(null),
     [located, setLocated] = useState<Record<string, RevisionLocation>>({}),
@@ -91,6 +96,7 @@ export function GardenReturns({
       );
       if (result.ok) {
         inviteId.current = null;
+        void reloadGarden?.();
         await refresh();
       }
     } catch {

@@ -21,6 +21,10 @@ export type World = {
   rpc: Record<string, (args: Row, world: World) => FakeResult>;
   /** Forced failures, keyed `table.verb` (verb: select, insert, update) or `auth.method`. */
   fail: Record<string, FakeError>;
+  /** Column defaults applied to inserted rows, by table (what the schema would fill in). */
+  defaults?: Record<string, Row>;
+  /** Called after an insert or update, so a test can keep a stand-in view in step. */
+  onWrite?: (table: string, world: World) => void;
 };
 
 export function createWorld(partial: Partial<World> = {}): World {
@@ -45,7 +49,8 @@ function run(world: World, table: string, steps: Step[]): FakeResult {
     const row = steps.find(([m]) => m === "insert")![1] as Row;
     if (row.id !== undefined && rows.some((r) => r.id === row.id))
       return { data: null, error: { code: "23505", message: "duplicate key" } };
-    rows.push({ ...row });
+    rows.push({ ...world.defaults?.[table], ...row });
+    world.onWrite?.(table, world);
     return { data: null, error: null };
   }
 
@@ -61,6 +66,7 @@ function run(world: World, table: string, steps: Step[]): FakeResult {
   if (verb === "update") {
     const patch = steps.find(([m]) => m === "update")![1] as Row;
     for (const row of matched) Object.assign(row, patch);
+    world.onWrite?.(table, world);
     if (!steps.some(([m]) => m === "select")) return { data: null, error: null };
   }
 

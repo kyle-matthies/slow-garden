@@ -6,6 +6,13 @@ create extension if not exists pgtap with schema extensions;
 set search_path=public,extensions;
 select no_plan();
 
+-- The real scheduler keeps running while this file does (and other test files
+-- commit fixtures it can act on), so a tick token or a queued request written
+-- by pg_cron can be visible here at any moment. Every assertion about tokens
+-- and requests therefore looks only at rows this transaction wrote.
+create temp view my_ticks as select * from private.worker_ticks where xmin::text::bigint=txid_current()%4294967296;
+create temp view my_requests as select * from net.http_request_queue where xmin::text::bigint=txid_current()%4294967296;
+
 -- What the migration installed.
 select is((select schedule from cron.job where jobname='slow-garden-worker'),'*/5 * * * *','the worker tick is scheduled every five minutes');
 select is((select command from cron.job where jobname='slow-garden-worker'),'select private.tick_garden_worker()','and calls the tick function');
@@ -55,8 +62,8 @@ update private.ai_runtime set nightly_enabled=false;
 select vault.create_secret('http://worker.example.test/functions/v1/garden-worker','garden_worker_url') as url_secret \gset
 select is(private.tick_garden_worker(),null,'tick: a plain http URL is refused');
 select vault.update_secret(:'url_secret'::uuid,'https://worker.example.test/functions/v1/garden-worker');
-select is((select count(*) from net.http_request_queue),0::bigint,'no request was queued by any refused tick');
-select is((select count(*) from private.worker_ticks),0::bigint,'and no tick token was issued');
+select is((select count(*) from my_requests),0::bigint,'no request was queued by any refused tick');
+select is((select count(*) from my_ticks),0::bigint,'and no tick token was issued');
 
 -- pg_net's own grants (made by the platform's extension owner; a migration cannot
 -- revoke them) let every role read its queue. So the long-lived worker secret is
@@ -65,12 +72,12 @@ select is((select count(*) from vault.decrypted_secrets where name='garden_worke
 
 -- Configured, enabled, with work: exactly one request, correctly formed.
 select isnt(private.tick_garden_worker(),null,'tick: configured and enabled with work queues a request');
-select is((select count(*) from net.http_request_queue),1::bigint,'exactly one request is queued');
-select is((select url from net.http_request_queue),'https://worker.example.test/functions/v1/garden-worker','to the configured worker URL');
-select headers->>'Authorization' as sent_auth from net.http_request_queue \gset
+select is((select count(*) from my_requests),1::bigint,'exactly one request is queued');
+select is((select url from my_requests),'https://worker.example.test/functions/v1/garden-worker','to the configured worker URL');
+select headers->>'Authorization' as sent_auth from my_requests \gset
 select matches(:'sent_auth'::text,'^Bearer tick_[0-9a-f]{64}$'::text,'carrying a single-use tick token, never a stored secret');
-select is((select count(*) from private.worker_ticks where expires_at between now()+interval '1 minute' and now()+interval '2 minutes'),1::bigint,'the token is recorded once and expires within two minutes');
-select is((select count(*) from private.worker_ticks where encode(token_hash,'hex')=substr(:'sent_auth',13)),0::bigint,'only its hash is stored');
+select is((select count(*) from my_ticks where expires_at between now()+interval '1 minute' and now()+interval '2 minutes'),1::bigint,'the token is recorded once and expires within two minutes');
+select is((select count(*) from my_ticks where encode(token_hash,'hex')=substr(:'sent_auth',13)),0::bigint,'only its hash is stored');
 select ok(not has_function_privilege(r,'public.consume_worker_tick(text)','execute') and not has_table_privilege(r,'private.worker_ticks','select'),r||' cannot read or consume tick tokens') from unnest(array['anon','authenticated']) r;
 set local role service_role;
 select is(public.consume_worker_tick('tick_'||repeat('0',64)),false,'a made-up token is refused');
@@ -78,16 +85,16 @@ select is(public.consume_worker_tick(substr(:'sent_auth',8)),true,'the worker ca
 select is(public.consume_worker_tick(substr(:'sent_auth',8)),false,'exactly once');
 reset role;
 select private.tick_garden_worker() is not null as again \gset
-update private.worker_ticks set expires_at=now()-interval '1 second';
-select headers->>'Authorization' as late_auth from net.http_request_queue order by id desc limit 1 \gset
+update private.worker_ticks set expires_at=now()-interval '1 second' where token_hash in(select token_hash from my_ticks);
+select headers->>'Authorization' as late_auth from my_requests order by id desc limit 1 \gset
 set local role service_role;
 select is(public.consume_worker_tick(substr(:'late_auth',8)),false,'an expired token is refused');
 reset role;
-delete from net.http_request_queue where id=(select max(id) from net.http_request_queue);
-select is((select method::text from net.http_request_queue),'POST','as a POST');
-select is((select convert_from(body,'utf8') from net.http_request_queue),'{}','with an empty body: no content ever travels with a tick');
-select is((select timeout_milliseconds from net.http_request_queue),140000,'and a timeout that outlasts a synchronous provider call');
-delete from net.http_request_queue;
+delete from net.http_request_queue where id=(select max(id) from my_requests);
+select is((select method::text from my_requests),'POST','as a POST');
+select is((select convert_from(body,'utf8') from my_requests),'{}','with an empty body: no content ever travels with a tick');
+select is((select timeout_milliseconds from my_requests),140000,'and a timeout that outlasts a synchronous provider call');
+delete from net.http_request_queue where id in(select id from my_requests);
 
 -- Nightly: its own switch.
 select is(private.tick_nightly_enqueue('2026-11-16 02:30:00+00'),null,'enqueue: runtime on but nightly switch off returns null');
@@ -107,7 +114,7 @@ select is(private.tick_garden_worker(),null,'tick: disabled with no work returns
 update private.pass_inputs set cleanup_pending=true where pass_id='5fffffff-ffff-4fff-8fff-fffffffffff1';
 select isnt(private.tick_garden_worker(),null,'tick: disabled but cleanup is owed still reaches the worker');
 update private.pass_inputs set cleanup_pending=false;
-delete from net.http_request_queue;
+delete from net.http_request_queue where id in(select id from my_requests);
 -- A released, non-terminal pass (a sync call that timed out) carries cleanup_pending,
 -- but nothing can be claimed for it while the runtime is off: the tick stays silent.
 set local role authenticated;
@@ -122,7 +129,7 @@ select is(private.tick_garden_worker(),null,'tick: disabled with only a released
 set local role service_role;
 select is(public.claim_garden_pass(),null,'(the worker could not have claimed it)');
 reset role;
-select is((select count(*) from net.http_request_queue),0::bigint,'and queues nothing');
+select is((select count(*) from my_requests),0::bigint,'and queues nothing');
 insert into private.provider_orphans(provider_id) values('batch_synthetic');
 select isnt(private.tick_garden_worker(),null,'tick: disabled but an orphan is queued still reaches the worker');
 select is(private.tick_nightly_enqueue('2026-11-17 02:30:00+00'),null,'enqueue: disabled returns null even with the nightly switch on');

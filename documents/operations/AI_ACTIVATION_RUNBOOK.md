@@ -151,22 +151,25 @@ cloud resource is created in this phase beyond the two secrets.
 
 ## Phase 2 — Migrations and worker deployment with the runtime still disabled
 
-Apply the committed migrations through
-[SUPABASE_CHANGE_WORKFLOW](../../infrastructure/SUPABASE_CHANGE_WORKFLOW.md) steps 6–8,
-in order, each on its own go:
+Apply the six committed migrations through
+[SUPABASE_CHANGE_WORKFLOW](../../infrastructure/SUPABASE_CHANGE_WORKFLOW.md) steps 6–8
+and the [hosted apply checklist](HOSTED_APPLY_CHECKLIST.md), in order, **as one
+sequence on one go, without pausing part-way** (after the first four without the
+fifth, the deletion RPCs exist with no database switch in front of them):
 `20261116010931_in_app_deletion`, `20261116023935_ai_tenant_allowlist`,
-`20261116023937_provider_transport`, `20261116023939_garden_scheduling`.
+`20261116023937_provider_transport`, `20261116023939_garden_scheduling`,
+`20261116041903_browser_path_rules`, `20261116061751_tending_followups`.
 
 | # | Check | Go | No-go |
 |---|---|---|---|
-| 2.0 | The four migrations are in the hosted ledger; `supabase db push --linked --dry-run` reports up to date; `scripts/hosted-canary.sql` returns `hosted synthetic canary passed` | all three observed | any difference |
-| 2.0a | After migration: `select count(*) from private.ai_tenants` is 0; `select transport, reasoning_effort, nightly_enabled, enabled from private.ai_runtime` is `batch, null, false, false`; `select jobname, schedule from cron.job` lists `slow-garden-worker`, `slow-garden-nightly`, `slow-garden-cron-prune`; `select private.tick_garden_worker()` is null | observed | anything else |
+| 2.0 | The six migrations are in the hosted ledger; `supabase db push --linked --dry-run` reports up to date; `scripts/hosted-canary.sql` returns `hosted synthetic canary passed` | all three observed | any difference |
+| 2.0a | After migration: `select count(*) from private.ai_tenants` is 0; `select transport, reasoning_effort, nightly_enabled, enabled from private.ai_runtime` is `batch, null, false, false`; `select jobname, schedule, command from cron.job` lists `slow-garden-worker`, `slow-garden-nightly` (command `call private.run_nightly_enqueue()`), `slow-garden-cron-prune`; `select deletion_enabled from private.deployment_switches` is false; `select private.garden_worker_url() is null` is true (so the tick can send nothing) | observed | anything else |
 | 2.1 | `supabase/functions/garden-worker` deployed with JWT verification disabled **only for this function** | deploy receipt names the function and the flag | flag applied project-wide |
 | 2.2 | Unauthenticated POST returns 401; wrong secret returns 401 | both observed | any 200/503 without the secret |
 | 2.3 | Authenticated POST with runtime disabled returns `{"state":"idle"}` | observed | any other state |
 | 2.4 | Missing provider key returns 503 `Worker not configured` (test by temporarily unsetting in a **branch/preview** function, never production) | observed or explicitly skipped with reason | worker starts work without provider key |
 | 2.5 | Function logs contain no request or provider bodies | inspect logs for the canary invocations | any body text |
-| 2.6 | The owner stores the worker URL (https) in Vault: `select vault.create_secret('<https url>','garden_worker_url')` | `select private.garden_worker_url() is not null` is true; `select count(*) from vault.decrypted_secrets where name='garden_worker_secret'` is 0; `select private.tick_garden_worker()` is still null (runtime off, no cleanup owed) | a secret stored in Vault, or a value pasted into chat, a log or Git |
+| 2.6 | The owner stores the worker URL (https) in Vault: `select vault.create_secret('<https url>','garden_worker_url')` | `select private.garden_worker_url() is not null` is true; `select count(*) from vault.decrypted_secrets where name='garden_worker_secret'` is 0; `select count(*) from net.http_request_queue` stays 0 over the next five minutes (runtime off, no cleanup owed: the tick sends nothing) | a secret stored in Vault, or a value pasted into chat, a log or Git |
 | 2.7 | Record pg_net's grants, which a migration cannot change: `select has_table_privilege('authenticated','net.http_request_queue','select'), has_function_privilege('authenticated','net.http_post(text,jsonb,jsonb,jsonb,integer)','execute')` | recorded. `true, true` is the platform default seen locally and is why no secret travels through pg_net | not recorded |
 
 The scheduling migration is the only one that installs `pg_cron` and `pg_net`. Its
@@ -221,6 +224,7 @@ that was pinned.
 | 3.9 B | Account deletion with pending work: delete the synthetic account while `cleanup_pending=true`; tick | a `private.provider_orphans` row appears, then is drained to zero; console shows no remaining file | an orphan row that stops retrying (`attempts=20`), or a remaining file |
 | 3.9 S | Account deletion: delete the synthetic account with a pass queued | pass gone; its reservation released and nothing charged (charged in full only if a dispatch was still open, that is, sent and never answered); no orphan row | reservation left behind |
 | 3.10 | Hosted restore: a point-in-time restore or backup restore of the project to a **branch** preserves passes, blooms, and `ai_months` | restore receipt recorded, or residual risk accepted (decision 6) | neither |
+| 3.12 | Nightly canary: `psql "$DATABASE_URL" -f scripts/hosted-nightly-canary.sql`, as the operator, with the allowlist empty, the nightly switch off and no pass queued or processing (before 3.0's allowlisting, or after 3.11). psql only: it uses meta-commands and stops at the first error. Its preconditions, the synthetic account with two tended topics, the allowlisting, the opening of the nightly switch and the proof that the synthetic account is the only one nightly enqueue could reach are one transaction; then it calls the committing `private.run_nightly_enqueue()`, puts the nightly switch back to exactly the value it found, reports, and removes only what it created | exit status 0 and a last row `hosted nightly canary passed` (2 passes, one cycle date, 3 blooms allowed for the garden, 0 other tenants, switch as found; then all zeros). `scripts/hosted-canary.sql` separately proves the procedure refuses to run inside a transaction | exit status 3: a line beginning `nightly canary refused:` means a precondition was not met and nothing changed; `FAILED` means the run happened and a count was wrong. If the connection drops after the committing call, the switch may be left on with only the synthetic account allowlisted: set `nightly_enabled=false`, then delete that allowlist row and that account |
 | 3.11 | Allowlist removal: `delete from private.ai_tenants where tenant_id='<synthetic>'` with a pass queued | the pass is `cancelled` and cleaned on the next tick; a new insert is refused | pass still active |
 
 3.9 was a known gap until `20261116010931_in_app_deletion.sql`: that migration adds
@@ -278,10 +282,18 @@ residual risk in the decision log.
    tending settings). Other accounts may have set it too; they are not enqueued unless
    allowlisted, and `select count(*) from private.ai_tenants` is still 1.
 3. Open the nightly gate: `update private.ai_runtime set nightly_enabled=true where singleton;`
-   and confirm `select private.tick_nightly_enqueue()` returns 0 outside the 02:00
-   hour (not null).
+   and confirm `select private.nightly_gates_open()` is true. The hourly job runs
+   `call private.run_nightly_enqueue()`, which commits after each account; 3.12 must
+   have a receipt first, so that this is not the first time it commits.
 4. Observe one night. Expect one pass per permission scope with changed writing, and
-   none for unchanged scopes. Each garden gets at most three blooms. No body text
+   none for unchanged scopes. **Each garden gets at most three blooms for the night,
+   across all its passes**: the three are shared out when the night's passes are
+   created (one topic 3; two topics 2 and 1; three or more 1 each), a share that is
+   not used is not handed on, and `private.bloom_cycles` shows `published` (never
+   above 3) and `withheld` per garden and night. A reflection the person invites is
+   separate: up to three of its own. Catalogue marks are not blooms. Check
+   `select count(*) from private.nightly_skips where noted_at > now() - interval '1 day'`
+   is 0 (a row means a scope or account was passed over; its reason is a code). No body text
    appears in logs. With `sync`, passes finish within minutes of 02:07 local time,
    one per five-minute tick; with `batch`, within the provider's 24-hour window.
 5. Record the nightly receipt as states, counts and costs only.
@@ -297,6 +309,7 @@ drain normally, and disabling the runtime follows the order below.
 | `spent_cents` for the month exceeds `soft_cap_cents` | Disable new passes; review usage before continuing |
 | Any pass `processing` for more than 30 hours | Investigate scheduler and worker; expiry should have fired |
 | Any `cleanup_pending=true` older than 24 hours, or any `private.provider_orphans` row with `attempts=20` | Investigate provider cancellation and file deletion |
+| `select max(published) from private.bloom_cycles` is above 3 (cannot happen: a check constraint), or any `private.nightly_skips` row in the last week | Read the reason code; `scope_over_20_topics` means a garden has more than twenty cross-connected tended topics and that scope is not tended |
 | Any `private.pass_inputs` row with `lost_cents > 0` (sync) | A dispatch never reported back: check function logs for timeouts; compare with the provider invoice |
 | `select count(*) from private.worker_ticks` is more than a handful | Ticks are being issued and not redeemed: the worker is not answering |
 | Provider console shows files older than 48 hours (batch), or any stored response (sync) | Manual deletion and incident note |
@@ -383,6 +396,11 @@ and effort they were frozen with.
   gets one retry. A ledger write that fails after the provider answered is retried
   from memory and then settled as failed at its real cost; it does not cause another
   provider call unless the worker process itself dies mid-call.
+- **The three-bloom cap is per garden per night for nightly passes only.** An invited
+  reflection is its own cycle of up to three; a person who invites one for each of
+  several topics in a day can see more than three new blooms in that garden that day.
+  That is a product choice made here (ADR-008 says "per garden per cycle" and does
+  not define an invited pass's cycle); it wants an owner decision in the log.
 - **One budget pool.** The allowlist decides who may spend it; there is still no
   per-account cap beyond eight active passes and six nightly scopes.
 - **Evaluation corpus size.** The v3 packet has one reference case each for

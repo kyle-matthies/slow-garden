@@ -1,6 +1,6 @@
 "use client";
 import { useId, useMemo, useRef, useState } from "react";
-import { setTendingPreferences } from "./actions";
+import { useGardenStore } from "@/lib/garden/store/context";
 
 /**
  * Overnight tending (ADR-008). Saving this preference never starts processing:
@@ -16,6 +16,7 @@ export function TendingSettings({
   aiAvailable: boolean;
   onSaved: () => void;
 }) {
+  const { setTendingPreferences } = useGardenStore();
   const id = useId();
   const detected = useMemo(() => {
     try {
