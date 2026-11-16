@@ -44,6 +44,7 @@ export function GardenStoreProvider({
 export {
   useGardenData,
   useGardenReload,
+  useGardenRefreshFailed,
   useGardenStore,
   type GardenState,
 } from "./context";

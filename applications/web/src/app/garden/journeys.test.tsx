@@ -12,7 +12,7 @@
  * a database checks. This proves the two modes show the person the same
  * things for the same steps; it is not a database test.
  */
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { useEffect, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createFakeDb, createWorld, type World } from "@/lib/garden/store/testing/fake-supabase";
@@ -50,6 +50,7 @@ vi.mock("next/navigation", async () => {
   };
   return {
     useRouter: () => router,
+    usePathname: () => useSyncExternalStore(subscribe, () => window.location.pathname),
     useSearchParams: () =>
       new URLSearchParams(useSyncExternalStore(subscribe, () => window.location.search)),
     redirect: (path: string) => {
@@ -521,5 +522,123 @@ describe("browser mode only: loading, signed out and error", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Sign out on all devices" }));
     await waitFor(() => expect(nav.replace).toHaveBeenCalledWith("/login"));
     expect(calls.filter((c) => c.target === "auth:signOut").map((c) => c.steps[0])).toEqual([["signOut", { scope: "global" }]]);
+  });
+});
+
+describe("browser mode: what is on screen is the garden the address names", () => {
+  const G2 = "22222222-2222-4222-8222-222222222222";
+  const twoGardens = () => {
+    const w = world(true);
+    w.tables.gardens.push({ id: G2, tenant_id: T, name: "Second Garden", status: "active", archived_at: null, created_at: "2026-11-02T09:00:00.000Z" });
+    return w;
+  };
+  const go = (path: string) => act(() => window.history.pushState(null, "", path));
+
+  it("a failed load of another garden shows the error screen, never the previous garden's workspace", async () => {
+    const w = twoGardens();
+    const { calls } = start("browser", w, thoughtPath);
+    await screen.findByText("synthetic first page", { selector: "p.entry-body" });
+    w.fail["gardens.select"] = { code: "08006" };
+    go(`/garden?garden=${G2}&view=list`);
+    expect(await screen.findByRole("heading", { name: "Nothing was silently lost." })).toBeVisible();
+    // Nothing of the previous garden, and nothing to write into it with.
+    expect(screen.queryByText("synthetic first page")).toBeNull();
+    expect(screen.queryByText(/no longer available/)).toBeNull();
+    expect(screen.queryByRole("button", { name: /New (topic|thought|garden)/ })).toBeNull();
+    expect(screen.queryByRole("textbox")).toBeNull();
+    // A retry, and a way back to where the person was.
+    expect(screen.getByRole("link", { name: "Back to Home Garden" })).toHaveAttribute("href", `/garden?garden=${G1}`);
+    const before = calls.length;
+    delete w.fail["gardens.select"];
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(await screen.findByRole("heading", { level: 1, name: "Second Garden" })).toBeVisible();
+    expect(calls.slice(before).some((c) => c.target === "from:plots" && c.steps.some((step) => step[0] === "eq" && step[2] === G2))).toBe(true);
+    expect(screen.queryByText("synthetic first page")).toBeNull();
+  });
+
+  it("going back from that error screen shows the previous garden again and re-reads it", async () => {
+    const w = twoGardens();
+    start("browser", w, thoughtPath);
+    await screen.findByText("synthetic first page", { selector: "p.entry-body" });
+    w.fail["gardens.select"] = { code: "08006" };
+    go(`/garden?garden=${G2}&view=list`);
+    await screen.findByRole("heading", { name: "Nothing was silently lost." });
+    delete w.fail["gardens.select"];
+    go(thoughtPath);
+    expect(await screen.findByText("synthetic first page", { selector: "p.entry-body" })).toBeVisible();
+    await waitFor(() => expect(screen.queryByText(/could not be refreshed/)).toBeNull());
+  });
+
+  it("a failed refresh of the same garden keeps the page, the unsaved draft and says it could not refresh", async () => {
+    const w = world(true);
+    start("browser", w, thoughtPath);
+    const entry = (await screen.findByText("synthetic first page", { selector: "p.entry-body" })).closest("article")!;
+    const page = screen.getByLabelText("New entry", { selector: "textarea" });
+    await waitFor(() => expect(page).toBeEnabled());
+    fireEvent.change(page, { target: { value: "words not saved yet" } });
+    w.fail["gardens.select"] = { code: "08006" };
+    fireEvent.click(within(entry).getByRole("button", { name: "Archive entry" }));
+    // The change was saved and said so; the re-read failed and that is said too.
+    await notice(/^entry archived\. Find it in Archive; your writing was not deleted\. The garden could not be refreshed/);
+    expect(w.tables.entries[0].archived_at).toEqual(expect.any(String));
+    expect(screen.queryByRole("heading", { name: "Nothing was silently lost." })).toBeNull();
+    expect(screen.getByLabelText("New entry", { selector: "textarea" })).toHaveValue("words not saved yet");
+    // The last good data stays: the entry is still listed until a refresh succeeds.
+    expect(screen.getByText("synthetic first page", { selector: "p.entry-body" })).toBeVisible();
+    delete w.fail["gardens.select"];
+    fireEvent.click(screen.getByRole("button", { name: "Save entry" }));
+    await notice("Entry saved to this thought.");
+    await waitFor(() => expect(screen.queryByText("synthetic first page", { selector: "p.entry-body" })).toBeNull());
+    expect(screen.queryByText(/could not be refreshed/)).toBeNull();
+  });
+
+  it("refuses a write when another tab has signed in as a different account, and sends nothing", async () => {
+    const w = world(true);
+    const { calls } = start("browser", w, thoughtPath);
+    const entry = (await screen.findByText("synthetic first page", { selector: "p.entry-body" })).closest("article")!;
+    const page = screen.getByLabelText("New entry", { selector: "textarea" });
+    await waitFor(() => expect(page).toBeEnabled());
+    w.claims = { sub: "tenant-2", email: "grace@example.test" };
+    const before = calls.length;
+    fireEvent.change(page, { target: { value: "words for the first account" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save entry" }));
+    const refusal = "This page was opened by a different account, so nothing was saved. Reload the page to continue.";
+    await notice(refusal);
+    // The words are still in the page, unsaved.
+    expect(screen.getByLabelText("New entry", { selector: "textarea" })).toHaveValue("words for the first account");
+    fireEvent.click(within(entry).getByRole("button", { name: "Archive entry" }));
+    await waitFor(() => expect(screen.getAllByText(refusal).length).toBe(2));
+    expect(calls.slice(before).filter((c) => c.target.startsWith("rpc:save_entry") || c.steps.some((step) => step[0] === "insert" || step[0] === "update"))).toEqual([]);
+    expect(w.tables.seed_revisions).toHaveLength(1);
+    expect(w.tables.entries[0].archived_at).toBeNull();
+  });
+
+  it("a garden that no longer exists: the nearest garden is shown, said to be so, and new writing goes to the garden shown", async () => {
+    const w = twoGardens();
+    const gone = "99999999-9999-4999-8999-999999999999";
+    start("browser", w, `/garden?garden=${gone}&view=list`);
+    expect(await screen.findByRole("heading", { level: 1, name: "Home Garden" })).toBeVisible();
+    expect(screen.getByText(/That location is no longer available/)).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: /New topic/ }));
+    fireEvent.change(await screen.findByLabelText(/Name/), { target: { value: "Fresh bed" } });
+    fireEvent.submit(screen.getByLabelText(/Name/).closest("form")!);
+    await waitFor(() => expect(w.tables.plots.map((p) => [p.name, p.garden_id])).toContainEqual(["Fresh bed", G1]));
+    expect(w.tables.plots.some((p) => p.garden_id === gone)).toBe(false);
+  });
+
+  it("a garden archived elsewhere is shown as archived after the next read, with nowhere to write", async () => {
+    const w = world(true);
+    start("browser", w, thoughtPath);
+    const entry = (await screen.findByText("synthetic first page", { selector: "p.entry-body" })).closest("article")!;
+    await waitFor(() => expect(screen.getByLabelText("New entry", { selector: "textarea" })).toBeEnabled());
+    Object.assign(w.tables.gardens[0], { status: "archived", archived_at: DAY });
+    fireEvent.click(within(entry).getByRole("button", { name: "Revision history" }));
+    await within(entry).findByRole("list", { name: "Revision history" });
+    // Any re-read brings the change in; here, the one after a saved preference.
+    openMenu("Settings & export");
+    fireEvent.click(await screen.findByRole("checkbox", { name: "Tend my garden overnight" }));
+    expect(await screen.findByText(/This garden is archived\./)).toBeVisible();
+    expect(screen.queryByLabelText("New entry", { selector: "textarea" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Revise" })).toBeDisabled();
   });
 });

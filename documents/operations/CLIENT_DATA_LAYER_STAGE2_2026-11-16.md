@@ -99,7 +99,8 @@ Differences in server mode (none visible to the person):
 | `/garden` with no session | server redirect to `/login` | the sign-in screen is rendered at `/garden`; nothing is redirected |
 | After signing in from there | lands on `/garden` (default location) | stays on the address that was asked for (topic, thought and view kept) |
 | `/login` when already signed in | server redirect (still present on the hosted app) | also checked in the browser, then `router.replace("/garden")` |
-| Switching garden, or the first garden created | previous view stays until the server answers | the loading state shows until the requested garden has loaded |
+| Switching garden, or the first garden created | previous view stays until the server answers | the loading state shows until the requested garden has loaded; if that load fails, the error screen with "Try again" and "Back to <previous garden>" |
+| A re-read of the garden on screen fails | the route's `error.tsx` | the page stays, with "The garden could not be refreshed, so this page may be out of date. Nothing was lost; reload the page to check." beside the last message |
 | Read failure | the route's `error.tsx` | the same component, "Try again" re-reads through the store |
 | After a change | action revalidates, router refreshes | `reload()` through the store; a pass request also reloads the garden, as revalidation does |
 | First run and "new garden" | one refresh | two garden reads (the address change and the explicit refresh); the older answer is discarded. Wasteful, not wrong |
@@ -165,10 +166,9 @@ browser mode it is the only client that touches the session.
   private until `store.loadGarden()` has confirmed a session; RLS is the protection.
   Not handled: a sign-out in another tab is noticed at the next store call or reload,
   not at once (the store has no auth-change subscription).
-- **A failed re-read after a successful change** keeps showing the previous data with
-  no message (the change itself was saved and said so). The full-page error state is
-  used only when there is nothing to show. Saying more would need new copy, which this
-  stage was not to add.
+- **A failed re-read after a successful change** keeps the page and now says so (see
+  "Review follow-up"). The full-page error state is used when there is no data for the
+  garden the address names.
 
 ## Export and history in browser mode
 
@@ -338,6 +338,60 @@ states; they were not checked as rendered under `/garden` specifically.
 Result, browser mode on :3152, full run, light and dark, four viewports: `PASS: axe-check
 complete`, 192 touch-viewport state runs, 0 serious or critical violations, no overflow,
 no small target, no contrast failure. Same result as server mode.
+
+## Review follow-up (same day, after commit 5cacf58)
+
+A reviewer reported that in browser mode a failed load of garden B left garden A's
+workspace on screen under B's address. Confirmed with failing tests first, then fixed.
+New copy was needed for three messages (listed below); nothing else about the design
+changed. Server mode is not affected by any of this: there the server renders the data
+for the address in one response.
+
+| Hazard | Real before the fix? | Now |
+|---|---|---|
+| Garden B fails to load while A is on screen: A's workspace under B's address, "location unavailable", creation controls aimed at A, no retry | **Yes** (two tests failed on the committed code) | `useGardenData` gives no data for any garden but the one requested. The error screen shows, with "Try again" and a "Back to <A>" link; nothing of A is rendered |
+| A re-read of the garden on screen fails: stale page with no word about it | **Yes** (recorded above as a known gap) | The page and any unsaved writing in it stay; the status line adds that the garden could not be refreshed. The next successful read clears it |
+| A `reload` taken from an earlier render (a save that finishes after the person moved to B) re-reads A and discards B's answer | **Yes** (one test failed) | `reload()` always reads the garden now requested |
+| A slow answer for A arriving after the switch to B replaces B | No: the request ticket already dropped it. One frame of A under B's address was possible between render and effect; the keyed data closes that too | Tests added |
+| Rapid switching A, B, C with answers out of order | No: the ticket already handled it | Test added |
+| Another account signs in from another tab; the page still shows the first account | **Yes, narrow**: writes naming the first account's rows were refused by RLS, but "new garden" and the overnight preference name no row and would have been written to the second account | Every write first checks the session is the account on screen; if not it is refused ("This page was opened by a different account…") and nothing is sent. A failed re-read under another account drops the kept data; a successful one replaces it and remounts the page |
+| Sign-out then sign-in as another account in the same tab | No: sign-out leaves the page, and the signed-out state holds no data | Unchanged; the page is also keyed by account now |
+| The garden was deleted elsewhere | No hazard, by design: the loader answers with the nearest garden, the page says "That location is no longer available…", and writes go to the garden shown (as in server mode). The address still names the deleted garden | Test added |
+| The garden was archived elsewhere | No: the database refuses writing in an archived garden (`SGA02`) and the next read shows it archived | Test added |
+
+What changed:
+
+- `store/context.tsx`: data is held with the request it answered; `data` is returned
+  only when it belongs to the garden now requested, otherwise it is `previous`.
+  `reload()` reads the current request. On a failed re-read the session is asked once:
+  signed out gives the signed-out state, another account drops the data.
+- `app/garden/browser-entry.tsx`: the gate renders the error screen for a failed load of
+  another garden (with the way back), keys the page by account and garden, and wraps the
+  store in `guardStore`.
+- `store/guard.ts` (new): every write is refused unless the session is the account on
+  screen and the garden, topic, thought, entry, pass, bloom or mark it names is in the
+  data on screen, or was created through the same store since (first run writes into
+  rows not yet re-read). Returns are read for the garden on screen only. Reads, sign-in
+  and sign-out pass through. Cost: one extra `getClaims` per write in browser mode (a
+  local signature check with asymmetric keys; a network call on a project still using
+  the legacy shared secret).
+- `app/error.tsx`: takes optional children, shown after "Try again". Next passes none.
+- `workspace.tsx`: appends the refresh notice to its existing status line.
+- New copy: "Back to <garden name>"; "The garden could not be refreshed, so this page
+  may be out of date. Nothing was lost; reload the page to check."; "This is no longer
+  the garden on screen, so nothing was saved. Reload the page, then try again."; "This
+  page was opened by a different account, so nothing was saved. Reload the page to
+  continue."
+- Tests: 6 in `journeys.test.tsx` (the reviewer's case, the way back, the refresh
+  notice with a kept draft, the other account, the deleted garden, the archived
+  garden), 7 in `provider.test.tsx`, 11 in `guard.test.ts`. Run against the committed
+  code, seven of the hook and gate tests failed (the guard did not exist there). `tsc` and `eslint` clean; `vitest` 45 files, 359 tests, three runs.
+
+Not verified for this follow-up: a real browser or a real Supabase (the local stack had
+been stopped; these are jsdom and fake-database tests), the look of the "Back to"
+link on the error screen at phone width, and the accessibility script for that state.
+Unsaved writing survives the error screen because the editor writes its draft to this
+browser on unmount (existing behaviour, not re-tested against IndexedDB here).
 
 ## Not verified
 

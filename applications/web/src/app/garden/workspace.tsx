@@ -16,7 +16,11 @@ import { ChronologyLens, GardenSearch, type LensView } from "./chronology";
 import { EntryTime } from "./entry-time";
 import { EntryEditor } from "./entry-editor";
 import { FirstRun } from "./first-run";
-import { useGardenReload, useGardenStore } from "@/lib/garden/store/context";
+import {
+  useGardenReload,
+  useGardenRefreshFailed,
+  useGardenStore,
+} from "@/lib/garden/store/context";
 import { ExportLink } from "./export-link";
 import { TendingSettings } from "./tending-settings";
 import { DeleteControl } from "./delete-control";
@@ -201,12 +205,18 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
   const [editorGeneration, setEditorGeneration] = useState(0);
   const router = useRouter();
   const params = useSearchParams();
+  // Browser mode only: the last re-read failed and the page shows the last
+  // good data. Said beside whatever the last action reported.
+  const refreshFailed = useGardenRefreshFailed();
   const [search, setSearch] = useState(""),
     [settings, setSettings] = useState(false),
-    [notice, setNotice] = useState(""),
+    [said, setNotice] = useState(""),
     [savedEntry, setSavedEntry] = useState(""),
     [quietPage, setQuietPage] = useState(false),
     [firstRun, setFirstRun] = useState(() => data.gardens.length === 0);
+  const notice = refreshFailed
+    ? `${said}${said ? " " : ""}The garden could not be refreshed, so this page may be out of date. Nothing was lost; reload the page to check.`
+    : said;
   const firstRunCompleted = useRef(false);
   const sceneHost = useRef<HTMLDivElement>(null);
   // Setup may already have saved a garden before a reload. Recover the remaining
