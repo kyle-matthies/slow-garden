@@ -140,12 +140,30 @@ export default async function Home() {
             </p>
           </article>
           <article>
-            <h3>Archive now, deletion before wider release</h3>
-            <p>
-              Today you can archive anything to put it out of view. In-app
-              deletion is not built yet; we have made complete deletion a
-              requirement before Slow Garden opens more widely.
-            </p>
+            {/* Deletion is described only where it is switched on (after its migration is applied). */}
+            {process.env.GARDEN_DELETION_ENABLED === "true" ? (
+              <>
+                <h3>Archive hides. Delete erases.</h3>
+                <p>
+                  Archive puts anything out of view and can be undone. Delete
+                  permanently erases an entry, a thought, a topic, a garden or
+                  your whole account, with every saved version and any blooms
+                  drawn from it. Copies in our database provider’s routine
+                  backups are not reachable from the app and expire on the
+                  provider’s schedule.
+                </p>
+              </>
+            ) : (
+              <>
+                <h3>Archive now, deletion before wider release</h3>
+                <p>
+                  Today you can archive anything to put it out of view, and
+                  export all of it. In-app deletion is not available yet; we
+                  have made complete deletion a requirement before Slow
+                  Garden opens more widely.
+                </p>
+              </>
+            )}
           </article>
         </div>
       </section>

@@ -17,7 +17,16 @@ const editorial = Cormorant_Garamond({
   subsets: ["latin"],
 });
 
+// Mobile first (D-024). `viewport-fit=cover` lets the garden run edge to edge
+// behind the notch and home indicator; every bar pads itself with
+// `env(safe-area-inset-*)`. `resizes-content` shrinks the layout when an
+// on-screen keyboard opens (Chromium), so the save action stays above it;
+// Safari is handled in the editor with `visualViewport`. Zoom is never disabled.
 export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  interactiveWidget: "resizes-content",
   colorScheme: "light dark",
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#fbf8ef" },
@@ -36,6 +45,18 @@ export const metadata: Metadata = {
   },
   description,
   applicationName: "Slow Garden",
+  // Installability groundwork only: a manifest and icons. There is no service
+  // worker, so nothing is cached or available offline (a separate decision).
+  manifest: "/manifest.webmanifest",
+  icons: {
+    apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180" }],
+  },
+  appleWebApp: {
+    capable: true,
+    title: "Slow Garden",
+    statusBarStyle: "default",
+  },
+  formatDetection: { telephone: false },
   openGraph: {
     type: "website",
     siteName: "Slow Garden",

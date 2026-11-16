@@ -237,24 +237,46 @@
   }
 }
 
-@media (max-width: 720px) {
+/* Phone first: these are the base values; wider screens follow. */
+.cabinet-board {
+  grid-template-columns: 1fr;
+}
+.cabinet-board .cabinet-clipping::before,
+.cabinet-board .cabinet-clipping::after {
+  display: none;
+}
+.pressed-sheet {
+  min-height: 8rem;
+}
+.pressed-drawn {
+  height: 8rem;
+}
+.pressed-photo {
+  max-width: 9rem;
+}
+.cabinet-specimen-card .cabinet-interpretation {
+  font-size: 1.25rem;
+}
+@media (min-width: 721px) {
   .cabinet-board {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(13rem, 0.9fr) minmax(0, 1.25fr);
   }
-  .cabinet-board .cabinet-clipping::before,
+  .cabinet-board .cabinet-clipping::before {
+    display: block;
+  }
   .cabinet-board .cabinet-clipping::after {
-    display: none;
+    display: block;
   }
   .pressed-sheet {
-    min-height: 8rem;
+    min-height: 11rem;
   }
   .pressed-drawn {
-    height: 8rem;
+    height: 11rem;
   }
   .pressed-photo {
-    max-width: 9rem;
+    max-width: 12rem;
   }
   .cabinet-specimen-card .cabinet-interpretation {
-    font-size: 1.25rem;
+    font-size: 1.4rem;
   }
 }

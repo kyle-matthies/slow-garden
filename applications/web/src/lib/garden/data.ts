@@ -93,6 +93,7 @@ export async function loadGarden(
     seeds,
     entries: entries as GardenData["entries"],
     aiAvailable: process.env.GARDEN_AI_ENABLED === "true",
+    deletionAvailable: process.env.GARDEN_DELETION_ENABLED === "true",
     tending,
     tendingHistory,
     account,

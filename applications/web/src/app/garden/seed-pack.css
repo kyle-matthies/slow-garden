@@ -1,0 +1,273 @@
+/*
+ * Seed packs: paper packets on a shelf beside the first page. A packet is a
+ * button; opened, it lays its topics out as beds the person can keep or leave.
+ * No gold here: gold is reserved for what the garden returns.
+ */
+.seed-packs {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+.seed-packs-head h2 {
+  margin: 8px 0 6px;
+  font-family: var(--font-editorial), serif;
+  font-size: clamp(1.7rem, 2.2vw, 2.1rem);
+  font-weight: 540;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+  color: var(--ink);
+}
+.seed-packs-head h2 { scroll-margin-top: 48px; }
+.seed-packs-head h2:focus { outline: none; }
+.seed-packs-head p:not(.panel-kicker) {
+  margin: 0;
+  max-width: 30rem;
+  color: var(--ink-muted);
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+
+.seed-shelf {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-flow: dense;
+  gap: 14px 12px;
+}
+.seed-shelf-item { display: contents; }
+
+/* The packet. */
+.seed-packet {
+  --tone: #9fb08c;
+  --paper-tint: color-mix(in srgb, var(--tone) 24%, var(--sheet, var(--surface-solid)));
+  --paper-deep: color-mix(in srgb, var(--tone) 62%, var(--sheet, var(--surface-solid)));
+  position: relative;
+  display: grid;
+  grid-template-rows: auto auto 1fr;
+  min-width: 0;
+  padding: 0;
+  text-align: left;
+  color: var(--sheet-ink, var(--ink));
+  background: var(--paper-tint);
+  border: 1px solid color-mix(in srgb, var(--tone) 70%, var(--sheet-ink, var(--ink)) 12%);
+  border-radius: 3px;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.25) inset, 0 6px 14px -8px rgba(32, 44, 26, 0.5);
+  cursor: pointer;
+  transition: transform 160ms ease, box-shadow 160ms ease;
+}
+.seed-packet[data-tone="clay"] { --tone: #c1906f; }
+.seed-packet[data-tone="slate"] { --tone: #8d9fb3; }
+.seed-packet[data-tone="plum"] { --tone: #a98aa8; }
+.seed-packet[data-tone="fern"] { --tone: #7ba789; }
+.seed-packet[data-tone="rose"] { --tone: #c9939b; }
+.seed-packet[data-tone="stone"] { --tone: #aba594; }
+.seed-packet[data-tone="teal"] { --tone: #77a8a4; }
+.seed-packet:hover:not(:disabled) {
+  transform: translateY(-2px) rotate(-0.4deg);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.25) inset, 0 12px 20px -10px rgba(32, 44, 26, 0.55);
+}
+.seed-packet:focus-visible {
+  outline: var(--focus-ring, 3px solid var(--moss));
+  outline-offset: 3px;
+}
+.seed-packet:disabled { cursor: default; }
+
+/* Crimped, folded-over top. */
+.seed-packet-flap {
+  display: block;
+  height: 13px;
+  background:
+    repeating-linear-gradient(90deg, transparent 0 3px, rgba(0, 0, 0, 0.09) 3px 4px),
+    var(--paper-deep);
+  border-bottom: 1px dashed color-mix(in srgb, var(--sheet-ink, var(--ink)) 35%, transparent);
+  border-radius: 2px 2px 0 0;
+}
+/* Opened: the top is torn away along a ragged line. */
+.seed-packet[data-open] .seed-packet-flap {
+  border-bottom: 0;
+  background: var(--paper-deep);
+  clip-path: polygon(0 100%, 0 62%, 7% 30%, 14% 66%, 22% 22%, 31% 58%, 40% 28%, 49% 70%, 58% 34%, 66% 62%, 75% 18%, 84% 56%, 92% 30%, 100% 60%, 100% 100%);
+}
+.seed-packet[data-open] {
+  border-color: var(--moss);
+  box-shadow: 0 0 0 1px var(--moss), 0 6px 14px -8px rgba(32, 44, 26, 0.5);
+}
+
+/* The engraving panel. */
+.seed-packet-art {
+  display: grid;
+  place-items: end center;
+  height: 112px;
+  margin: 8px 8px 0;
+  padding-top: 6px;
+  overflow: hidden;
+  background:
+    linear-gradient(transparent calc(100% - 9px), color-mix(in srgb, var(--soil-light, #8a6b4e) 55%, transparent) calc(100% - 9px)),
+    color-mix(in srgb, var(--tone) 8%, var(--sheet, var(--surface-solid)));
+  border: 1px solid color-mix(in srgb, var(--tone) 60%, var(--sheet-ink, var(--ink)) 10%);
+  border-radius: 2px;
+  box-shadow: inset 0 0 0 3px color-mix(in srgb, var(--tone) 8%, var(--sheet, var(--surface-solid))), inset 0 0 0 4px color-mix(in srgb, var(--tone) 45%, transparent);
+}
+.seed-packet-plant {
+  display: inline-flex;
+  align-items: flex-end;
+  justify-content: center;
+  width: 96px;
+  height: 102px;
+  margin-bottom: 5px;
+}
+.seed-packet-plant svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.seed-packet-label {
+  display: grid;
+  align-content: start;
+  gap: 3px;
+  padding: 9px 11px 11px;
+  min-width: 0;
+}
+.seed-packet-name {
+  font-family: var(--font-editorial), serif;
+  font-size: 1.14rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.12;
+  text-wrap: balance;
+}
+.seed-packet-note {
+  font-size: 0.78rem;
+  line-height: 1.35;
+  color: color-mix(in srgb, var(--sheet-ink, var(--ink)) 82%, transparent);
+}
+.seed-packet-count {
+  margin-top: 4px;
+  font-size: 0.66rem;
+  font-weight: 750;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--sheet-ink, var(--ink)) 82%, transparent);
+}
+.seed-packet[data-open] .seed-packet-count { color: var(--moss-deep); }
+
+/* An opened pack's topics, laid out as beds across the whole shelf. */
+.seed-beds {
+  grid-column: 1 / -1;
+  min-width: 0;
+  padding: 12px 12px 6px;
+  background: var(--sheet, var(--surface-solid));
+  border: 1px solid var(--sheet-edge, var(--line));
+  border-radius: 10px;
+  color: var(--sheet-ink, var(--ink));
+}
+.seed-beds-title {
+  margin: 0 0 6px;
+  font-size: 0.78rem;
+  color: var(--sheet-muted, var(--ink-muted));
+}
+.seed-beds-title span {
+  font-weight: 700;
+  color: var(--sheet-ink, var(--ink));
+}
+.seed-beds ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.seed-bed {
+  display: grid;
+  gap: 0;
+  padding: 2px 0 8px 12px;
+  border-left: 3px solid var(--sheet-edge, var(--line));
+}
+.seed-bed + .seed-bed { margin-top: 8px; }
+.seed-bed[data-on] { border-left-color: var(--soil-light, #8a6b4e); }
+.seed-bed[data-here] { border-left-color: var(--moss); }
+.seed-bed-keep {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  cursor: pointer;
+}
+.seed-bed-keep input {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  accent-color: var(--moss-deep);
+}
+.seed-bed-name {
+  min-width: 0;
+  font-family: var(--font-editorial), serif;
+  font-size: 1.18rem;
+  font-weight: 600;
+  line-height: 1.15;
+}
+.seed-bed:not([data-on]) .seed-bed-name { color: var(--sheet-muted, var(--ink-muted)); font-weight: 500; }
+.seed-bed-saved {
+  font-size: 0.66rem;
+  font-weight: 750;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--moss-deep);
+}
+.seed-bed-question {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 10px;
+  align-items: center;
+  width: 100%;
+  min-height: 44px;
+  padding: 6px 10px;
+  text-align: left;
+  color: inherit;
+  background: transparent;
+  border: 1px dashed var(--sheet-edge, var(--line));
+  border-radius: 8px;
+  cursor: pointer;
+}
+.seed-bed-question:hover:not(:disabled) {
+  border-style: solid;
+  border-color: var(--moss);
+}
+.seed-bed-question:focus-visible {
+  outline: var(--focus-ring, 3px solid var(--moss));
+  outline-offset: 2px;
+}
+.seed-bed-question[aria-pressed="true"] {
+  border-style: solid;
+  border-color: var(--moss);
+  background: color-mix(in srgb, var(--moss) 9%, transparent);
+}
+.seed-bed-question:disabled { cursor: default; opacity: 0.6; }
+.seed-bed-question-text {
+  font-family: var(--font-editorial), serif;
+  font-size: 1.04rem;
+  font-style: italic;
+  line-height: 1.25;
+}
+.seed-bed-question-cue {
+  font-size: 0.66rem;
+  font-weight: 750;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--moss-deep);
+}
+
+.seed-packs-tally {
+  margin: 0;
+  font-size: 0.84rem;
+  color: var(--ink-muted);
+}
+
+@media (max-width: 360px) {
+  .seed-bed-question { grid-template-columns: minmax(0, 1fr); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .seed-packet { transition: none; }
+  .seed-packet:hover:not(:disabled) { transform: none; }
+}

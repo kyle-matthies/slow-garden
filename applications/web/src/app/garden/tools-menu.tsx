@@ -1,9 +1,11 @@
 "use client";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { NavGlyph } from "./level-nav";
 
 /**
  * The one account and settings menu: export, import, archive and sign out live
- * here at every width, so the top bar only carries places to go.
+ * here at every width, so the navigation only carries places to go. On a
+ * phone it is the last item of the bottom bar and opens upward as a sheet.
  */
 export function ToolsMenu({
   children,
@@ -43,6 +45,7 @@ export function ToolsMenu({
         aria-controls={id}
         onClick={() => setOpen(!open)}
       >
+        <NavGlyph name="more" />
         <span>More</span>
         <span className="tools-more-caret" aria-hidden="true">▾</span>
       </button>

@@ -521,6 +521,7 @@ export type Database = {
         Returns: boolean
       }
       claim_garden_pass: { Args: never; Returns: Json }
+      claim_provider_orphan: { Args: never; Returns: Json }
       create_seed: {
         Args: {
           p_body: string
@@ -529,6 +530,21 @@ export type Database = {
           p_position_y?: number
         }
         Returns: string
+      }
+      delete_account: { Args: { p_confirm: string }; Returns: Json }
+      delete_entry: { Args: { p_entry_id: string }; Returns: Json }
+      delete_garden: {
+        Args: { p_confirm_name: string; p_garden_id: string }
+        Returns: Json
+      }
+      delete_plot: {
+        Args: { p_confirm_name: string; p_plot_id: string }
+        Returns: Json
+      }
+      delete_seed: { Args: { p_seed_id: string }; Returns: Json }
+      deletion_preview: {
+        Args: { p_id?: string; p_kind: string }
+        Returns: Json
       }
       export_garden_sources: { Args: never; Returns: Json }
       finish_garden_pass: {
@@ -540,6 +556,10 @@ export type Database = {
           p_result: Json
           p_token: string
         }
+        Returns: undefined
+      }
+      resolve_provider_orphan: {
+        Args: { p_done?: boolean; p_id: string; p_token: string }
         Returns: undefined
       }
       save_entry: {

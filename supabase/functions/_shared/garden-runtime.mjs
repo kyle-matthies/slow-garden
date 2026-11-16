@@ -494,6 +494,67 @@ export function parseTendConnect(text, job) {
 export const passDeadlineMs = 30 * 60 * 60 * 1000;
 const terminalBatchStatuses = ["completed", "failed", "expired", "cancelled"];
 
+// Provider work whose pass was deleted with its garden or account. The ledger
+// keeps only the provider's own ids (private.provider_orphans), so this path
+// never sees source text. An orphan is resolved only after every file is
+// deleted; anything else releases it for a later tick.
+export async function drainOrphan({ rpc, provider }) {
+  let orphan;
+  try {
+    orphan = await rpc("claim_provider_orphan", {});
+  } catch {
+    // Not idle: the queue could not be read (or its migration is not applied yet).
+    // Reported as its own state so an unread queue is never mistaken for an empty one.
+    return { state: "orphan_queue_unavailable" };
+  }
+  if (!orphan) return { state: "idle" };
+  // A batch or file the provider no longer knows is already gone.
+  const gone = (error) => error?.status === 404;
+  const resolve = (done) =>
+    rpc("resolve_provider_orphan", {
+      p_id: orphan.id,
+      p_token: orphan.token,
+      p_done: done,
+    });
+  try {
+    try {
+      const remove = async (id) => {
+        try {
+          await provider.deleteFile(id);
+        } catch (error) {
+          if (!gone(error)) throw error;
+        }
+      };
+      if (orphan.provider_id) {
+        let batch = null;
+        try {
+          batch = await provider.getBatch(orphan.provider_id);
+        } catch (error) {
+          if (!gone(error)) throw error;
+        }
+        if (batch && !terminalBatchStatuses.includes(batch.status)) {
+          if (batch.status !== "cancelling")
+            await provider.cancelBatch(orphan.provider_id);
+          await resolve(false);
+          return { state: "orphan_cancelling" };
+        }
+        if (batch?.output_file_id) await remove(batch.output_file_id);
+        if (batch?.error_file_id) await remove(batch.error_file_id);
+      }
+      if (orphan.input_file_id) await remove(orphan.input_file_id);
+      if (orphan.output_file_id) await remove(orphan.output_file_id);
+    } catch {
+      // Never log provider error bodies. The orphan stays queued; nothing is dropped.
+      await resolve(false);
+      return { state: "orphan_retry" };
+    }
+    await resolve(true);
+    return { state: "orphan_cleaned" };
+  } catch {
+    return { state: "lease_lost" };
+  }
+}
+
 // Dependency injection keeps real notes and provider credentials out of CI.
 export async function runOne({ rpc: ledger, provider, now = Date.now }) {
   // Ledger failures (including a lost lease) are tagged so the failure path
@@ -507,8 +568,16 @@ export async function runOne({ rpc: ledger, provider, now = Date.now }) {
       throw tagged;
     }
   };
+  // Best-effort provider cleanup on a path that is already failing.
+  const discard = async (action) => {
+    try {
+      await action();
+    } catch {
+      // Nothing more can be recorded; the original failure is reported.
+    }
+  };
   const job = await rpc("claim_garden_pass", {});
-  if (!job) return { state: "idle" };
+  if (!job) return drainOrphan({ rpc: ledger, provider });
   const args = { p_id: job.id, p_token: job.token };
   const update = (patch) => rpc("update_garden_job", { ...args, ...patch });
   const finish = (patch) =>
@@ -565,14 +634,28 @@ export async function runOne({ rpc: ledger, provider, now = Date.now }) {
           lines.map((line) => JSON.stringify(line)).join("\n") + "\n",
           job.id,
         );
-        await update({ p_input_file: fileId });
+        try {
+          await update({ p_input_file: fileId });
+        } catch (error) {
+          // The pass is gone or re-leased, so the ledger will never name this
+          // file: remove it now, from the id still in memory.
+          await discard(() => provider.deleteFile(fileId));
+          throw error;
+        }
       }
       if (!(await rpc("check_garden_pass", args))) {
         await finish({ p_failed: true });
         return { state: "cancelled" };
       }
       const batchId = await provider.createBatch(fileId, job.id);
-      await update({ p_provider: batchId, p_release: true });
+      try {
+        await update({ p_provider: batchId, p_release: true });
+      } catch (error) {
+        // Same for a batch the ledger could not record: stop it, then remove its input.
+        await discard(() => provider.cancelBatch(batchId));
+        await discard(() => provider.deleteFile(fileId));
+        throw error;
+      }
       return { state: "submitted" };
     }
     const batch = await provider.getBatch(job.provider_id);
@@ -626,6 +709,7 @@ export function httpProvider(apiKey, fetcher = fetch) {
     if (options.method === "DELETE" && response.status === 404) return {};
     if (!response.ok) {
       const error = new Error("provider_request_failed");
+      error.status = response.status;
       error.retryable = response.status === 429 || response.status >= 500;
       throw error;
     }

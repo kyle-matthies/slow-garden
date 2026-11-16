@@ -299,3 +299,27 @@ while the camera turns.
   if that needs a refactor toward a codebase better aligned between phone and desktop.
   The approach requires its own architecture decision record before any framework is
   installed.
+
+## D-025: Wave 2 choices made under the owner working agreement
+
+- Date: 2026-11-16
+- Status: Decided by product review under the working agreement in `AGENTS.md`;
+  reversible by Kyle from use.
+- Phone navigation: a bottom tab bar (Meadow, Pages, Write, Returns, More) with the
+  depth trail pinned at the top; Write is one tap from anywhere. Desktop keeps the
+  top bar. See `design/MOBILE_FIRST_AUDIT_2026-11-16.md`.
+- App Store path: ADR-009's recommendation is adopted in stages. Stage 1, a
+  client-side data layer on the hosted web app, starts now and needs no framework.
+  Installing Capacitor waits for two inputs from Kyle: Apple Developer Program
+  enrolment and a real-iPhone check of the meadow's smoothness.
+- Deletion is immediate, with no 30-day tombstone window. This departs from the
+  threat model's retention baseline and is chosen for the single-owner dogfood stage
+  because export exists and recovery adds a second copy to protect. Revisit before
+  any external account exists. Account deletion requires a sign-in from the last ten
+  minutes.
+- Deletion ships behind `GARDEN_DELETION_ENABLED` (off) until the migration
+  `20261116010931_in_app_deletion.sql` is applied to the hosted project.
+- Activation: not ready. Remaining before nightly tending on Kyle's garden: an
+  evaluation receipt with a pinned model, an owner-only guard on pass creation, and a
+  decision on moving the worker off the batch route, which the privacy research
+  reports is not eligible for zero data retention.

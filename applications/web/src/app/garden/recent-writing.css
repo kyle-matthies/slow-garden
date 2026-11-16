@@ -1,4 +1,6 @@
-/* "Continue writing": a disclosure at the end of the depth trail. */
+/* "Continue writing": a disclosure at the end of the depth trail. Base rules
+   are the phone, where the control is its pen alone (the label stays for
+   screen readers) and the sheet spans the screen under the bar. */
 .recent-writing {
   min-width: 0;
   color: var(--ink);
@@ -7,8 +9,10 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  justify-content: center;
+  min-width: 44px;
   min-height: 44px;
-  padding: 0 14px;
+  padding: 0 12px;
   border: var(--border);
   border-radius: var(--radius-pill);
   background: var(--paper);
@@ -89,17 +93,25 @@
   font-size: 0.8rem;
   font-weight: 650;
 }
-@media (max-width: 760px) {
+.recent-writing-label,
+.recent-writing-count {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+@media (min-width: 761px) {
   .recent-writing > summary {
-    padding: 0 12px;
+    padding: 0 14px;
   }
   .recent-writing-label,
   .recent-writing-count {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
+    position: static;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    clip-path: none;
   }
 }

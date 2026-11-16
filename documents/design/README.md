@@ -20,3 +20,5 @@ Design work must keep capture quiet, distinguish source from interpretation, and
 - [Meadow and Cabinet](MEADOW_AND_CABINET.md) and its [visual directions evaluation](VISUAL_DIRECTIONS_EVALUATION.md).
 - [Botanical scrapbook roadmap](BOTANICAL_SCRAPBOOK_ROADMAP.md) and the [asset manifest](assets/ASSET_MANIFEST.md).
 - [Journeys and state model](JOURNEYS_AND_STATE_MODEL.md).
+- [Mobile-first audit and remediation](MOBILE_FIRST_AUDIT_2026-11-16.md): the phone
+  navigation model, findings by screen with status, measurements and what remains (D-024).

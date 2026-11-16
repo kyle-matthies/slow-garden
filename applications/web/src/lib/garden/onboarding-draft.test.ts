@@ -65,4 +65,42 @@ describe("onboarding checkpoint", () => {
     expect(long.length).toBeLessThanOrEqual(61);
     expect(long).toBe("I keep saying I want a quieter job and then I volunteer for…");
   });
+
+  it("upgrades a checkpoint written before seed packs, keeping every word and id", () => {
+    const id = "10000000-0000-4000-8000-000000000001";
+    const old = {
+      version: 1, completed: false, step: 2, gardenId: id, topicId: "", thoughtId: "",
+      gardenName: "Old notebook", topicName: "Ideas", thoughtTitle: "A question", body: "Kept words",
+      starters: ["Reading", "Work"], gardenRequestId: id, topicRequestId: "", thoughtRequestId: "",
+      starterIds: { Reading: id }, entryId: "", revisionId: "",
+    };
+    const upgraded = parseOnboardingDraft(JSON.stringify(old));
+    expect(upgraded).toMatchObject({
+      version: 2, step: 2, gardenId: id, gardenName: "Old notebook", topicName: "Ideas",
+      thoughtTitle: "A question", body: "Kept words", packs: [], beds: [], writeIn: "", background: "", entrySaved: false,
+    });
+    expect(upgraded).not.toHaveProperty("starters");
+    expect(parseOnboardingDraft(JSON.stringify({ ...old, starters: ["Anything"] }))).toBeNull();
+    expect(parseOnboardingDraft(JSON.stringify({ ...old, version: 3 }))).toBeNull();
+  });
+
+  it("round-trips chosen topics and background, and rejects tampered ones", async () => {
+    const id = "10000000-0000-4000-8000-000000000002";
+    const bed = { key: "mornings/0", name: "Before the day starts", on: true, requestId: id, id: "" };
+    const draft = { ...emptyOnboardingDraft(), packs: ["mornings"], beds: [bed], writeIn: "mornings/0", thoughtTitle: "A question?", background: "What has my attention" };
+    const store = createStorageBackend(sessionStorage);
+    await store.put(onboardingRecord("alice", "tab", draft));
+    expect((await loadOnboardingDraft("alice", store))?.state).toEqual(draft);
+    const bad = (patch: object) => parseOnboardingDraft(JSON.stringify({ ...draft, ...patch }));
+    expect(bad({ writeIn: "people/0" })).toBeNull();
+    expect(bad({ beds: [{ ...bed, name: "n".repeat(121) }] })).toBeNull();
+    expect(bad({ beds: [{ ...bed, requestId: "nope" }] })).toBeNull();
+    expect(bad({ beds: [bed, bed] })).toBeNull();
+    expect(bad({ beds: [{ ...bed, key: "../x" }] })).toBeNull();
+    expect(bad({ packs: ["Not A Pack"] })).toBeNull();
+    expect(bad({ background: "b".repeat(20001) })).toBeNull();
+    // A saved pack topic satisfies the "a topic exists" checkpoint.
+    expect(bad({ step: 3, gardenId: id, beds: [{ ...bed, id }] })).not.toBeNull();
+    expect(bad({ step: 3, gardenId: id })).toBeNull();
+  });
 });

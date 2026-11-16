@@ -16,7 +16,8 @@
 .lens-toggle {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  min-height: 44px;
+  gap: 8px;
   font-size: 0.85rem;
   color: var(--ink-muted);
   cursor: pointer;
@@ -84,9 +85,13 @@
 .lens-timeline .secondary-button {
   margin-top: 24px;
 }
-@media (max-width: 760px) {
+/* Phone first: these are the base values; wider screens follow. */
+.lens-search .search-field input {
+  min-width: 0;
+}
+@media (min-width: 761px) {
   .lens-search .search-field input {
-    min-width: 0;
+    min-width: 200px;
   }
 }
 
