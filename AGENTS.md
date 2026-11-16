@@ -24,3 +24,22 @@ Web-first implementation is authorized by ADR-006; model activation and external
 - Treat committed files under `supabase/migrations/` as the only durable authority for hosted schema changes. Create migrations with `supabase migration new`, exercise them locally, and apply the reviewed file to the project; never leave direct experimental DDL only in hosted state.
 - The root `.mcp.json` deliberately scopes compatible coding agents to the Slow Garden project and to database, debugging, development, and documentation tools. It contains no credential; authenticate interactively and keep tool-call approval enabled.
 - Production MCP reads are catalog, policy, count, or synthetic-canary reads by default. Never retrieve private note bodies, bloom prose, email addresses, or other tenant content for agent context without explicit authorization for that exact diagnostic.
+
+## Owner working agreement (set by Kyle, 2026-11-16)
+
+- Work with high autonomy. Make product and engineering decisions, use specialist
+  subagents freely, and record durable choices in the decision log rather than
+  stopping to ask. Kyle usually takes the recommendation and steers afterwards from
+  using the app.
+- Open, manage and merge pull requests without waiting for review once local checks
+  and CI are green. Keep each PR's description truthful about what was and was not
+  verified.
+- The product may change day to day while Kyle dogfoods it. He is the only real
+  tenant today; revisit this agreement before any external person has an account.
+- Still required: migrations go through committed, locally exercised files; no
+  private note bodies or bloom prose are read for agent context; nothing is spent,
+  purchased, published under Kyle's name, or permanently erased from his data without
+  his explicit say-so; and anything not verified is reported as not verified.
+- Kyle gives feedback by using the app and commenting afterwards. Start each session
+  by reading the latest delivery record under `documents/operations/` and the tail of
+  `documents/DECISION_LOG.md`.
