@@ -860,6 +860,11 @@ function BloomSpecimen({
             <textarea
               id={`${id}-correction`}
               maxLength={2000}
+              autoCapitalize="sentences"
+              autoCorrect="on"
+              spellCheck
+              autoComplete="off"
+              enterKeyHint="enter"
               value={correction}
               onChange={(e) => setCorrection(e.target.value)}
               disabled={disabled || busy !== null}

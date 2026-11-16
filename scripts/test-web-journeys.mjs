@@ -1,5 +1,8 @@
 // Run against the disposable stack used by test-local-http.mjs and web on :3148.
 // Uses only generated synthetic identities; never connects to a hosted project.
+// Deletion is checked only when the web server on :3148 was started with
+// GARDEN_DELETION_ENABLED=true; pass the same variable to this script so it
+// knows which of the two states to expect (off: no delete control anywhere).
 import assert from "node:assert/strict";
 import { readFile, mkdir } from "node:fs/promises";
 import { createRequire } from "node:module";
@@ -18,6 +21,10 @@ const admin = createClient(config.API_URL, config.SERVICE_ROLE_KEY, {
   auth: { persistSession: false, autoRefreshToken: false },
 });
 const email = `ux-${Date.now()}@example.test`;
+// A second identity with no garden yet, for the first-run journey.
+const newcomer = `ux-new-${Date.now()}@example.test`;
+const deletionOn = process.env.GARDEN_DELETION_ENABLED === "true";
+let newcomerId;
 const { data: link, error } = await admin.auth.admin.generateLink({
   type: "magiclink",
   email,
@@ -88,6 +95,22 @@ const openTopic = (name) =>
 const openThought = (title) =>
   page.locator(".specimen-card").filter({ hasText: title }).click();
 const ring = () => page.getByRole("region", { name: "All your gardens" });
+// Sign in through the form with a local one-time code read by the admin
+// client; no external mail is delivered.
+async function signIn(address) {
+  await page.goto(`${base}/login`);
+  await page.getByLabel("Email address").fill(address);
+  await page.getByRole("button", { name: "Email me a sign-in code" }).click();
+  await expect(page.getByLabel("Six-digit code")).toBeVisible();
+  const fresh = await admin.auth.admin.generateLink({
+    type: "magiclink",
+    email: address,
+  });
+  assert.equal(fresh.error, null);
+  await page.getByLabel("Six-digit code").fill(fresh.data.properties.email_otp);
+  await page.getByRole("button", { name: "Open my garden" }).click();
+  return fresh.data.user.id;
+}
 await mkdir(profile, { recursive: true });
 try {
   const fixture = createClient(config.API_URL, config.PUBLISHABLE_KEY, {
@@ -112,18 +135,7 @@ try {
   context.setDefaultTimeout(15000);
   page = context.pages()[0];
   page.on("dialog", (dialog) => dialog.accept());
-  await page.goto(`${base}/login`);
-  await page.getByLabel("Email address").fill(email);
-  await page.getByRole("button", { name: "Email me a sign-in code" }).click();
-  // Read the newest local OTP via admin without delivering external mail.
-  await expect(page.getByLabel("Six-digit code")).toBeVisible();
-  const fresh = await admin.auth.admin.generateLink({
-    type: "magiclink",
-    email,
-  });
-  assert.equal(fresh.error, null);
-  await page.getByLabel("Six-digit code").fill(fresh.data.properties.email_otp);
-  await page.getByRole("button", { name: "Open my garden" }).click();
+  await signIn(email);
   await expect(
     page.getByRole("heading", { name: "Test Garden", exact: true }),
   ).toBeVisible();
@@ -267,6 +279,55 @@ try {
     .click();
   await fromMore("Leave archive");
   await openTopic("Reading");
+  // Deletion ships behind GARDEN_DELETION_ENABLED. Off: no delete control is
+  // rendered anywhere. On: an entry is erased only after the dialog's confirm,
+  // and cancelling leaves everything in place.
+  await openThought("A question");
+  const deleteEntry = page.getByRole("button", {
+    name: "Delete entry…",
+    exact: true,
+  });
+  if (!deletionOn) {
+    await expect(page.getByRole("button", { name: /^Delete / })).toHaveCount(0);
+    await fromMore("Settings & export");
+    await expect(page.getByRole("button", { name: /^Delete / })).toHaveCount(0);
+    console.log("PASS: deletion off, no delete control in a thought or in settings");
+  } else {
+    await expect(page.locator(".journal-entry")).toHaveCount(2);
+    await deleteEntry.first().click();
+    const dialog = page.getByRole("dialog", {
+      name: "Delete this entry permanently?",
+    });
+    await expect(dialog).toContainText("Archive hides. Delete erases, permanently.");
+    await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(page.locator(".journal-entry")).toHaveCount(2);
+    await deleteEntry.first().click();
+    await expect(dialog).toContainText("This will erase:");
+    await dialog
+      .getByRole("button", { name: "Delete entry permanently", exact: true })
+      .click();
+    await expect(page.locator(".journal-entry")).toHaveCount(1);
+    // Garden and account deletion ask for a typed confirmation; opened and
+    // cancelled here so the rest of the journey keeps its garden.
+    await fromMore("Settings & export");
+    await page
+      .getByRole("button", { name: "Delete account…", exact: true })
+      .click();
+    const account = page.getByRole("dialog", {
+      name: "Delete your account permanently?",
+    });
+    await expect(
+      account.getByRole("button", {
+        name: "Delete account permanently",
+        exact: true,
+      }),
+    ).toBeDisabled();
+    await page.keyboard.press("Escape");
+    await expect(account).toHaveCount(0);
+    console.log("PASS: deletion on, entry cancel and confirm, account dialog cancels");
+  }
+  await page.goto(`${base}/garden?garden=${ids.garden}&topic=${ids.topic}&view=list`);
   // Returns is a top-level place; the full record opens inside it.
   await tools().getByRole("button", { name: /^Returns/ }).click();
   await page
@@ -308,17 +369,18 @@ try {
   }
 
   await page.goto(`${base}/garden?garden=${ids.garden}&view=list`);
-  // New gardens are planted from the ring of all gardens. Its cards overlap, so
-  // they are brought forward from the keyboard, as the ring's own arrows do.
+  // New gardens are planted from the ring of all gardens. "New garden" in the
+  // ring's dock brings the waiting card forward with its name field open.
   await tools().getByRole("button", { name: /^All gardens/ }).click();
   await ring()
-    .getByRole("button", { name: "Bring forward", exact: true })
-    .press("Enter");
-  await page
     .getByRole("button", { name: "＋ New garden", exact: true })
     .click();
-  await expect(page.getByLabel("Name your garden")).toBeVisible();
+  await expect(page.getByLabel("Name your garden")).toBeFocused();
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  // Cancelled, the card keeps its own button and nothing was created.
+  await expect(
+    ring().getByRole("button", { name: "＋ New garden", exact: true }),
+  ).toBeVisible();
   await ring()
     .getByRole("button", { name: "Back to this garden", exact: true })
     .click();
@@ -367,11 +429,63 @@ try {
   console.log(
     "PASS: one-click creation, garden switch, stale location, mobile width, keyboard entry",
   );
+  // Phone: the same navigation is a bar at the bottom of the screen, Meadow,
+  // Pages, Write, Returns, More. Write is one tap from anywhere and puts the
+  // caret on a page; More opens upward as a sheet.
+  await page.goto(`${base}/garden?garden=${ids.garden}&view=list`);
+  for (const name of ["Meadow", "Pages", "Write", "More"])
+    await expect(
+      tools().getByRole("button", { name, exact: true }),
+    ).toBeVisible();
+  await expect(tools().getByRole("button", { name: /^Returns/ })).toBeVisible();
+  const bar = await page.locator(".garden-top").boundingBox();
+  assert.ok(bar && bar.y + bar.height >= 844 - 1, "tab bar sits at the bottom");
+  await tools().getByRole("button", { name: "Write", exact: true }).click();
+  await expect(
+    page.getByRole("textbox", { name: "New entry", exact: true }),
+  ).toBeFocused();
+  await page.goto(`${base}/garden?garden=${ids.garden}&view=list`);
+  await tools().getByRole("button", { name: "More", exact: true }).click();
+  await expect(
+    tools().getByRole("button", { name: "Sign out", exact: true }),
+  ).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(
+    tools().getByRole("button", { name: "Sign out", exact: true }),
+  ).toBeHidden();
+  console.log("PASS: phone tab bar, Write lands on the page, More sheet opens and closes");
   await fromMore("Sign out");
   await expect(page).toHaveURL(/\/login/);
   await page.goto(base + "/garden");
   await expect(page).toHaveURL(/\/login/);
   console.log("PASS: device sign-out returns to login");
+  // First run, for an identity with no garden: no required onboarding. A seed
+  // pack can be opened and closed without a write; the blank page is enough.
+  await page.setViewportSize({ width: 1280, height: 900 });
+  newcomerId = await signIn(newcomer);
+  await expect(
+    page.getByRole("heading", { name: "Begin with one thought.", exact: true }),
+  ).toBeVisible();
+  const packet = page.locator(".seed-packet").first();
+  await packet.click();
+  await expect(page.locator(".seed-beds").first()).toBeVisible();
+  await expect(page.locator(".seed-packs-tally")).toContainText(
+    "will be planted when you save",
+  );
+  await packet.click();
+  await expect(page.locator(".seed-packs-tally")).toContainText("No pack opened");
+  await page.getByLabel("Name your garden", { exact: true }).fill("First Garden");
+  await page
+    .getByLabel("Write a first entry", { exact: true })
+    .fill("Synthetic first-run entry.");
+  await page.getByRole("button", { name: "Save entry", exact: true }).click();
+  await expect(page).toHaveURL(/thought=/);
+  await expect(page.locator(".journal-entry")).toContainText(
+    "Synthetic first-run entry.",
+  );
+  console.log("PASS: first run, seed pack opened and closed, blank page saved");
+  await fromMore("Sign out");
+  await expect(page).toHaveURL(/\/login/);
 } catch (error) {
   if (context) {
     await context.pages()[0].screenshot({
@@ -386,4 +500,6 @@ try {
 } finally {
   if (context) await context.close();
   assert.equal((await admin.auth.admin.deleteUser(userId)).error, null);
+  if (newcomerId)
+    assert.equal((await admin.auth.admin.deleteUser(newcomerId)).error, null);
 }

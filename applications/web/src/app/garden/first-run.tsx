@@ -486,6 +486,9 @@ function FirstRunSession({ tenantId, onDone }: {
             onChange={(event) => updateDraft({ gardenName: event.target.value, gardenRequestId: "" })}
             maxLength={120}
             required
+            autoComplete="off"
+            autoCapitalize="sentences"
+            enterKeyHint="next"
             disabled={disabled || !!gardenId}
           />
         </div>
@@ -516,6 +519,13 @@ function FirstRunSession({ tenantId, onDone }: {
             onChange={(event) => updateDraft({ body: event.target.value, revisionId: crypto.randomUUID() })}
             maxLength={20000}
             required={!plantsOnly}
+            // Native writing aids only, as on the writing page. No suggestions
+            // come from the garden (product invariant).
+            autoCapitalize="sentences"
+            autoCorrect="on"
+            spellCheck
+            autoComplete="off"
+            enterKeyHint="enter"
             aria-describedby={pageBed ? "first-run-prompt-text" : undefined}
             placeholder={pageBed ? "The question is only a title. Start anywhere…" : "A thought, a question, something unfinished…"}
             disabled={disabled || draft.entrySaved}
@@ -556,6 +566,11 @@ function FirstRunSession({ tenantId, onDone }: {
               onChange={(event) => updateDraft({ background: event.target.value, tendingRevisionId: crypto.randomUUID() })}
               maxLength={20000}
               rows={3}
+              autoCapitalize="sentences"
+              autoCorrect="on"
+              spellCheck
+              autoComplete="off"
+              enterKeyHint="enter"
               placeholder="Work, people, projects, questions: whatever has your attention."
               disabled={disabled}
               aria-describedby="first-run-background-note"
@@ -581,6 +596,9 @@ function FirstRunSession({ tenantId, onDone }: {
                 value={pageBed ? pageBed.name : topicName}
                 onChange={(event) => updateDraft({ topicName: event.target.value, topicRequestId: "" })}
                 maxLength={120}
+                autoComplete="off"
+                autoCapitalize="sentences"
+                enterKeyHint="next"
                 disabled={disabled || !!topicId || !!pageBed}
                 aria-describedby={pageBed ? "first-run-topic-note" : undefined}
               />
@@ -592,6 +610,9 @@ function FirstRunSession({ tenantId, onDone }: {
                 value={thoughtTitle}
                 onChange={(event) => updateDraft({ thoughtTitle: event.target.value, thoughtRequestId: "" })}
                 maxLength={160}
+                autoComplete="off"
+                autoCapitalize="sentences"
+                enterKeyHint="done"
                 placeholder="Left blank, your first line becomes the title"
                 disabled={disabled || !!thoughtId}
               />

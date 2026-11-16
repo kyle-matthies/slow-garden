@@ -123,7 +123,7 @@ export function ReturnsPreview() {
                 href={`/garden/returns-preview?scene=${s.slug}`}
                 className={s.slug === current.slug ? "primary-button" : "secondary-button"}
                 aria-current={s.slug === current.slug ? "page" : undefined}
-                style={{ minHeight: 36, padding: "0 14px", fontSize: "0.9rem" }}
+                style={{ minHeight: 44, padding: "0 14px", fontSize: "0.9rem" }}
               >
                 {s.title}
               </Link>

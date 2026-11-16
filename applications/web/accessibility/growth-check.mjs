@@ -23,9 +23,18 @@ try {
   }
   browser = await chromium.launch(process.env.AXE_CHROMIUM ? { executablePath: process.env.AXE_CHROMIUM } : {});
   mkdirSync(receipt, { recursive: true });
-  for (const width of [390, 1280]) for (const colorScheme of ["light", "dark"]) {
-    const context = await browser.newContext({ viewport: { width, height: 844 }, colorScheme, reducedMotion: "reduce" });
+  // Two phones, a phone held sideways (all touch) and a desktop.
+  const PROFILES = [
+    { width: 360, height: 740, touch: true },
+    { width: 390, height: 844, touch: true },
+    { width: 844, height: 390, touch: true },
+    { width: 1280, height: 844, touch: false },
+  ];
+  for (const { width, height, touch } of PROFILES) for (const colorScheme of ["light", "dark"]) {
+    const context = await browser.newContext({ viewport: { width, height }, isMobile: touch, hasTouch: touch, deviceScaleFactor: touch ? 2 : 1, colorScheme, reducedMotion: "reduce" });
     const page = await context.newPage();
+    // The Next.js dev badge sits over the landscape rail's last item on a dev server.
+    await page.addInitScript(() => { const hide = () => { const style = document.createElement("style"); style.textContent = "nextjs-portal{display:none!important}"; document.documentElement.append(style); }; if (document.documentElement) hide(); else addEventListener("DOMContentLoaded", hide); });
     const errors = [];
     page.on("pageerror", (error) => errors.push(error.message));
     await page.goto(`${base}/dev/axe-fixtures`, { waitUntil: "networkidle" });
@@ -36,13 +45,44 @@ try {
     await page.keyboard.press("Enter");
     const items = resume.getByRole("button");
     await expect(items).toHaveCount(3);
-    await page.screenshot({ path: path.join(receipt, `resume-${width}-${colorScheme}.png`), fullPage: true });
+    await page.screenshot({ path: path.join(receipt, `resume-${width}x${height}-${colorScheme}.png`), fullPage: true });
     await items.first().click();
     await expect(page).toHaveURL(/thought=.*#entry-/);
     const anchor = new URL(page.url()).hash;
     await expect(page.locator(anchor)).toBeVisible();
     await page.goto(`${base}/dev/axe-fixtures?view=list`, { waitUntil: "networkidle" });
     const more = page.getByRole("button", { name: "More", exact: true });
+    if (touch) {
+      // Phone and rail: More opens as a sheet; Escape closes it and returns focus.
+      await more.click();
+      await expect(page.getByRole("button", { name: "Settings & export", exact: true })).toBeVisible();
+      await expect(page.getByRole("button", { name: "Sign out", exact: true })).toBeVisible();
+      await page.keyboard.press("Escape");
+      await expect(page.getByRole("button", { name: "Settings & export", exact: true })).toBeHidden();
+      await expect(more).toBeFocused();
+    }
+    if (await more.isVisible()) await more.click();
+    await page.getByRole("button", { name: "Settings & export", exact: true }).click();
+    // Deletion is switched on in the fixture only. The account dialog opens
+    // with the safe choice available, and Escape cancels back to its button.
+    const deleteAccount = page.getByRole("button", { name: "Delete account…", exact: true });
+    await deleteAccount.click();
+    const accountDialog = page.getByRole("dialog", { name: "Delete your account permanently?" });
+    await expect(accountDialog).toBeVisible();
+    await expect(accountDialog.getByRole("button", { name: "Delete account permanently", exact: true })).toBeDisabled();
+    await page.keyboard.press("Escape");
+    await expect(accountDialog).toHaveCount(0);
+    await expect(deleteAccount).toBeFocused();
+    // An entry's delete control: quiet until opened, cancelled without a write.
+    await page.goto(`${base}/dev/axe-fixtures?topic=00000000-0000-4000-8000-000000000100&thought=00000000-0000-4000-8000-000000001000&view=list`, { waitUntil: "networkidle" });
+    const deleteEntry = page.getByRole("button", { name: "Delete entry…", exact: true }).first();
+    await deleteEntry.click();
+    const entryDialog = page.getByRole("dialog", { name: "Delete this entry permanently?" });
+    await expect(entryDialog).toBeVisible();
+    await entryDialog.getByRole("button", { name: "Cancel", exact: true }).click();
+    await expect(entryDialog).toHaveCount(0);
+    await expect(deleteEntry).toBeFocused();
+    await page.goto(`${base}/dev/axe-fixtures?view=list`, { waitUntil: "networkidle" });
     if (await more.isVisible()) await more.click();
     await page.getByRole("button", { name: "Settings & export", exact: true }).click();
     await expect(page.getByRole("region", { name: "Tending activity" })).toContainText("Completed");
@@ -62,6 +102,16 @@ try {
     await page.goto(`${base}/dev/axe-fixtures?state=first-run`, { waitUntil: "networkidle" });
     const gardenName = page.getByLabel("Name your garden", { exact: true });
     await expect(gardenName).toBeEnabled();
+    // Seed packs: opening one shows its topics; closing it plants nothing.
+    const packet = page.locator(".seed-packet").first();
+    await packet.click();
+    await expect(page.locator(".seed-beds").first()).toBeVisible();
+    await expect(page.locator(".seed-packs-tally")).toContainText("will be planted when you save");
+    await page.screenshot({ path: path.join(receipt, `first-run-pack-${width}x${height}-${colorScheme}.png`), fullPage: true });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await packet.click();
+    await expect(page.locator(".seed-beds")).toHaveCount(0);
+    await expect(page.locator(".seed-packs-tally")).toContainText("No pack opened");
     await gardenName.fill("Synthetic recovered garden");
     // Use the browser's real draft backend, then model an interruption after
     // areas were saved. No server action or hosted source is involved.
@@ -115,7 +165,7 @@ try {
     await expect(page.locator(".first-run-model li[data-saved]")).toHaveCount(3);
     await expect(page.locator(".first-run-model li").last()).not.toHaveAttribute("data-saved");
     await expect(gardenName).toBeDisabled();
-    await page.screenshot({ path: path.join(receipt, `recovery-${width}-${colorScheme}.png`), fullPage: true });
+    await page.screenshot({ path: path.join(receipt, `recovery-${width}x${height}-${colorScheme}.png`), fullPage: true });
     expect(writes).toBe(1);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     // The morning reveal: announced once, and a dismissal outlives a reload.
@@ -136,7 +186,7 @@ try {
       expect(await reveal.getByRole("listitem").count()).toBeLessThanOrEqual(3);
       await expect(returnsLink).toContainText("new bloom");
       await expect(page.getByText(/new blooms? in Returns/)).toHaveCount(0);
-      if (!view) await page.screenshot({ path: path.join(receipt, `reveal-${width}-${colorScheme}.png`) });
+      if (!view) await page.screenshot({ path: path.join(receipt, `reveal-${width}x${height}-${colorScheme}.png`) });
       await reveal.getByRole("button", { name: "Dismiss and mark as seen" }).click();
       await expect(reveal).toHaveCount(0);
       await expect(returnsLink).not.toContainText("new bloom");
@@ -147,7 +197,7 @@ try {
     }
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     expect(errors).toEqual([]);
-    results.push({ width, colorScheme, exact_entry_resume: true, tending_history: true, preview_no_write: true, failed_import_retry: true, setup_reload: true, setup_partial_garden_recovery: true, morning_reveal_dismissal: true, overflow: false, page_errors: 0 });
+    results.push({ width, height, touch, colorScheme, more_sheet: touch, delete_dialogs_cancel: true, first_run_seed_pack: true, exact_entry_resume: true, tending_history: true, preview_no_write: true, failed_import_retry: true, setup_reload: true, setup_partial_garden_recovery: true, morning_reveal_dismissal: true, overflow: false, page_errors: 0 });
     await context.close();
   }
   writeFileSync(path.join(receipt, "journeys.json"), JSON.stringify({ synthetic_only: true, results, ok: true }, null, 2));

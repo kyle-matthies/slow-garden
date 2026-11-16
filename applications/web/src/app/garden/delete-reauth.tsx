@@ -94,6 +94,7 @@ export function DeleteReauth({
               }}
               inputMode="numeric"
               autoComplete="one-time-code"
+              enterKeyHint="done"
               maxLength={6}
             />
           </label>

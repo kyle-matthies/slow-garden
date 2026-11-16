@@ -198,90 +198,180 @@
 .scene-host > .morning-return .morning-return-line {
   font-size: 1.08rem;
 }
-/* Narrower than a desktop: under the garden's title card, between the arrows. */
-@media (max-width: 900px) {
+/* Phone first. On a phone the reveal sits under the garden's title card,
+   between the turn arrows, and is compact: the thoughts behind each bloom are
+   one tap away in Returns. Wider screens restore the fuller card below. */
+.scene-host > .morning-return {
+  /* A clear 18px under the title card; the card still ends 12px above the
+     dock (max-height above) and stays inside the turn arrows (the gutter). */
+  --reveal-top: calc(var(--scene-title-bottom, 96px) + 18px);
+  --reveal-gutter: 58px;
+  right: auto;
+  left: 50%;
+  padding: 14px 14px 10px;
+  transform: translateX(-50%);
+  animation: none;
+}
+.scene-host > .morning-return .morning-return-header {
+  gap: 10px;
+}
+.scene-host > .morning-return .morning-return-sun,
+.scene-host > .morning-return .morning-return-glyph,
+.scene-host > .morning-return .morning-return-touches {
+  display: none;
+}
+.scene-host > .morning-return h2 {
+  font-size: 1.2rem;
+}
+.scene-host > .morning-return .morning-return-blooms {
+  margin-top: 10px;
+}
+.scene-host > .morning-return .morning-return-bloom {
+  padding: 10px 0;
+}
+.scene-host > .morning-return .morning-return-line {
+  font-size: 1rem;
+  line-height: 1.35;
+}
+.scene-host > .morning-return .morning-return-footer {
+  gap: 6px;
+  padding-top: 10px;
+}
+.scene-host > .morning-return .morning-return-open,
+.scene-host > .morning-return .morning-return-dismiss {
+  flex: 1 1 100%;
+}
+.scene-host > .morning-return .morning-return-open {
+  order: 1;
+}
+.scene-host > .morning-return .morning-return-dismiss {
+  order: 2;
+}
+/* From 561px: the full card, still centred under the title card. */
+@media (min-width: 561px) {
   .scene-host > .morning-return {
     --reveal-top: calc(var(--scene-title-bottom, 96px) + 10px);
-    right: auto;
-    left: 50%;
-    transform: translateX(-50%);
-    animation: none;
-  }
-}
-/* Phone: compact. The thoughts behind each bloom are one tap away in Returns. */
-@media (max-width: 560px) {
-  .scene-host > .morning-return {
-    --reveal-gutter: 58px;
-    padding: 14px 14px 10px;
+    --reveal-gutter: 76px;
+    padding: 22px 26px 18px;
   }
   .scene-host > .morning-return .morning-return-header {
-    gap: 10px;
+    gap: 16px;
   }
-  .scene-host > .morning-return .morning-return-sun,
-  .scene-host > .morning-return .morning-return-glyph,
+  .scene-host > .morning-return .morning-return-sun {
+    display: inline;
+  }
+  .scene-host > .morning-return .morning-return-glyph {
+    display: grid;
+  }
   .scene-host > .morning-return .morning-return-touches {
-    display: none;
+    display: flex;
   }
   .scene-host > .morning-return h2 {
-    font-size: 1.2rem;
+    font-size: 1.45rem;
   }
   .scene-host > .morning-return .morning-return-blooms {
-    margin-top: 10px;
+    margin-top: 14px;
   }
   .scene-host > .morning-return .morning-return-bloom {
-    padding: 10px 0;
+    padding: 14px 0;
   }
   .scene-host > .morning-return .morning-return-line {
-    font-size: 1rem;
-    line-height: 1.35;
+    font-size: 1.08rem;
+    line-height: 1.4;
   }
   .scene-host > .morning-return .morning-return-footer {
-    gap: 6px;
-    padding-top: 10px;
+    gap: 8px 12px;
+    padding-top: 14px;
   }
   .scene-host > .morning-return .morning-return-open,
   .scene-host > .morning-return .morning-return-dismiss {
-    flex: 1 1 100%;
+    flex: 0 1 auto;
   }
   .scene-host > .morning-return .morning-return-open {
-    order: 1;
+    order: 2;
   }
   .scene-host > .morning-return .morning-return-dismiss {
-    order: 2;
+    order: 1;
+  }
+}
+/* From 901px: top right of the scene, beside the title card. */
+@media (min-width: 901px) {
+  .scene-host > .morning-return {
+    --reveal-top: 16px;
+    right: var(--reveal-gutter);
+    left: auto;
+    transform: none;
+  }
+}
+@media (min-width: 901px) and (prefers-reduced-motion: no-preference) {
+  .scene-host > .morning-return {
+    animation: morning-return-rise 700ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
   }
 }
 
-@media (max-width: 560px) {
+/* The reveal in Pages and Returns: phone values, then the roomier card. */
+.morning-return {
+  padding: 18px 16px 14px;
+  border-radius: 14px;
+}
+.morning-return-header {
+  gap: 12px;
+}
+.morning-return-sun {
+  width: 36px;
+  height: 21px;
+}
+.morning-return h2 {
+  font-size: 1.4rem;
+}
+.morning-return-bloom {
+  gap: 12px;
+}
+.morning-return-glyph {
+  width: 36px;
+  height: 36px;
+}
+.morning-return-line {
+  font-size: 1.12rem;
+}
+.morning-return-thought {
+  min-height: 44px;
+}
+.morning-return-open,
+.morning-return-dismiss {
+  flex: 1 1 0;
+}
+@media (min-width: 561px) {
   .morning-return {
-    padding: 18px 16px 14px;
-    border-radius: 14px;
+    padding: 22px 26px 18px;
+    border-radius: 18px;
   }
   .morning-return-header {
-    gap: 12px;
+    gap: 16px;
   }
   .morning-return-sun {
-    width: 36px;
-    height: 21px;
+    width: auto;
+    height: auto;
   }
   .morning-return h2 {
-    font-size: 1.4rem;
+    font-size: 1.75rem;
   }
   .morning-return-bloom {
-    gap: 12px;
+    gap: 14px;
   }
   .morning-return-glyph {
-    width: 36px;
-    height: 36px;
+    width: 40px;
+    height: 40px;
   }
   .morning-return-line {
-    font-size: 1.12rem;
+    font-size: 1.22rem;
   }
   .morning-return-thought {
-    min-height: 44px;
+    min-height: 32px;
   }
   .morning-return-open,
   .morning-return-dismiss {
-    flex: 1 1 0;
+    flex: 0 1 auto;
   }
 }
 

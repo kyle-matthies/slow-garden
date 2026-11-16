@@ -88,18 +88,22 @@ export function ReturnsPage({
                   AI-derived from {bloom.evidence.length}{" "}
                   {bloom.evidence.length === 1 ? "entry" : "entries"} of yours
                   {sources.length > 0 && " in "}
-                  {sources.map((seed, i) => (
-                    <span key={seed.id}>
-                      {i > 0 && ", "}
-                      <button
-                        type="button"
-                        onClick={() => onOpenThought(seed.id)}
-                      >
-                        {seed.title}
-                      </button>
-                    </span>
-                  ))}
-                  .
+                  {/* One sentence in the markup; on a phone the links are
+                      laid out two to a row and the punctuation steps aside. */}
+                  <span className="returns-source-list">
+                    {sources.map((seed, i) => (
+                      <span key={seed.id}>
+                        {i > 0 && <span className="returns-source-sep">, </span>}
+                        <button
+                          type="button"
+                          onClick={() => onOpenThought(seed.id)}
+                        >
+                          {seed.title}
+                        </button>
+                      </span>
+                    ))}
+                  </span>
+                  <span className="returns-source-sep">.</span>
                 </p>
               </li>
             );

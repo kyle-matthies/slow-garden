@@ -120,6 +120,10 @@ export function LoginForm({ configured }: { configured: boolean }) {
               type="email"
               autoComplete="email"
               inputMode="email"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              enterKeyHint="send"
               required
               disabled={!configured || pending}
               value={email}
@@ -148,6 +152,7 @@ export function LoginForm({ configured }: { configured: boolean }) {
               type="text"
               autoComplete="one-time-code"
               inputMode="numeric"
+              enterKeyHint="done"
               pattern="[0-9]{6}"
               maxLength={6}
               required

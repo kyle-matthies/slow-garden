@@ -369,11 +369,12 @@
   gap: clamp(24px, 4vw, 56px);
   align-items: start;
 }
-.specimen-plate {
-  position: sticky;
-  top: 16px;
-  display: grid;
-  gap: 18px;
+/* The thought's plate. On a phone it dissolves into the sheet (its children
+   are placed by .specimen-sheet); from 761px it is a mounted, slightly turned
+   card. It used to borrow that card from the plant-focus plate in scene.css
+   through a shared class name; the look is now stated here. */
+.thought-plate {
+  display: contents;
 }
 .specimen-frame {
   display: grid;
@@ -481,7 +482,7 @@
   max-width: 820px;
   margin-inline: auto;
 }
-.garden-frame.quiet-page .specimen-plate {
+.garden-frame.quiet-page .thought-plate {
   display: none;
 }
 
@@ -702,154 +703,314 @@
   font-size: var(--text-sm);
 }
 
-@media (max-width: 760px) {
+/* ── Phone first ───────────────────────────────────────────────────────
+   The rules from here to the min-width block are the phone layout and apply
+   at every width; the block after them restores the wide-screen values. */
+.level-page {
+  --page-pad-x: 16px;
+  --page-pad-top: 18px;
+  padding-bottom: 44px;
+}
+.garden-banner {
+  min-height: 210px;
+  padding: 22px var(--page-pad-x) 86px;
+  margin-bottom: 18px;
+}
+.bed-card {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 4px;
+  padding: 16px 16px 30px;
+}
+.bed-card-name {
+  font-size: var(--text-xl);
+}
+.bed-meta {
+  gap: 4px 14px;
+}
+.bed-meta > span + span:not(.tending-chip)::before {
+  content: none;
+}
+.bed-card-plants {
+  justify-content: flex-start;
+  gap: 2px;
+  margin-top: 6px;
+}
+.bed-plant {
+  width: 36px;
+  height: 64px;
+}
+.bed-plant:nth-child(n + 8) {
+  display: none;
+}
+.bed-header {
+  padding: 16px 16px 40px;
+}
+.bed-header .topic-plants {
+  width: 96px;
+  height: 84px;
+}
+.bed-header .topic-plants svg {
+  width: 32px;
+}
+.specimen-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+/* On a phone the writing page is the screen. The plate dissolves into the
+   sheet: a small plant and the title stay above the page as a caption; the
+   facts and the archive and delete controls move below the entries. */
+.specimen-sheet {
+  grid-template-columns: 52px minmax(0, 1fr);
+  gap: 0 12px;
+  align-items: center;
+}
+.specimen-sheet .specimen-label {
+  display: contents;
+}
+.specimen-frame {
+  grid-area: 1 / 1 / 3 / 2;
+  height: 64px;
+  padding: 4px 4px 0;
+  box-shadow: var(--shadow-sm);
+}
+.specimen-frame .plant-drawing {
+  width: 40px;
+  height: 56px;
+  margin-bottom: 2px;
+}
+.specimen-label > .level-eyebrow {
+  grid-area: 1 / 2;
+  align-self: end;
+}
+.specimen-label h1 {
+  grid-area: 2 / 2;
+  align-self: start;
+  font-size: var(--text-xl);
+}
+.specimen-pages {
+  grid-area: 3 / 1 / 4 / -1;
+  margin-top: 12px;
+}
+.specimen-facts {
+  grid-area: 4 / 1 / 5 / -1;
+  margin-top: 28px;
+}
+.specimen-manage {
+  grid-area: 5 / 1 / 6 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 24px;
+  margin-top: 12px;
+}
+.specimen-manage .form-note {
+  flex-basis: 100%;
+}
+/* The blank page runs edge to edge and is as tall as the screen allows. */
+.specimen-pages > .writing-form {
+  --writing-bleed: var(--page-pad-x);
+  margin-inline: calc(-1 * var(--page-pad-x));
+  padding: 14px var(--page-pad-x) 12px;
+  border-inline: 0;
+  border-radius: 0;
+}
+.specimen-pages > .writing-form textarea {
+  min-height: max(220px, calc(100dvh - 400px));
+  padding: 10px 0 14px;
+}
+/* Brought into view by Write, the page stops just under the trail bar. */
+.specimen-pages > .writing-form {
+  scroll-margin-top: calc(52px + env(safe-area-inset-top));
+}
+/* A ring round the whole page is noise on a phone: with the caret in it,
+   the page's top rule thickens and brightens instead. */
+.specimen-pages > .writing-form .writing-textarea:focus-visible {
+  outline: none;
+}
+.specimen-pages > .writing-form:has(.writing-textarea:focus-visible) {
+  border-top-color: var(--moss);
+  box-shadow:
+    inset 0 3px 0 var(--moss),
+    var(--shadow-page);
+}
+.journal-entry.entry-page {
+  padding-left: 34px;
+}
+.entry-page::before {
+  left: 22px;
+}
+.entry-revision {
+  margin-left: 0;
+}
+.returns-header,
+.returns-bloom {
+  padding: 16px;
+}
+.returns-header h1 {
+  font-size: var(--text-2xl);
+}
+@media (min-width: 761px) {
   .level-page {
-    --page-pad-x: 16px;
-    --page-pad-top: 18px;
-    padding-bottom: 44px;
+    --page-pad-x: clamp(18px, 5vw, 72px);
+    --page-pad-top: 28px;
+    padding-bottom: 64px;
   }
   .garden-banner {
-    min-height: 210px;
-    padding: 22px var(--page-pad-x) 86px;
-    margin-bottom: 18px;
+    min-height: 268px;
+    padding: 34px max(var(--page-pad-x), calc((100% + 2 * var(--page-pad-x) - var(--bed-column)) / 2)) 110px;
+    margin-bottom: 28px;
   }
   .bed-card {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 4px;
-    padding: 16px 16px 30px;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 24px;
+    padding: 20px 28px 34px;
   }
   .bed-card-name {
-    font-size: var(--text-xl);
+    font-size: var(--text-2xl);
   }
   .bed-meta {
-    gap: 4px 14px;
+    gap: 6px 10px;
   }
   .bed-meta > span + span:not(.tending-chip)::before {
-    content: none;
+    content: "·";
   }
   .bed-card-plants {
-    justify-content: flex-start;
-    gap: 2px;
-    margin-top: 6px;
+    justify-content: normal;
+    gap: 6px;
+    margin-top: 0;
   }
   .bed-plant {
-    width: 36px;
-    height: 64px;
+    width: 46px;
+    height: 92px;
   }
   .bed-plant:nth-child(n + 8) {
-    display: none;
+    display: inline-flex;
   }
   .bed-header {
-    padding: 16px 16px 40px;
+    padding: 24px 32px 46px;
   }
   .bed-header .topic-plants {
-    width: 96px;
-    height: 84px;
+    width: 190px;
+    height: 120px;
   }
   .bed-header .topic-plants svg {
-    width: 32px;
+    width: 62px;
   }
   .specimen-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
+    grid-template-columns: repeat(auto-fill, minmax(158px, 1fr));
+    gap: 14px;
   }
-  /* On a phone the writing page is the screen. The plate dissolves into the
-     sheet: a small plant and the title stay above the page as a caption; the
-     facts and the archive and delete controls move below the entries. */
+  /* Thought: the plate stands to the left of the pages. */
   .specimen-sheet {
-    grid-template-columns: 52px minmax(0, 1fr);
-    gap: 0 12px;
-    align-items: center;
+    grid-template-columns: 290px minmax(0, 1fr);
+    gap: clamp(24px, 4vw, 56px);
+    align-items: start;
   }
-  .specimen-sheet > .specimen-plate,
+  .thought-plate {
+    position: relative;
+    top: 16px;
+    display: grid;
+    justify-items: center;
+    gap: 18px;
+    width: 100%;
+    padding: 1.5rem 1rem 1.05rem;
+    border: 1px solid var(--sheet-edge);
+    border-radius: 2px;
+    background: var(--surface-solid);
+    box-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.5) inset,
+      0 14px 30px rgba(30, 40, 20, 0.16);
+    transform: rotate(-0.7deg);
+  }
+  .thought-plate::before {
+    content: "";
+    position: absolute;
+    inset: 0.45rem;
+    border: 1px solid var(--sheet-edge);
+    pointer-events: none;
+  }
   .specimen-sheet .specimen-label {
-    display: contents;
-  }
-  .specimen-sheet > .specimen-plate::before,
-  .specimen-sheet > .specimen-plate::after {
-    content: none;
+    display: grid;
   }
   .specimen-frame {
-    grid-area: 1 / 1 / 3 / 2;
-    height: 64px;
-    padding: 4px 4px 0;
-    box-shadow: var(--shadow-sm);
+    grid-area: auto;
+    height: 250px;
+    padding: 18px 18px 0;
+    box-shadow:
+      inset 0 0 0 6px var(--surface-solid),
+      inset 0 0 0 7px var(--garden-line),
+      var(--shadow-sm);
   }
   .specimen-frame .plant-drawing {
-    width: 40px;
-    height: 56px;
-    margin-bottom: 2px;
+    width: 150px;
+    height: 205px;
+    margin-bottom: 8px;
   }
   .specimen-label > .level-eyebrow {
-    grid-area: 1 / 2;
-    align-self: end;
+    grid-area: auto;
+    align-self: auto;
   }
   .specimen-label h1 {
-    grid-area: 2 / 2;
-    align-self: start;
-    font-size: var(--text-xl);
+    grid-area: auto;
+    align-self: auto;
+    font-size: var(--text-2xl);
   }
   .specimen-pages {
-    grid-area: 3 / 1 / 4 / -1;
-    margin-top: 12px;
+    grid-area: auto;
+    margin-top: 0;
   }
   .specimen-facts {
-    grid-area: 4 / 1 / 5 / -1;
-    margin-top: 28px;
+    grid-area: auto;
+    margin-top: 4px;
   }
   .specimen-manage {
-    grid-area: 5 / 1 / 6 / -1;
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 4px 24px;
-    margin-top: 12px;
+    grid-area: auto;
+    display: block;
+    flex-wrap: nowrap;
+    align-items: normal;
+    gap: normal;
+    margin-top: 0;
   }
   .specimen-manage .form-note {
-    flex-basis: 100%;
+    flex-basis: auto;
   }
-  /* The blank page runs edge to edge and is as tall as the screen allows. */
+  /* The blank page is a framed sheet beside the plate. */
   .specimen-pages > .writing-form {
-    --writing-bleed: var(--page-pad-x);
-    margin-inline: calc(-1 * var(--page-pad-x));
-    padding: 14px var(--page-pad-x) 12px;
-    border-inline: 0;
-    border-radius: 0;
+    --writing-bleed: initial;
+    margin-inline: 0;
+    padding: 22px clamp(18px, 3vw, 34px) 20px;
+    border-inline: var(--border-strong);
+    border-radius: var(--radius-sm);
+    scroll-margin-top: 0;
   }
   .specimen-pages > .writing-form textarea {
-    min-height: max(220px, calc(100dvh - 400px));
-    padding: 10px 0 14px;
+    min-height: 200px;
+    padding: 14px 0;
   }
-  /* Brought into view by Write, the page stops just under the trail bar. */
-  .specimen-pages > .writing-form {
-    scroll-margin-top: calc(52px + env(safe-area-inset-top));
-  }
-  /* A ring round the whole page is noise on a phone: with the caret in it,
-     the page's top rule thickens and brightens instead. */
   .specimen-pages > .writing-form .writing-textarea:focus-visible {
-    outline: none;
+    outline: var(--focus-ring);
   }
   .specimen-pages > .writing-form:has(.writing-textarea:focus-visible) {
-    border-top-color: var(--moss);
-    box-shadow:
-      inset 0 3px 0 var(--moss),
-      var(--shadow-page);
+    border-top-color: var(--moss-deep);
+    box-shadow: var(--shadow-page);
   }
   .journal-entry.entry-page {
-    padding-left: 34px;
+    padding-left: clamp(46px, 6vw, 72px);
   }
   .entry-page::before {
-    left: 22px;
+    left: clamp(30px, 4vw, 50px);
   }
   .entry-revision {
-    margin-left: 0;
+    margin-left: auto;
   }
-  .returns-header,
+  .returns-header {
+    padding: 22px 26px;
+  }
   .returns-bloom {
-    padding: 16px;
+    padding: 18px 22px;
   }
   .returns-header h1 {
-    font-size: var(--text-2xl);
+    font-size: var(--text-3xl);
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -861,7 +1022,10 @@
 .level-garden > .garden-banner:not(:first-child) {
   margin-top: 20px;
 }
-/* Phone touch targets for the quieter controls on level pages. */
+/* Phone touch targets for the quieter controls on level pages. This one
+   stays a max-width query on purpose: it only adds height, and on wide screens
+   the value it would have to restore differs per control (44px for archive
+   and delete, text height elsewhere, 44px again under a coarse pointer). */
 @media (max-width: 760px) {
   .level-page .plain-button,
   .level-page .lens-link {
@@ -872,6 +1036,42 @@
   }
   .returns-bloom-sources button {
     padding-block: 10px;
+  }
+}
+/* Phone: the thoughts a bloom came from sit two to a row under the sentence,
+   each a full 44px target, instead of one tall line apiece. From 761px they
+   run on in the sentence again. */
+.returns-source-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 16px;
+}
+.returns-source-sep {
+  display: none;
+}
+.returns-source-list button {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 44px;
+  padding-block: 4px;
+  line-height: 1.3;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+@media (min-width: 761px) {
+  .returns-source-list,
+  .returns-source-sep {
+    display: inline;
+  }
+  .returns-source-list button {
+    display: inline-block;
+    width: auto;
+    min-height: 0;
+    padding-block: 0;
+    line-height: inherit;
+    text-align: center;
+    overflow-wrap: inherit;
   }
 }
 /* Tablet: fewer plants stand in each bed so its name and tending state keep
@@ -901,11 +1101,16 @@
 /* Meadow status note (a location that no longer exists, a save result): on
    narrow screens it sits just above the topic dock instead of over the
    garden's title card. The workspace measures the dock into the property. */
-@media (max-width: 900px) {
+.scene-host > .scene-status {
+  top: auto;
+  bottom: calc(100% - var(--scene-dock-top, 100% - 190px) + 10px);
+  width: min(26rem, calc(100% - 32px));
+}
+@media (min-width: 901px) {
   .scene-host > .scene-status {
-    top: auto;
-    bottom: calc(100% - var(--scene-dock-top, 100% - 190px) + 10px);
-    width: min(26rem, calc(100% - 32px));
+    top: 1rem;
+    bottom: auto;
+    width: auto;
   }
 }
 /* Touch at any width (tablets keep the wide layout): the quieter controls on

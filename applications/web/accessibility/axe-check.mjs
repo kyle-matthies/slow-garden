@@ -1,7 +1,8 @@
 // Accessibility receipt harness for Slow Garden web.
 // Boots `next dev` with GARDEN_AXE_FIXTURES=1 (no Supabase env), runs axe-core
-// across fixture states, color schemes and viewports, checks 390px overflow and
-// a 200%-zoom proxy, and records contrast + screenshot receipts.
+// across fixture states, color schemes and viewports, checks overflow and 44px
+// touch targets on the touch viewports, a 200%-zoom proxy, and records contrast
+// + screenshot receipts.
 // Fixture ids duplicated from src/app/dev/axe-fixtures/fixture.ts — keep in sync.
 import { spawn } from "node:child_process";
 import { mkdirSync, unlinkSync, writeFileSync, statSync } from "node:fs";
@@ -60,6 +61,15 @@ const STATES = [
   ["error", "/dev/axe-fixtures?state=error"],
   ["loading", "/dev/axe-fixtures?state=loading"],
   ["garden-first-run", "/dev/axe-fixtures?state=first-run"],
+  // First run with a seed pack opened: its topics and questions are showing.
+  [
+    "garden-first-run-pack",
+    "/dev/axe-fixtures?state=first-run",
+    async (page) => {
+      await page.locator(".seed-packet").first().click();
+      await page.locator(".seed-beds").first().waitFor();
+    },
+  ],
   ["garden-import", "/dev/axe-fixtures?state=import"],
   // The living garden scene (D-022) is the default overview.
   ["garden-overview", "/dev/axe-fixtures"],
@@ -97,7 +107,36 @@ const STATES = [
   ["garden-scale", TENDED, dismissReveal],
   ["garden-scale-list", `${TENDED}&view=list`, dismissReveal],
   ["cabinet", "/garden/returns-preview?scene=three-blooms"],
-  // The "More" menu, open over the scene.
+  // The writing page with the caret in it (on a phone the tab bar steps aside).
+  [
+    "garden-write",
+    `/dev/axe-fixtures?topic=${PLOT}&thought=${SEED}&view=list`,
+    async (page) => {
+      await page.getByRole("textbox", { name: "New entry", exact: true }).focus();
+    },
+  ],
+  // Deletion (fixture flag only): the dialog open for one entry, and for the
+  // account from Settings. The fixture has no backend, so the dialog shows its
+  // "could not count" message; nothing can be erased.
+  [
+    "garden-delete-entry",
+    `/dev/axe-fixtures?topic=${PLOT}&thought=${SEED}&view=list`,
+    async (page) => {
+      await page.getByRole("button", { name: "Delete entry…" }).first().click();
+      await page.locator("dialog.delete-dialog[open]").waitFor();
+    },
+  ],
+  [
+    "garden-delete-account",
+    "/dev/axe-fixtures?view=list",
+    async (page) => {
+      await openSettings(page);
+      await page.getByRole("button", { name: "Delete account…" }).click();
+      await page.locator("dialog.delete-dialog[open]").waitFor();
+    },
+  ],
+  // The "More" menu, open over the scene: a dropdown on wide screens, a sheet
+  // above the tab bar on a phone, beside the rail in short landscape.
   [
     "garden-menu",
     "/dev/axe-fixtures",
@@ -144,6 +183,9 @@ const SHOT_STATES = new Set([
   "morning-reveal",
   "morning-reveal-list",
   "garden-first-run",
+  "garden-first-run-pack",
+  "garden-delete-entry",
+  "garden-delete-account",
   "garden-ring",
   "garden-ring-24",
   "garden-scale",
@@ -153,10 +195,72 @@ const SHOT_STATES = new Set([
   "error",
 ]);
 const SCHEMES = ["light", "dark"];
+// Touch viewports get the overflow and 44px target checks as well as axe.
 const VIEWPORTS = [
-  { name: "390", width: 390, height: 844, isMobile: true, deviceScaleFactor: 2 },
-  { name: "1280", width: 1280, height: 800, isMobile: false, deviceScaleFactor: 1 },
+  { name: "360", width: 360, height: 740, isMobile: true, hasTouch: true, deviceScaleFactor: 2 },
+  { name: "390", width: 390, height: 844, isMobile: true, hasTouch: true, deviceScaleFactor: 2 },
+  { name: "844x390", width: 844, height: 390, isMobile: true, hasTouch: true, deviceScaleFactor: 2 },
+  { name: "1280", width: 1280, height: 800, isMobile: false, hasTouch: false, deviceScaleFactor: 1 },
 ];
+// Receipt screenshots stay at the two sizes they have always had.
+const SHOT_VIEWPORTS = new Set(["390", "1280"]);
+// AXE_VIEWPORTS=360,844x390 reruns only those viewports.
+const ONLY_VIEWPORTS = process.env.AXE_VIEWPORTS?.split(",").map((s) => s.trim()).filter(Boolean);
+
+// Touch targets (WCAG 2.5.5 at the product's 44px bar, AGENTS/TEAM rules).
+// Returns "selector WxH" for every visible control smaller than 44x44 CSS px.
+// Not counted, as in the mobile-first audit of 2026-11-16:
+//  - links inside a sentence (WCAG's inline exception) and screen-reader-only
+//    or skip links;
+//  - a radio or checkbox inside a label: the label is the target;
+//  - Meadow plants, whose target is a centred 44px ::after, not the drawing;
+//  - controls on a ring card that is not the selected one (audit item 30):
+//    they are the 3D-scaled copy of a 44px control on a card waiting to one
+//    side; the selected card and the dock are full size.
+const TARGET_EXCEPTION = ".ring-card:not(.is-selected) *";
+// AXE_TARGET_MIN=60 proves the check bites; the bar is 44.
+const TARGET_MIN = Number(process.env.AXE_TARGET_MIN) || 44;
+const smallTargets = (page) =>
+  page.evaluate(({ exception, min }) => {
+    const seen = (el) => {
+      const r = el.getBoundingClientRect();
+      const s = getComputedStyle(el);
+      return (
+        r.width > 0 && r.height > 0 &&
+        s.visibility !== "hidden" && s.display !== "none" && +s.opacity > 0.05 &&
+        r.bottom > 0 && r.top < innerHeight && r.right > 0 && r.left < innerWidth
+      );
+    };
+    const name = (el) =>
+      `${el.tagName.toLowerCase()}${typeof el.className === "string" && el.className ? "." + el.className.trim().split(/\s+/).slice(0, 2).join(".") : ""} "${(el.getAttribute("aria-label") || el.textContent || "").trim().slice(0, 28)}"`;
+    const small = [];
+    const modal = document.querySelector("dialog[open]");
+    for (const el of document.querySelectorAll(
+      "button, a[href], summary, input:not([type=hidden]), select, textarea, [role=button]",
+    )) {
+      if (!seen(el) || el.disabled) continue;
+      // A modal dialog makes the page behind it inert.
+      if (modal && !modal.contains(el)) continue;
+      if (el.closest(".sr-only, .skip-link") || el.matches(exception)) continue;
+      let r = el.getBoundingClientRect();
+      if ((el.type === "radio" || el.type === "checkbox") && el.closest("label"))
+        r = el.closest("label").getBoundingClientRect();
+      const inline =
+        el.tagName === "A" &&
+        getComputedStyle(el).display === "inline" &&
+        el.parentElement &&
+        el.parentElement.textContent.trim().length > el.textContent.trim().length + 12;
+      if (inline) continue;
+      let { width, height } = r;
+      if (el.matches("button.scene-plant") && getComputedStyle(el, "::after").content !== "none") {
+        width = Math.max(width, 44);
+        height = Math.max(height, 44);
+      }
+      if (width < min - 0.5 || height < min - 0.5)
+        small.push(`${name(el)} ${Math.round(width)}x${Math.round(height)}`);
+    }
+    return small;
+  }, { exception: TARGET_EXCEPTION, min: TARGET_MIN });
 const CONTRAST = [
   {
     state: "landing",
@@ -386,6 +490,7 @@ async function shot(page, file) {
 }
 
 let failures = 0;
+let targetChecks = 0;
 const warnings = [];
 const contrastRows = [];
 
@@ -409,20 +514,24 @@ try {
   for (const [state, url, open] of STATES.filter(([state]) => wanted(state))) {
     for (const scheme of SCHEMES) {
       for (const vp of VIEWPORTS) {
+        if (ONLY_VIEWPORTS && !ONLY_VIEWPORTS.includes(vp.name)) continue;
         const ctx = await browser.newContext({
           colorScheme: scheme,
           viewport: { width: vp.width, height: vp.height },
           isMobile: vp.isMobile,
+          hasTouch: vp.hasTouch,
           deviceScaleFactor: vp.deviceScaleFactor,
         });
         const page = await ctx.newPage();
         await page.goto(`${BASE}${url}`, { waitUntil: "networkidle" });
-        await open?.(page);
-        await settle(page);
-        // Hide the Next.js dev-tools badge so receipts show only the app.
+        // Hide the Next.js dev-tools badge before anything is opened: in short
+        // landscape it sits over the rail's last item, and receipts show only
+        // the app.
         await page.addStyleTag({
           content: "nextjs-portal{display:none!important}",
         });
+        await open?.(page);
+        await settle(page);
         const res = await new AxeBuilder({ page })
           .withTags(["wcag2a", "wcag2aa", "wcag21aa", "best-practice"])
           .analyze();
@@ -469,8 +578,18 @@ try {
         console.log(
           `${state}/${scheme}/${vp.name}: ${bad.length} serious/critical, ${mild.length} moderate/minor`,
         );
-        if (vp.name === "390") await overflowCheck(page, `${state}/${scheme}/390`);
-        if (SHOT_STATES.has(state))
+        if (vp.hasTouch) {
+          await overflowCheck(page, `${state}/${scheme}/${vp.name}`);
+          const small = await smallTargets(page);
+          targetChecks++;
+          if (small.length) {
+            failures++;
+            console.error(
+              `TARGET [${state}/${scheme}/${vp.name}] ${small.length} under ${TARGET_MIN}px: ${small.slice(0, 6).join("; ")}`,
+            );
+          }
+        }
+        if (SHOT_STATES.has(state) && SHOT_VIEWPORTS.has(vp.name))
           await shot(page, `${state}-${scheme}-${vp.name}`);
         await ctx.close();
       }
@@ -634,7 +753,7 @@ try {
     }
 }
 
-if (!ONLY) writeFileSync(
+if (!ONLY && !ONLY_VIEWPORTS) writeFileSync(
   path.join(receipts, "contrast.json"),
   JSON.stringify(
     contrastRows.map(({ state, scheme, selector, fg, bg, ratio, passesAA }) => ({
@@ -661,6 +780,7 @@ if (warnings.length) {
   console.log("\nWarnings (moderate/minor):");
   for (const w of warnings) console.log(`  ${w}`);
 }
+console.log(`\n44px target check: ${targetChecks} touch-viewport state runs.`);
 console.log(
   `\n${failures === 0 ? "PASS" : `FAIL (${failures})`}: axe-check complete`,
 );
