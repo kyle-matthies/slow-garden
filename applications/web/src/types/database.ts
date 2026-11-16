@@ -522,6 +522,7 @@ export type Database = {
       }
       claim_garden_pass: { Args: never; Returns: Json }
       claim_provider_orphan: { Args: never; Returns: Json }
+      consume_worker_tick: { Args: { p_token: string }; Returns: boolean }
       create_seed: {
         Args: {
           p_body: string
@@ -559,7 +560,12 @@ export type Database = {
         Returns: undefined
       }
       mark_garden_dispatch: {
-        Args: { p_id: string; p_rejected?: boolean; p_token: string }
+        Args: {
+          p_calls?: number
+          p_id: string
+          p_rejected?: boolean
+          p_token: string
+        }
         Returns: string
       }
       resolve_provider_orphan: {

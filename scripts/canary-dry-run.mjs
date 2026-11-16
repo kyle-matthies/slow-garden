@@ -181,6 +181,7 @@ class FakeLedger {
       marks: [],
       transport: this.transport,
       dispatches: 0,
+      providerCalls: 0,
       dispatchOpen: false,
       lostCents: 0,
     };
@@ -238,6 +239,7 @@ class FakeLedger {
       settled: pass.actualCents !== null,
       transport: pass.transport,
       dispatches: pass.dispatches,
+      provider_calls: pass.providerCalls,
     };
   }
 
@@ -278,7 +280,9 @@ class FakeLedger {
       }
       if (pass.actualCents !== null) return "settled";
       if (!(await this.rpc("check_garden_pass", args))) return "inactive";
-      if (pass.dispatches >= 3) return "limit";
+      // The limit is in provider calls: four per pass.
+      const calls = args.p_calls ?? 1;
+      if (pass.providerCalls + calls > 4) return "limit";
       if (pass.dispatchOpen) {
         // The earlier dispatch never reported back: book it at the full reservation.
         if (this.reservedCents + this.spentCents + pass.reservedCents > this.hardCapCents)
@@ -287,6 +291,7 @@ class FakeLedger {
         pass.lostCents += pass.reservedCents;
       }
       pass.dispatches += 1;
+      pass.providerCalls += calls;
       pass.dispatchOpen = true;
       pass.leaseUntil = this.clock.now() + syncLimits.leaseMs;
       return "ok";
@@ -339,12 +344,18 @@ class FakeLedger {
       }
       const inputTokens = args.p_input_tokens ?? 0;
       const outputTokens = args.p_output_tokens ?? 0;
+      // Real usage when known; the full reservation when work reached the provider
+      // and usage is unknown; nothing when nothing was ever sent.
+      const reached = Boolean(pass.provider_id || pass.input_file_id || pass.dispatchOpen);
       const cost =
         inputTokens + outputTokens > 0
           ? (Math.max(inputTokens, 0) * pass.inputRate +
               Math.max(outputTokens, 0) * pass.outputRate) /
             1_000_000
-          : pass.reservedCents;
+          : reached
+            ? pass.reservedCents
+            : 0;
+      pass.dispatchOpen = false;
       this.reservedCents = Math.max(
         0,
         this.reservedCents - pass.reservedCents,
@@ -816,8 +827,8 @@ scenarios.push(
     ];
     return { name: "sync_timeout_mid_call", steps, checks, ok: checks.every((c) => c.ok) };
   }),
-  scenario("sync_timeouts_exhaust_dispatch_limit", async () => {
-    const env = syncEnvironment();
+  scenario("sync_timeouts_exhaust_call_limit", async () => {
+    const env = syncEnvironment({ hardCapCents: 5000 });
     const steps = [];
     const pass = env.ledger.createPass("tenant-a");
     env.provider.onRespond = () => {
@@ -826,14 +837,14 @@ scenarios.push(
     await drain(env, steps);
     const states = steps.map(({ state }) => state);
     const checks = [
-      { check: "three_dispatches_then_stop", ok: pass.dispatches === 3 && env.provider.responses === 3 },
+      { check: "four_provider_calls_then_stop", ok: pass.providerCalls === 4 && env.provider.responses === 4 },
       { check: "pass_failed", ok: pass.status === "failed" && states.includes("failed") },
       { check: "nothing_stored", ok: pass.blooms.length === 0 },
-      { check: "every_dispatch_charged", ok: env.ledger.spentCents === 3 * PASS_ESTIMATE_CENTS },
+      { check: "every_lost_call_charged", ok: env.ledger.spentCents === 4 * PASS_ESTIMATE_CENTS },
       { check: "reservation_released", ok: env.ledger.reservedCents === 0 },
       noFiles(env),
     ];
-    return { name: "sync_timeouts_exhaust_dispatch_limit", steps, checks, ok: checks.every((c) => c.ok) };
+    return { name: "sync_timeouts_exhaust_call_limit", steps, checks, ok: checks.every((c) => c.ok) };
   }),
   scenario("sync_lease_lost_after_answer", async () => {
     const env = syncEnvironment();
@@ -950,6 +961,7 @@ scenarios.push(
       { check: "refused_dispatch_not_charged", ok: uncharged && pass.lostCents === 0 },
       { check: "completes_on_retry", ok: pass.status === "complete" && pass.blooms.length === 1 },
       { check: "permanent_error_fails", ok: failed.state === "failed" && refused.status === "failed" && refused.blooms.length === 0 },
+      { check: "permanent_refusal_costs_nothing", ok: permanent.ledger.spentCents === 0 && permanent.ledger.reservedCents === 0 },
       noFiles(env),
       noFiles(permanent),
     ];
@@ -967,6 +979,7 @@ scenarios.push(
       { check: "failed_before_dispatch", ok: failed.state === "failed" && failed.reason === "oversized_snapshot" },
       { check: "no_provider_call", ok: env.provider.responses === 0 && pass.dispatches === 0 },
       { check: "reservation_released", ok: env.ledger.reservedCents === 0 },
+      { check: "nothing_sent_nothing_charged", ok: env.ledger.spentCents === 0 },
       noFiles(env),
     ];
     return { name: "sync_oversized_snapshot", steps, checks, ok: checks.every((c) => c.ok) };
@@ -1003,6 +1016,103 @@ scenarios.push(
       noFiles(env),
     ];
     return { name: "sync_function_time_limit", steps, checks, ok: checks.every((c) => c.ok) };
+  }),
+);
+
+scenarios.push(
+  scenario("sync_staged_call_limit", async () => {
+    // A two-stage pass makes two provider calls per dispatch: one retry, never six calls.
+    const env = syncEnvironment({ hardCapCents: 5000 });
+    const steps = [];
+    const snapshot = fixture.map((item) => ({ ...item, title: "Synthetic thought", role: "changed" }));
+    const pass = env.ledger.createPass("tenant-a", snapshot, {
+      workflowVersion: "tend-connect-v3-synthetic",
+      context: { tiers: { catalog: true, notice: true, resurface: false } },
+    });
+    env.provider.onRespond = () => {
+      throw timeout();
+    };
+    await drain(env, steps);
+    const checks = [
+      { check: "two_dispatches", ok: pass.dispatches === 2 },
+      { check: "four_provider_calls_not_six", ok: pass.providerCalls === 4 && env.provider.responses === 4 },
+      { check: "pass_failed", ok: pass.status === "failed" },
+      noFiles(env),
+    ];
+    return { name: "sync_staged_call_limit", steps, checks, ok: checks.every((c) => c.ok) };
+  }),
+  scenario("sync_ledger_refuses_answer", async () => {
+    // The provider answered; the ledger write fails. The answer is retried from memory,
+    // then settled as failed at its real cost. The provider is not called again.
+    const env = syncEnvironment();
+    const steps = [];
+    const pass = env.ledger.createPass("tenant-a");
+    const rpc = env.ledger.rpc.bind(env.ledger);
+    let refusals = 0;
+    env.ledger.rpc = async (name, args) => {
+      if (name === "finish_garden_pass" && !args.p_failed) {
+        refusals += 1;
+        throw Error("ledger refused");
+      }
+      return rpc(name, args);
+    };
+    const result = await runOne({
+      rpc: (name, args) => env.ledger.rpc(name, args),
+      provider: env.provider,
+      now: () => env.clock.now(),
+      sleep: async () => {},
+    });
+    steps.push({ state: result.state, reason: result.reason });
+    await drain(env, steps);
+    const checks = [
+      { check: "retried_from_memory", ok: refusals === 3 },
+      { check: "one_provider_call", ok: env.provider.responses === 1 && pass.dispatches === 1 },
+      { check: "settled_failed_at_real_cost", ok: pass.status === "failed" && env.ledger.spentCents > 0 && env.ledger.spentCents < PASS_ESTIMATE_CENTS },
+      { check: "nothing_stored", ok: pass.blooms.length === 0 },
+      { check: "reservation_released", ok: env.ledger.reservedCents === 0 },
+      noFiles(env),
+    ];
+    return { name: "sync_ledger_refuses_answer", steps, checks, ok: checks.every((c) => c.ok) };
+  }),
+  scenario("nothing_sent_nothing_charged", async () => {
+    // Removing a tenant with passes that never reached the provider books nothing.
+    const env = syncEnvironment({ hardCapCents: 5000 });
+    const steps = [];
+    const passes = ["tenant-a", "tenant-b", "tenant-c"].map((tenant) => env.ledger.createPass(tenant));
+    for (const pass of passes) env.ledger.cancelPass(pass);
+    env.ledger.allowlist = new Set();
+    await drain(env, steps);
+    const checks = [
+      { check: "all_cancelled_and_cleaned", ok: passes.every((pass) => pass.status === "cancelled" && pass.cleanupPending === false) },
+      { check: "no_provider_contact", ok: env.provider.responses === 0 && env.provider.uploads === 0 },
+      { check: "nothing_charged", ok: env.ledger.spentCents === 0 },
+      { check: "reservations_released", ok: env.ledger.reservedCents === 0 },
+    ];
+    return { name: "nothing_sent_nothing_charged", steps, checks, ok: checks.every((c) => c.ok) };
+  }),
+  scenario("malformed_answer_reports_codes_only", async () => {
+    const env = syncEnvironment();
+    const steps = [];
+    const snapshot = fixture.map((item) => ({ ...item, title: "Synthetic thought", role: "changed" }));
+    env.ledger.createPass("tenant-a", snapshot, {
+      workflowVersion: "tend-connect-v3-synthetic",
+      context: { tiers: { catalog: true, notice: true, resurface: false } },
+    });
+    env.provider.onRespond = (body) => {
+      if (body.text.format.name !== "garden_connect") return null;
+      const answer = syncAnswer(body);
+      answer.body.output[0].content[0].text = `${INTERPRETATION} {"blooms":[]}`;
+      return answer;
+    };
+    const result = await step(env);
+    steps.push({ state: result.state, stages: result.stages });
+    await drain(env, steps);
+    const checks = [
+      { check: "stage_reported_as_fixed_code", ok: result.stages?.connect === "invalid_json" && result.stages?.tend === "ok" },
+      { check: "no_answer_text_in_result", ok: !JSON.stringify(result).includes("synthetic") && !JSON.stringify(result).includes("Unexpected") },
+      noFiles(env),
+    ];
+    return { name: "malformed_answer_reports_codes_only", steps, checks, ok: checks.every((c) => c.ok) };
   }),
 );
 

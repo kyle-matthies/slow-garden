@@ -49,6 +49,12 @@ set local role service_role;
 select lives_ok($$insert into private.ai_tenants(tenant_id,note) values('31111111-1111-4111-8111-111111111111','synthetic owner')$$,'the service role can allowlist an account');
 reset role;
 
+-- Rows are added or removed, never reassigned or emptied wholesale, so every
+-- removal goes through the path that cancels the tenant's active passes.
+select throws_ok($$update private.ai_tenants set tenant_id='32222222-2222-4222-8222-222222222222'$$,'55000','allowlist rows are added or removed, not changed','an allowlist row cannot be pointed at another account');
+select throws_ok($$truncate private.ai_tenants$$,'55000','remove allowlist rows one account at a time','the allowlist cannot be truncated');
+select ok(not has_table_privilege('service_role','private.ai_tenants','update') and not has_table_privilege('service_role','private.ai_tenants','truncate'),'the service role can only add and remove');
+
 -- Allowlisted account runs; the other still does not.
 select is(private.enqueue_nightly_passes('2026-11-16 02:30:00+00'),1,'nightly enqueue serves only the allowlisted account');
 select is((select count(*) from public.garden_passes where tenant_id='32222222-2222-4222-8222-222222222222'),0::bigint,'the other armed account is not enqueued');

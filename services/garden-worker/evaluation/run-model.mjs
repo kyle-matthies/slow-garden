@@ -108,7 +108,9 @@ for (const c of cases) {
     const parsed = v3 ? parseTendConnect(text, job) : parseBatchLine(text, job);
     outcome = { ok: true, stages: parsed.stages ?? null, result: parsed.result, usage: [parsed.inputTokens, parsed.outputTokens] };
   } catch (error) {
-    outcome = { ok: false, error: error instanceof Error ? error.message : "invalid" };
+    // A fixed code, never a parser message (which can quote the model's text).
+    const code = error instanceof SyntaxError ? "invalid_json" : error instanceof Error ? error.message : "invalid";
+    outcome = { ok: false, error: /^[a-z_]{1,40}$/.test(code) ? code : "invalid_output" };
   }
   lines.push(JSON.stringify({ case: c.id, family: c.family, workflow, model, outcome }));
   console.log(`${c.id}: ${outcome.ok ? "validated" : `refused (${outcome.error})`}`);

@@ -9,8 +9,14 @@
 --   * the worker's claim and its publish check (claim_garden_pass, check_garden_pass).
 -- With the allowlist empty nothing runs, even when enabled=true.
 -- Only the operator (postgres) and the service role can change it; no API role can
--- read it. Removing a tenant cancels that tenant's queued and in-flight passes, so
--- the existing cleanup path releases their reservations and provider work.
+-- read it. Rows are only ever added or deleted (reassigning a row and TRUNCATE are
+-- refused), so every removal runs the trigger that cancels that tenant's queued and
+-- in-flight passes, and the existing cleanup path settles them.
+-- Pass creation and removal serialise on the allowlist row: a pass being created
+-- holds FOR KEY SHARE on it, which a DELETE must wait for, so a pass can never
+-- commit after its tenant was removed and be left queued with nobody to claim it.
+-- Nightly enqueue also stops at the soft cap (COST_AND_CAPACITY: crossing the soft
+-- cap pauses new automatic passes); invited passes stop at the hard cap as before.
 -- Additive: no existing row or column changes.
 begin;
 
@@ -22,17 +28,22 @@ create table private.ai_tenants (
 alter table private.ai_tenants enable row level security;
 create policy ai_tenants_backend_only on private.ai_tenants for all to service_role using(true) with check(true);
 revoke all on private.ai_tenants from public,anon,authenticated;
-grant select,insert,update,delete on private.ai_tenants to service_role;
+grant select,insert,delete on private.ai_tenants to service_role;
 
 -- Pass creation. A separate trigger rather than a rewrite of private.prepare_pass:
 -- it fires first (trigger names fire in alphabetical order, and either trigger
 -- refusing is enough). While the runtime is disabled it stays silent so the
 -- existing "gate has not been activated" refusal is unchanged.
 -- The message is safe to show a person; the web maps SQLSTATE 55000 to its own copy.
+-- Lock order: public.accounts (the lock prepare_pass and the deletion RPCs take
+-- first), then the allowlist row. Account deletion takes them in the same order.
 create function private.require_ai_tenant() returns trigger language plpgsql security definer set search_path='' as $$
 begin
-  if (select enabled from private.ai_runtime where singleton)
-     and not exists(select 1 from private.ai_tenants t where t.tenant_id=new.tenant_id) then
+  if not (select enabled from private.ai_runtime where singleton) then return new; end if;
+  perform 1 from public.accounts where id=new.tenant_id for update;
+  -- Waits for a removal in progress; if it commits, the row is gone and this refuses.
+  perform 1 from private.ai_tenants t where t.tenant_id=new.tenant_id for key share;
+  if not found then
     raise exception 'tending is not available for this account yet' using errcode='55000';
   end if;
   return new;
@@ -56,6 +67,20 @@ end $$;
 create trigger ai_tenants_removed after delete on private.ai_tenants
   for each row execute function private.cancel_removed_ai_tenant();
 revoke all on function private.cancel_removed_ai_tenant() from public,anon,authenticated;
+
+-- Add or delete only.
+create function private.refuse_ai_tenant_change() returns trigger language plpgsql set search_path='' as $$
+begin
+  if tg_op='TRUNCATE' then
+    raise exception 'remove allowlist rows one account at a time' using errcode='55000';
+  end if;
+  raise exception 'allowlist rows are added or removed, not changed' using errcode='55000';
+end $$;
+create trigger ai_tenants_no_reassign before update of tenant_id on private.ai_tenants
+  for each row execute function private.refuse_ai_tenant_change();
+create trigger ai_tenants_no_truncate before truncate on private.ai_tenants
+  for each statement execute function private.refuse_ai_tenant_change();
+revoke all on function private.refuse_ai_tenant_change() from public,anon,authenticated;
 
 -- The worker never claims active work for a tenant that is not allowlisted.
 -- Cleanup of terminal passes is unchanged. Body otherwise as in tending_tiers.
@@ -93,6 +118,10 @@ language plpgsql security definer set search_path='' as $$
 declare a record; s record; n integer:=0; made integer; last timestamptz;
 begin
   if not (select enabled from private.ai_runtime where singleton) then return 0; end if;
+  -- Automatic passes pause at the soft cap; a person can still invite one.
+  if (select coalesce(sum(m.reserved_cents+m.spent_cents),0) from private.ai_months m
+        where m.month=date_trunc('month',now() at time zone 'UTC')::date)
+     >=(select soft_cap_cents from private.ai_runtime where singleton) then return 0; end if;
   for a in select id from public.accounts acc where tend_overnight and extract(hour from p_now at time zone timezone)=2
       and exists(select 1 from private.ai_tenants t where t.tenant_id=acc.id) loop
     if exists(select 1 from public.garden_passes where tenant_id=a.id and trigger='nightly' and created_at>p_now-interval '20 hours') then continue; end if;

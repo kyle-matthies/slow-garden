@@ -95,36 +95,45 @@ const reasoningFor = (job) =>
   typeof job?.reasoning_effort === "string" && job.reasoning_effort
     ? { reasoning: { effort: job.reasoning_effort } }
     : {};
+/**
+ * The one place a provider request body is built, for both workflows and both
+ * transports. `store: false` is set here and nowhere else; `sendable` is the
+ * matching check every outgoing request must pass, and the worker refuses to
+ * send (fails closed) when it does not.
+ */
+function responsesBody(job, { system, payload, name, schema, maxTokens }) {
+  return {
+    model: job.model,
+    store: false,
+    ...reasoningFor(job),
+    max_output_tokens: maxTokens,
+    input: [
+      { role: "system", content: system },
+      { role: "user", content: JSON.stringify(payload) },
+    ],
+    text: { format: { type: "json_schema", name, strict: true, schema } },
+  };
+}
+/** True only for a body that asks the provider not to store it and uses no tools or background mode. */
+export const sendable = (body) =>
+  Boolean(body) && typeof body === "object" && body.store === false && !("tools" in body) && !("background" in body);
+
 export function requestFor(job) {
   return {
     custom_id: job.id,
     method: "POST",
     url: "/v1/responses",
-    body: {
-      model: job.model,
-      store: false,
-      ...reasoningFor(job),
-      max_output_tokens: 4000,
-      input: [
-        { role: "system", content: systemPrompt },
-        {
-          role: "user",
-          content: JSON.stringify({
-            workflow_version: job.workflow_version,
-            sources: job.snapshot,
-            corrections: job.corrections ?? [],
-          }),
-        },
-      ],
-      text: {
-        format: {
-          type: "json_schema",
-          name: "garden_return",
-          strict: true,
-          schema: outputSchema,
-        },
+    body: responsesBody(job, {
+      system: systemPrompt,
+      payload: {
+        workflow_version: job.workflow_version,
+        sources: job.snapshot,
+        corrections: job.corrections ?? [],
       },
-    },
+      name: "garden_return",
+      schema: outputSchema,
+      maxTokens: 4000,
+    }),
   };
 }
 export function parseBatchLine(text, job) {
@@ -259,17 +268,7 @@ function requestLine(job, stage, prompt, payload, schema, maxTokens) {
     custom_id: `${job.id}:${stage}`,
     method: "POST",
     url: "/v1/responses",
-    body: {
-      model: job.model,
-      store: false,
-      ...reasoningFor(job),
-      max_output_tokens: maxTokens,
-      input: [
-        { role: "system", content: prompt },
-        { role: "user", content: JSON.stringify(payload) },
-      ],
-      text: { format: { type: "json_schema", name: `garden_${stage}`, strict: true, schema } },
-    },
+    body: responsesBody(job, { system: prompt, payload, name: `garden_${stage}`, schema, maxTokens }),
   };
 }
 
@@ -426,6 +425,58 @@ export function validateConnect(value, job) {
   return value;
 }
 
+// Every outcome the worker reports is one of these fixed codes. A parser or
+// validator message is never passed on: it can quote what the model wrote.
+const STAGE_FAILURES = new Set([
+  "invalid_schema",
+  "invalid_bloom",
+  "invalid_evidence",
+  "invalid_echo",
+  "invalid_json",
+  "invalid_output",
+  "overreach",
+  "too_many_questions",
+  "provider_stage_failed",
+  "unexpected_provider_output",
+  "missing",
+]);
+const stageCode = (error) =>
+  error instanceof SyntaxError
+    ? "invalid_json"
+    : STAGE_FAILURES.has(error?.message)
+      ? error.message
+      : "invalid_output";
+const STATES = new Set([
+  "idle", "submitted", "waiting", "complete", "failed", "cancelled", "cancelling", "cleaned", "expired",
+  "deferred", "retry_scheduled", "lease_lost",
+  "orphan_queue_unavailable", "orphan_cancelling", "orphan_retry", "orphan_cleaned",
+]);
+const REASONS = new Set([
+  "deadline", "provider", "timeout", "network", "provider_error", "time_budget", "budget_stop", "call_limit",
+  "oversized_snapshot", "transport_unavailable", "unsafe_request", "invalid_output", "ledger_rejected",
+]);
+/**
+ * The last thing every worker result passes through. Only known codes survive;
+ * anything else becomes "unknown" or "invalid_output". This is what makes the
+ * worker's HTTP response (which pg_net keeps for a while) content-free by
+ * construction rather than by care.
+ */
+export function report(result) {
+  const out = { state: STATES.has(result?.state) ? result.state : "unknown" };
+  if (result?.reason !== undefined) out.reason = REASONS.has(result.reason) ? result.reason : "unknown";
+  if (result?.transport === "sync") out.transport = "sync";
+  if (result?.stages && typeof result.stages === "object") {
+    out.stages = {};
+    for (const stage of ["tend", "connect"])
+      if (stage in result.stages) {
+        const value = result.stages[stage];
+        out.stages[stage] =
+          value === "ok" || /^ok_dropped_\d{1,3}$/.test(value) || STAGE_FAILURES.has(value) ? value : "invalid_output";
+      }
+  }
+  return out;
+}
+
 function outputText(line) {
   if (line.error || line.response?.status_code !== 200) throw Error("provider_stage_failed");
   const body = line.response.body;
@@ -484,7 +535,7 @@ export function parseTendConnect(text, job) {
         stages.connect = "ok";
       }
     } catch (error) {
-      stages[stage] = error instanceof Error ? error.message : "invalid";
+      stages[stage] = stageCode(error);
     }
   }
   for (const id of expected) {
@@ -576,8 +627,10 @@ export async function drainOrphan({ rpc, provider }) {
  * reservation, cancellation, expiry and the lease.
  *
  * There is no provider-side id to reconcile against, so the ledger records
- * each dispatch (mark_garden_dispatch): at most three per pass, and a dispatch
- * that never reported back is booked at its full reservation before the next.
+ * each dispatch (mark_garden_dispatch) with the number of provider calls it
+ * makes: at most four provider calls per pass (a two-stage pass gets one
+ * retry), and a dispatch that never reported back is booked at its full
+ * reservation before the next.
  *
  * Time budget. ASSUMPTION, not verified against Supabase documentation in
  * this repository: an Edge Function must answer within 150 seconds. The
@@ -598,13 +651,15 @@ export const syncLimits = Object.freeze({
 });
 const byteLength = (text) => new TextEncoder().encode(text).length;
 
-async function runSync({ job, args, rpc, provider, now, started, update, finish }) {
+async function runSync({ job, args, rpc, provider, now, started, update, finish, requests, sleep }) {
   const fail = async (reason, usage = {}) => {
     await finish({ p_failed: true, ...usage });
     return { state: "failed", reason };
   };
   if (typeof provider.respond !== "function") return fail("transport_unavailable");
-  const lines = isTendConnect(job) ? requestsFor(job) : [requestFor(job)];
+  const lines = requests(job);
+  // Fail closed: nothing is dispatched unless every request asks not to be stored.
+  if (!lines.every((line) => sendable(line.body))) return fail("unsafe_request");
   if (lines.some((line) => byteLength(JSON.stringify(line.body)) > syncLimits.requestBytes))
     return fail("oversized_snapshot");
   // Not enough of this invocation left for a full call: try again on a later tick.
@@ -615,13 +670,14 @@ async function runSync({ job, args, rpc, provider, now, started, update, finish 
     await update({ p_release: true });
     return { state: "deferred", reason: "time_budget" };
   }
-  const gate = await rpc("mark_garden_dispatch", args);
+  // The ledger counts provider calls, not dispatches: a staged pass makes one call per stage.
+  const gate = await rpc("mark_garden_dispatch", { ...args, p_calls: lines.length });
   if (gate === "inactive") {
     await finish({ p_failed: true });
     return { state: "cancelled" };
   }
   if (gate === "settled") return { state: "lease_lost" };
-  if (gate !== "ok") return fail(gate === "budget" ? "budget_stop" : "dispatch_limit");
+  if (gate !== "ok") return fail(gate === "budget" ? "budget_stop" : "call_limit");
   const dispatch = (job.dispatches ?? 0) + 1;
   const answers = await Promise.all(
     lines.map(async (line) => {
@@ -649,8 +705,8 @@ async function runSync({ job, args, rpc, provider, now, started, update, finish 
     // Refused outright: nothing was generated, so nothing is booked.
     const retry =
       answers.every((answer) => answer.response.retryable === true) && job.attempts < 5;
-    if (!retry) return fail("provider_error");
     await rpc("mark_garden_dispatch", { ...args, p_rejected: true });
+    if (!retry) return fail("provider_error");
     await update({ p_release: true });
     return { state: "retry_scheduled", reason: "provider_error" };
   }
@@ -678,14 +734,42 @@ async function runSync({ job, args, rpc, provider, now, started, update, finish 
     await finish({ p_failed: true, ...usage });
     return { state: "cancelled" };
   }
-  await finish({ p_result: parsed.result, ...usage });
+  // The answer is in memory. If the ledger write fails it is retried from here;
+  // the provider is never asked again for an answer already in hand.
+  let stored = false;
+  for (let attempt = 0; attempt < 3 && !stored; attempt += 1) {
+    try {
+      await finish({ p_result: parsed.result, ...usage });
+      stored = true;
+    } catch {
+      if (attempt < 2) await sleep(250 * (attempt + 1));
+    }
+  }
+  if (!stored) {
+    // The ledger will not take this result (its own validation refused it, or the
+    // lease is gone). Settle the pass as failed at its real cost so that no later
+    // tick dispatches again; if even that is refused, the lease is lost.
+    try {
+      await finish({ p_failed: true, ...usage });
+    } catch {
+      return { state: "lease_lost" };
+    }
+    return { state: "failed", reason: "ledger_rejected" };
+  }
   return parsed.stages
     ? { state: "complete", transport: "sync", stages: parsed.stages }
     : { state: "complete", transport: "sync" };
 }
 
 // Dependency injection keeps real notes and provider credentials out of CI.
-export async function runOne({ rpc: ledger, provider, now = Date.now }) {
+const defaultRequests = (job) => (isTendConnect(job) ? requestsFor(job) : [requestFor(job)]);
+const defaultSleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** One worker tick. The result is always a content-free report (see `report`). */
+export async function runOne(options) {
+  return report(await runTick(options));
+}
+async function runTick({ rpc: ledger, provider, now = Date.now, requests = defaultRequests, sleep = defaultSleep }) {
   const started = now();
   // Ledger failures (including a lost lease) are tagged so the failure path
   // never writes on behalf of a job another worker may now own.
@@ -757,11 +841,12 @@ export async function runOne({ rpc: ledger, provider, now = Date.now }) {
       return { state: "expired", reason: "deadline" };
     }
     if (job.transport === "sync")
-      return await runSync({ job, args, rpc, provider, now, started, update, finish });
+      return await runSync({ job, args, rpc, provider, now, started, update, finish, requests, sleep });
     if (!job.provider_id) {
       let fileId = job.input_file_id;
       if (!fileId) {
-        const lines = isTendConnect(job) ? requestsFor(job) : [requestFor(job)];
+        const lines = requests(job);
+        if (!lines.every((line) => sendable(line.body))) throw Error("unsafe_request");
         fileId = await provider.upload(
           lines.map((line) => JSON.stringify(line)).join("\n") + "\n",
           job.id,
@@ -832,6 +917,24 @@ export async function runOne({ rpc: ledger, provider, now = Date.now }) {
   }
 }
 /**
+ * Who may invoke the worker: the operator, holding GARDEN_WORKER_SECRET, or the
+ * database scheduler, holding a single-use tick token that `consume` (the
+ * consume_worker_tick RPC) redeems exactly once. The long-lived secret is never
+ * stored in the database or sent through pg_net.
+ */
+export async function authorizeWorker({ header, workerKey, consume }) {
+  if (typeof header !== "string" || !header.startsWith("Bearer ")) return false;
+  const token = header.slice(7);
+  if (typeof workerKey === "string" && workerKey.length >= 32 && token === workerKey) return true;
+  if (!/^tick_[0-9a-f]{64}$/.test(token) || typeof consume !== "function") return false;
+  try {
+    return (await consume(token)) === true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * The provider seam. The runtime needs exactly these operations and nothing
  * else from a model vendor:
  *
@@ -870,6 +973,8 @@ export function httpProvider(apiKey, fetcher = fetch) {
   }
   return {
     async respond(body, { timeoutMs = syncLimits.callTimeoutMs, key } = {}) {
+      // Second check, at the last point before the network.
+      if (!sendable(body)) throw new Error("unsafe_request");
       let response;
       let json = null;
       try {

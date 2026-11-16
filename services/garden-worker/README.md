@@ -48,12 +48,27 @@ when it is prepared, together with `reasoning_effort` (null means the field is n
 Everything else is shared: the frozen snapshot, the staged requests, validation in the
 worker and again in SQL, budget reservation and settlement, expiry, and the lease.
 
-Sync bookkeeping (`public.mark_garden_dispatch`): every provider call is recorded
-before it is made, at most three per pass. A call that never reports back (timeout,
-crash, lease lost after the answer) has unknown usage, so the next dispatch first books
-the full reservation as spend and the hard cap can refuse it. A call the provider
-refused outright is closed without a charge. `private.pass_inputs.lost_cents` shows
-what was booked this way.
+Sync bookkeeping (`public.mark_garden_dispatch`): every dispatch is recorded before it
+is made, with the number of provider calls it makes. A pass makes at most **four
+provider calls**: a two-stage tend-connect-v3 pass gets one retry, a single-request
+pass three. A dispatch that never reports back (timeout, crash, lease lost after the
+answer) has unknown usage, so the next dispatch first books the full reservation as
+spend and the hard cap can refuse it. A dispatch the provider refused outright is
+closed without a charge. `private.pass_inputs.lost_cents` shows what was booked this
+way. Once the provider has answered, a failing ledger write is retried from memory and
+then settled as failed at its real cost; it never causes another provider call.
+
+Cost rule, both transports: real usage when the provider reports it; the full
+reservation when work was sent and its usage is unknown; **nothing when nothing was
+sent** (a pass cancelled, expired or refused before anything reached the provider).
+
+Every request body is built in one place (`responsesBody`), which sets `store: false`.
+The worker refuses to dispatch, and the adapter refuses to send, any body without it.
+
+What the worker returns is a content-free report: only the fixed state, reason and
+stage codes listed in the runtime survive its `report` filter, so no parser message,
+provider text or source text can reach the HTTP response, which `pg_net` keeps. The
+worker logs nothing.
 
 Sync time budget (`syncLimits` in the shared runtime): provider call 90 s, lease 120 s
 from the dispatch mark, invocation 140 s. These assume an Edge Function must answer
@@ -68,11 +83,18 @@ another vendor is a new workflow version with its own evaluation (ADR-004).
 
 `20261116023939_garden_scheduling.sql` installs `pg_cron` and `pg_net` and three jobs.
 `private.tick_garden_worker()` (every five minutes) posts to the worker only when the
-Vault secrets `garden_worker_url` (https) and `garden_worker_secret` exist and there is
-work: an active pass while the runtime is enabled, or cleanup that is still owed.
-`private.tick_nightly_enqueue()` (hourly) enqueues only when the runtime is enabled,
-`private.ai_runtime.nightly_enabled` is true and the worker is configured. Both return
-null otherwise. A third job keeps a week of cron history.
+Vault entry `garden_worker_url` (https) exists and there is work the worker could
+claim: an active pass of an allowlisted account while the runtime is enabled, or
+cleanup owed by a finished pass or an orphan. `private.tick_nightly_enqueue()` (hourly)
+enqueues only when the runtime is enabled, `private.ai_runtime.nightly_enabled` is true
+and the worker is configured, and it stops at the soft cap. Both return null otherwise.
+A third job keeps a week of cron history.
+
+The worker accepts two callers (`authorizeWorker`): the operator with
+`GARDEN_WORKER_SECRET`, and the scheduler with a single-use tick token that expires in
+two minutes and is redeemed once through `public.consume_worker_tick`. The long-lived
+secret is never stored in the database, because `pg_net`'s request queue is readable
+by every database role and a migration cannot change that.
 
 ## Job lifecycle rules
 
@@ -104,7 +126,7 @@ Keep `private.ai_runtime.enabled=false` and `GARDEN_AI_ENABLED=false` until:
    provider's secure configuration path. Never commit values or give browsers a service key.
 4. Deploy `supabase/functions/garden-worker` with JWT verification disabled only
    for this endpoint: it checks its separate scheduler secret before any work.
-5. Store the worker URL and secret in Vault so the scheduled tick can reach the worker.
+5. Store the worker URL (only the URL) in Vault so the scheduled tick can reach the worker.
    This dispatches explicit invitations; nightly tending has its own switch.
 6. Allowlist the account in `private.ai_tenants`. Pin `ai_runtime.model`, workflow,
    reasoning effort, transport, actual input/output rates and `approved_at` exactly as

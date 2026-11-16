@@ -867,6 +867,9 @@ test("a lost orphan lease writes nothing further", async () => {
 import {
   syncLimits,
   httpProvider,
+  sendable,
+  report,
+  authorizeWorker,
 } from "../../supabase/functions/_shared/garden-runtime.mjs";
 
 const answer = (value, usage = { input_tokens: 100, output_tokens: 40 }) => ({
@@ -914,6 +917,7 @@ function syncHarness(job, { respond, ledger = {}, now } = {}) {
     calls,
     responds,
     deactivate: () => (active = false),
+    sleep: async () => {},
     now,
     rpc: async (name, args) => {
       calls.push([name, args]);
@@ -1035,8 +1039,9 @@ test("sync: lease lost after the provider answered stores nothing and never thro
     },
   });
   assert.deepEqual(await runOne(h), { state: "lease_lost" });
-  assert.equal(names(h).filter((n) => n === "finish_garden_pass").length, 1, "no second write is attempted");
+  assert.equal(h.responds.length, 1, "the provider is never called again for an answer already in hand");
   assert.equal(names(h).includes("update_garden_job"), false);
+  assert.equal(names(h).at(-1), "finish_garden_pass");
 });
 test("sync: the redispatch after a lost answer uses a new key and is the ledger's decision", async () => {
   const h = syncHarness(syncJob({ dispatches: 1, attempts: 2 }), { respond: async () => answer(valid) });
@@ -1056,12 +1061,12 @@ test("sync: budget stop at dispatch fails the pass without a provider call", asy
   assert.deepEqual(await runOne(h), { state: "failed", reason: "budget_stop" });
   assert.equal(finishArgs(h).p_failed, true);
 });
-test("sync: the dispatch limit fails the pass without a provider call", async () => {
+test("sync: the provider-call limit fails the pass without a provider call", async () => {
   const h = syncHarness(syncJob({ dispatches: 3 }), {
     respond: () => assert.fail("no provider call"),
     ledger: { mark_garden_dispatch: () => "limit" },
   });
-  assert.deepEqual(await runOne(h), { state: "failed", reason: "dispatch_limit" });
+  assert.deepEqual(await runOne(h), { state: "failed", reason: "call_limit" });
 });
 test("sync: cancelled before dispatch never contacts the provider", async () => {
   const h = syncHarness(syncJob(), {
@@ -1089,6 +1094,54 @@ test("sync: a retryable provider error closes the dispatch uncharged and retries
   assert.deepEqual(names(h).slice(-2), ["mark_garden_dispatch", "update_garden_job"]);
   assert.equal(h.calls.at(-2)[1].p_rejected, true);
   assert.equal(finishArgs(h), undefined);
+});
+test("sync: a permanent refusal closes the dispatch before failing, so nothing is charged", async () => {
+  const h = syncHarness(syncJob(), { respond: async () => refusal(400) });
+  assert.deepEqual(await runOne(h), { state: "failed", reason: "provider_error" });
+  assert.deepEqual(names(h).slice(-2), ["mark_garden_dispatch", "finish_garden_pass"]);
+  assert.equal(h.calls.at(-2)[1].p_rejected, true);
+});
+test("sync: the ledger is told how many provider calls each dispatch makes", async () => {
+  const one = syncHarness(syncJob(), { respond: async () => answer(valid) });
+  await runOne(one);
+  assert.equal(one.calls.find(([n]) => n === "mark_garden_dispatch")[1].p_calls, 1);
+  const two = syncHarness(v3SyncJob(), { respond: async (body) => (body.text.format.name === "garden_tend" ? answer(tendOk) : answer({ blooms: [], no_output_reason: null })) });
+  await runOne(two);
+  assert.equal(two.calls.find(([n]) => n === "mark_garden_dispatch")[1].p_calls, 2);
+  assert.equal(two.responds.length, 2);
+});
+test("sync: a ledger hiccup after the answer is retried from memory, not from the provider", async () => {
+  let failures = 2;
+  const h = syncHarness(syncJob(), {
+    respond: async () => answer(valid),
+    ledger: {
+      finish_garden_pass: () => {
+        if (failures-- > 0) throw new Error("ledger_request_failed");
+        return null;
+      },
+    },
+  });
+  assert.deepEqual(await runOne(h), { state: "complete", transport: "sync" });
+  assert.equal(h.responds.length, 1);
+  assert.equal(names(h).filter((n) => n === "finish_garden_pass").length, 3);
+  assert.deepEqual(h.calls.at(-1)[1].p_result, valid);
+});
+test("sync: an answer the ledger keeps refusing is settled as failed with its real cost, never re-requested", async () => {
+  const h = syncHarness(syncJob(), {
+    respond: async () => answer(valid),
+    ledger: {
+      finish_garden_pass: (args) => {
+        if (!args.p_failed) throw new Error("tier not unlocked");
+        return null;
+      },
+    },
+  });
+  assert.deepEqual(await runOne(h), { state: "failed", reason: "ledger_rejected" });
+  assert.equal(h.responds.length, 1);
+  const last = h.calls.at(-1)[1];
+  assert.equal(last.p_failed, true);
+  assert.equal(last.p_input_tokens, 100);
+  assert.deepEqual(last.p_result, { blooms: [], no_output_reason: null });
 });
 test("sync: a retryable provider error stops retrying after five attempts", async () => {
   const h = syncHarness(syncJob({ attempts: 5 }), { respond: async () => refusal(429) });
@@ -1164,6 +1217,164 @@ test("a batch pass never uses the synchronous call", async () => {
   h.provider.respond = () => assert.fail("batch never calls respond");
   assert.equal((await runOne(h)).state, "submitted");
 });
+test("every request either workflow builds sets store:false, in one place, with no tools", () => {
+  const all = [
+    requestFor(syncJob()),
+    requestFor(syncJob({ reasoning_effort: "low" })),
+    ...requestsFor(v3SyncJob({ catalog: true, notice: true, resurface: true })),
+    ...requestsFor(v3SyncJob({ catalog: true, notice: false, resurface: false })),
+  ];
+  assert.equal(all.length, 5);
+  for (const line of all) {
+    assert.equal(line.body.store, false);
+    assert.equal(sendable(line.body), true);
+    assert.equal("tools" in line.body, false);
+    assert.equal("background" in line.body, false);
+  }
+  for (const unsafe of [{}, { store: true }, { store: "false" }, { store: false, tools: [] }, { store: false, background: true }, null])
+    assert.equal(sendable(unsafe), false);
+});
+test("sync: the body that actually leaves the worker has store:false, for every request of both workflows", async () => {
+  const v2 = syncHarness(syncJob(), { respond: async () => answer(valid) });
+  await runOne(v2);
+  const v3 = syncHarness(v3SyncJob(), { respond: async () => answer(tendOk) });
+  await runOne(v3);
+  const sent = [...v2.responds, ...v3.responds].map(([body]) => body);
+  assert.equal(sent.length, 3);
+  for (const body of sent) assert.equal(body.store, false);
+});
+test("http adapter: refuses to send a request without store:false", async () => {
+  let called = 0;
+  const provider = httpProvider("synthetic-key", async () => {
+    called += 1;
+    return new Response("{}", { status: 200 });
+  });
+  for (const body of [{ model: "m" }, { model: "m", store: true }, { model: "m", store: false, tools: [] }])
+    await assert.rejects(provider.respond(body, { timeoutMs: 1000 }), (error) => error.message === "unsafe_request");
+  assert.equal(called, 0, "nothing reached the network");
+});
+test("sync: a request that lost its store:false is failed closed before any dispatch", async () => {
+  const job = syncJob();
+  // No job field can remove the flag, so a broken builder is injected.
+  const h = syncHarness(job, { respond: () => assert.fail("no provider call") });
+  h.requests = (j) => {
+    const line = requestFor(j);
+    delete line.body.store;
+    return [line];
+  };
+  assert.deepEqual(await runOne(h), { state: "failed", reason: "unsafe_request" });
+  assert.equal(names(h).includes("mark_garden_dispatch"), false);
+});
+
+/* ---- Nothing the provider wrote, and nothing the person wrote, leaves through the worker ---- */
+const SENTINEL = "ZQXSENTINEL mother died in March";
+const SOURCE_SENTINEL = "ZQXSOURCE a private sentence";
+const leakJob = (extra = {}) =>
+  syncJob({
+    workflow_version: "tend-connect-v3",
+    snapshot: [{ revision_id: "r1", seed_id: "s1", title: "ZQXSOURCE title", body: `${SOURCE_SENTINEL} about a quieter workspace.`, created_at: "2026-03-01T00:00:00.000Z", role: "changed" }],
+    context: { tiers: { catalog: true, notice: true, resurface: true } },
+    ...extra,
+  });
+const rawAnswer = (text) => ({ status_code: 200, retryable: false, body: { status: "completed", output: [{ type: "message", content: [{ type: "output_text", text }] }], usage: { input_tokens: 5, output_tokens: 5 } } });
+async function observed(h) {
+  const logged = [];
+  const originals = {};
+  for (const level of ["log", "info", "warn", "error", "debug"]) {
+    originals[level] = console[level];
+    console[level] = (...args) => logged.push(args.map(String).join(" "));
+  }
+  let result;
+  try {
+    result = await runOne(h);
+  } finally {
+    Object.assign(console, originals);
+  }
+  return { result, logged, response: JSON.stringify(result), ledger: JSON.stringify(h.calls) };
+}
+const malformed = [
+  ["not JSON", `${SENTINEL} {"blooms":[]}`],
+  ["JSON of the wrong shape", JSON.stringify({ [SENTINEL]: SENTINEL, blooms: SENTINEL })],
+  ["a bloom whose kind is prose", JSON.stringify({ blooms: [{ kind: SENTINEL, interpretation: SENTINEL, evidence: [{ revision_id: SENTINEL, excerpt: SENTINEL }] }], no_output_reason: SENTINEL })],
+  ["an invented quotation", JSON.stringify({ blooms: [{ kind: "pattern", interpretation: SENTINEL, evidence: [{ revision_id: "r1", excerpt: SENTINEL }, { revision_id: "r1", excerpt: SENTINEL }] }], no_output_reason: null })],
+  ["an empty answer", ""],
+];
+for (const [name, text] of malformed)
+  for (const transport of ["sync", "batch"])
+    test(`no provider or source text leaves the worker: ${transport}, ${name}`, async () => {
+      let h;
+      if (transport === "sync") {
+        h = syncHarness(leakJob(), { respond: async (body) => (body.text.format.name === "garden_tend" ? rawAnswer(text) : rawAnswer(text)) });
+      } else {
+        const job = leakJob({ transport: "batch", provider_id: "b" });
+        const line = (stage) => JSON.stringify({ custom_id: `j:${stage}`, response: { status_code: 200, body: rawAnswer(text).body } });
+        h = harness(job, { getBatch: async () => ({ status: "completed", output_file_id: "out" }), download: async () => `${line("tend")}\n${line("connect")}` });
+      }
+      const seen = await observed(h);
+      for (const where of [seen.response, seen.ledger, seen.logged.join("\n")]) {
+        assert.equal(where.includes("ZQX"), false, where.slice(0, 200));
+        assert.equal(where.includes("mother"), false);
+        assert.equal(where.includes("Unexpected token"), false);
+      }
+      assert.deepEqual(seen.logged, []);
+      assert.ok(["failed", "complete"].includes(seen.result.state));
+    });
+test("a batch output file that is not JSON lines at all leaks nothing either", async () => {
+  const h = harness(leakJob({ transport: "batch", provider_id: "b" }), {
+    getBatch: async () => ({ status: "completed", output_file_id: "out" }),
+    download: async () => SENTINEL,
+  });
+  const seen = await observed(h);
+  assert.equal(seen.result.state, "failed");
+  assert.equal((seen.response + seen.ledger + seen.logged.join("")).includes("ZQX"), false);
+});
+test("stage outcomes are fixed codes: a malformed answer is invalid_json, never the parser's message", () => {
+  const job = leakJob();
+  const line = (stage, text) => JSON.stringify({ custom_id: `j:${stage}`, response: { status_code: 200, body: rawAnswer(text).body } });
+  const parsed = parseTendConnect(`${line("tend", '{"marks":[]}')}\n${line("connect", `${SENTINEL} {`)}`, job);
+  assert.deepEqual(parsed.stages, { tend: "ok", connect: "invalid_json" });
+  assert.throws(() => parseTendConnect(`${line("tend", SENTINEL)}\n${line("connect", SENTINEL)}`, job), (error) => error.message === "no_valid_stage");
+});
+test("the report filter drops anything that is not a known code", () => {
+  assert.deepEqual(report({ state: "complete", transport: "sync", stages: { tend: "ok_dropped_2", connect: SENTINEL, extra: "ok" }, note: SENTINEL }), {
+    state: "complete",
+    transport: "sync",
+    stages: { tend: "ok_dropped_2", connect: "invalid_output" },
+  });
+  assert.deepEqual(report({ state: SENTINEL, reason: SENTINEL }), { state: "unknown", reason: "unknown" });
+  assert.deepEqual(report({ state: "failed", reason: "hello" }), { state: "failed", reason: "unknown" });
+  assert.deepEqual(report(undefined), { state: "unknown" });
+});
+test("valid results reach the ledger but never the worker's response", async () => {
+  const h = syncHarness(syncJob(), { respond: async () => answer(valid) });
+  const seen = await observed(h);
+  assert.equal(seen.response.includes("quieter"), false);
+  assert.equal(seen.ledger.includes("a quieter workspace"), true, "the validated bloom is what the ledger is for");
+  assert.deepEqual(seen.logged, []);
+});
+
+/* ---- Worker authorisation: the operator's secret, or a single-use tick token ---- */
+test("worker authorisation accepts the operator secret or a redeemable tick token, nothing else", async () => {
+  const redeemed = [];
+  const tick = `tick_${"a".repeat(64)}`;
+  const consume = async (token) => {
+    redeemed.push(token);
+    return token === tick && redeemed.length === 1;
+  };
+  const secret = "operator-secret-0123456789abcdef0123";
+  assert.ok(secret.length >= 32);
+  assert.equal(await authorizeWorker({ header: `Bearer ${secret}`, workerKey: secret, consume }), true);
+  assert.equal(redeemed.length, 0, "the operator secret needs no ledger call");
+  assert.equal(await authorizeWorker({ header: `Bearer ${tick}`, workerKey: secret, consume }), true);
+  assert.equal(await authorizeWorker({ header: `Bearer ${tick}`, workerKey: secret, consume }), false, "a token works once");
+  for (const header of [null, "", "Bearer ", "Bearer wrong", `Basic ${secret}`, "Bearer tick_short", `Bearer tick_${"g".repeat(64)}`])
+    assert.equal(await authorizeWorker({ header, workerKey: secret, consume }), false, String(header));
+  assert.equal(redeemed.length, 2, "malformed tokens never reach the ledger");
+  assert.equal(await authorizeWorker({ header: "Bearer undefined", workerKey: undefined, consume }), false);
+  assert.equal(await authorizeWorker({ header: `Bearer ${tick}`, workerKey: secret, consume: async () => { throw new Error("down"); } }), false);
+  assert.equal(await authorizeWorker({ header: `Bearer ${tick}`, workerKey: secret }), false);
+});
+
 test("http adapter: sync call sends store:false to the Responses endpoint and drops error bodies", async () => {
   const seen = [];
   const fetcher = async (url, options) => {
@@ -1192,5 +1403,5 @@ test("http adapter: a timed-out sync call is reported as a timeout, without a bo
       });
     }),
   );
-  await assert.rejects(provider.respond({ model: "m" }, { timeoutMs: 20 }), (error) => error.timeout === true && error.message === "provider_request_failed");
+  await assert.rejects(provider.respond({ model: "m", store: false }, { timeoutMs: 20 }), (error) => error.timeout === true && error.message === "provider_request_failed");
 });
