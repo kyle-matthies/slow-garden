@@ -33,6 +33,7 @@ select dblink_exec('setup',$q$
   insert into auth.users(id,email,raw_app_meta_data,raw_user_meta_data,created_at,updated_at)
     values('77777777-7777-4777-8777-777777777777','delete-race@example.test','{}','{}',now(),now());
   update private.ai_runtime set enabled=true,approved_at=now(),model='synthetic-test-model',workflow_version='connect-v2-unapproved';
+  insert into private.ai_tenants(tenant_id) values('77777777-7777-4777-8777-777777777777');
   insert into public.gardens(id,tenant_id,name) values('7aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1','77777777-7777-4777-8777-777777777777','Race garden');
   insert into public.plots(id,tenant_id,garden_id,name,ai_enabled) values('7bbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1','77777777-7777-4777-8777-777777777777','7aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1','Race topic',true);
   insert into public.seeds(id,tenant_id,garden_id,plot_id,title) values('7ccccccc-cccc-4ccc-8ccc-ccccccccccc1','77777777-7777-4777-8777-777777777777','7aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1','7bbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1','Race thought');

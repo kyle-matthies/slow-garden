@@ -88,35 +88,52 @@ export function validateReturn(value, snapshot) {
   }
   return value;
 }
+// The pinned reasoning effort travels with the job (private.ai_runtime.reasoning_effort,
+// frozen per pass). When none is pinned the field is not sent at all, so requests are
+// byte-identical to what was sent before the setting existed.
+const reasoningFor = (job) =>
+  typeof job?.reasoning_effort === "string" && job.reasoning_effort
+    ? { reasoning: { effort: job.reasoning_effort } }
+    : {};
+/**
+ * The one place a provider request body is built, for both workflows and both
+ * transports. `store: false` is set here and nowhere else; `sendable` is the
+ * matching check every outgoing request must pass, and the worker refuses to
+ * send (fails closed) when it does not.
+ */
+function responsesBody(job, { system, payload, name, schema, maxTokens }) {
+  return {
+    model: job.model,
+    store: false,
+    ...reasoningFor(job),
+    max_output_tokens: maxTokens,
+    input: [
+      { role: "system", content: system },
+      { role: "user", content: JSON.stringify(payload) },
+    ],
+    text: { format: { type: "json_schema", name, strict: true, schema } },
+  };
+}
+/** True only for a body that asks the provider not to store it and uses no tools or background mode. */
+export const sendable = (body) =>
+  Boolean(body) && typeof body === "object" && body.store === false && !("tools" in body) && !("background" in body);
+
 export function requestFor(job) {
   return {
     custom_id: job.id,
     method: "POST",
     url: "/v1/responses",
-    body: {
-      model: job.model,
-      store: false,
-      max_output_tokens: 4000,
-      input: [
-        { role: "system", content: systemPrompt },
-        {
-          role: "user",
-          content: JSON.stringify({
-            workflow_version: job.workflow_version,
-            sources: job.snapshot,
-            corrections: job.corrections ?? [],
-          }),
-        },
-      ],
-      text: {
-        format: {
-          type: "json_schema",
-          name: "garden_return",
-          strict: true,
-          schema: outputSchema,
-        },
+    body: responsesBody(job, {
+      system: systemPrompt,
+      payload: {
+        workflow_version: job.workflow_version,
+        sources: job.snapshot,
+        corrections: job.corrections ?? [],
       },
-    },
+      name: "garden_return",
+      schema: outputSchema,
+      maxTokens: 4000,
+    }),
   };
 }
 export function parseBatchLine(text, job) {
@@ -138,12 +155,14 @@ export function parseBatchLine(text, job) {
     body.status !== "completed" ||
     body.output.some(
       (item) =>
-        item.type !== "message" ||
-        item.content.some((c) => c.type !== "output_text"),
+        item.type !== "reasoning" &&
+        (item.type !== "message" ||
+          item.content.some((c) => c.type !== "output_text")),
     )
   )
     throw Error("unexpected_provider_output");
   const output = body.output
+    .filter((item) => item.type === "message")
     .flatMap((item) => item.content)
     .map((c) => c.text)
     .join("");
@@ -249,16 +268,7 @@ function requestLine(job, stage, prompt, payload, schema, maxTokens) {
     custom_id: `${job.id}:${stage}`,
     method: "POST",
     url: "/v1/responses",
-    body: {
-      model: job.model,
-      store: false,
-      max_output_tokens: maxTokens,
-      input: [
-        { role: "system", content: prompt },
-        { role: "user", content: JSON.stringify(payload) },
-      ],
-      text: { format: { type: "json_schema", name: `garden_${stage}`, strict: true, schema } },
-    },
+    body: responsesBody(job, { system: prompt, payload, name: `garden_${stage}`, schema, maxTokens }),
   };
 }
 
@@ -415,6 +425,58 @@ export function validateConnect(value, job) {
   return value;
 }
 
+// Every outcome the worker reports is one of these fixed codes. A parser or
+// validator message is never passed on: it can quote what the model wrote.
+const STAGE_FAILURES = new Set([
+  "invalid_schema",
+  "invalid_bloom",
+  "invalid_evidence",
+  "invalid_echo",
+  "invalid_json",
+  "invalid_output",
+  "overreach",
+  "too_many_questions",
+  "provider_stage_failed",
+  "unexpected_provider_output",
+  "missing",
+]);
+const stageCode = (error) =>
+  error instanceof SyntaxError
+    ? "invalid_json"
+    : STAGE_FAILURES.has(error?.message)
+      ? error.message
+      : "invalid_output";
+const STATES = new Set([
+  "idle", "submitted", "waiting", "complete", "failed", "cancelled", "cancelling", "cleaned", "expired",
+  "deferred", "retry_scheduled", "lease_lost",
+  "orphan_queue_unavailable", "orphan_cancelling", "orphan_retry", "orphan_cleaned",
+]);
+const REASONS = new Set([
+  "deadline", "provider", "timeout", "network", "provider_error", "time_budget", "budget_stop", "call_limit",
+  "oversized_snapshot", "transport_unavailable", "unsafe_request", "invalid_output", "ledger_rejected",
+]);
+/**
+ * The last thing every worker result passes through. Only known codes survive;
+ * anything else becomes "unknown" or "invalid_output". This is what makes the
+ * worker's HTTP response (which pg_net keeps for a while) content-free by
+ * construction rather than by care.
+ */
+export function report(result) {
+  const out = { state: STATES.has(result?.state) ? result.state : "unknown" };
+  if (result?.reason !== undefined) out.reason = REASONS.has(result.reason) ? result.reason : "unknown";
+  if (result?.transport === "sync") out.transport = "sync";
+  if (result?.stages && typeof result.stages === "object") {
+    out.stages = {};
+    for (const stage of ["tend", "connect"])
+      if (stage in result.stages) {
+        const value = result.stages[stage];
+        out.stages[stage] =
+          value === "ok" || /^ok_dropped_\d{1,3}$/.test(value) || STAGE_FAILURES.has(value) ? value : "invalid_output";
+      }
+  }
+  return out;
+}
+
 function outputText(line) {
   if (line.error || line.response?.status_code !== 200) throw Error("provider_stage_failed");
   const body = line.response.body;
@@ -473,7 +535,7 @@ export function parseTendConnect(text, job) {
         stages.connect = "ok";
       }
     } catch (error) {
-      stages[stage] = error instanceof Error ? error.message : "invalid";
+      stages[stage] = stageCode(error);
     }
   }
   for (const id of expected) {
@@ -555,8 +617,160 @@ export async function drainOrphan({ rpc, provider }) {
   }
 }
 
+/* ------------------------------------------------------------------------ *
+ * Synchronous transport (private.ai_runtime.transport = 'sync').
+ *
+ * Instead of uploading a file and creating a batch, the worker makes one
+ * Responses call per stage with store:false and settles the pass in the same
+ * invocation. Everything else is shared with the batch path: the frozen
+ * snapshot, the staged requests, validation here and again in SQL, the budget
+ * reservation, cancellation, expiry and the lease.
+ *
+ * There is no provider-side id to reconcile against, so the ledger records
+ * each dispatch (mark_garden_dispatch) with the number of provider calls it
+ * makes: at most four provider calls per pass (a two-stage pass gets one
+ * retry), and a dispatch that never reported back is booked at its full
+ * reservation before the next.
+ *
+ * Time budget. ASSUMPTION, not verified against Supabase documentation in
+ * this repository: an Edge Function must answer within 150 seconds. The
+ * numbers below keep a whole invocation inside that with room to spare:
+ *   provider call  <= callTimeoutMs (stages run concurrently)
+ *   lease          =  leaseMs from the dispatch mark (set in SQL)
+ *   invocation     <= invocationBudgetMs, measured from the start of runOne
+ * A provider call therefore always ends before its lease, so a second worker
+ * can never be handed a pass whose first call is still in flight.
+ * ------------------------------------------------------------------------ */
+export const syncLimits = Object.freeze({
+  callTimeoutMs: 90_000,
+  leaseMs: 120_000,
+  invocationBudgetMs: 140_000,
+  settleMarginMs: 20_000,
+  // One stage request. The database already rejects snapshots above 100 KB.
+  requestBytes: 200_000,
+});
+const byteLength = (text) => new TextEncoder().encode(text).length;
+
+async function runSync({ job, args, rpc, provider, now, started, update, finish, requests, sleep }) {
+  const fail = async (reason, usage = {}) => {
+    await finish({ p_failed: true, ...usage });
+    return { state: "failed", reason };
+  };
+  if (typeof provider.respond !== "function") return fail("transport_unavailable");
+  const lines = requests(job);
+  // Fail closed: nothing is dispatched unless every request asks not to be stored.
+  if (!lines.every((line) => sendable(line.body))) return fail("unsafe_request");
+  if (lines.some((line) => byteLength(JSON.stringify(line.body)) > syncLimits.requestBytes))
+    return fail("oversized_snapshot");
+  // Not enough of this invocation left for a full call: try again on a later tick.
+  if (
+    now() - started >
+    syncLimits.invocationBudgetMs - syncLimits.callTimeoutMs - syncLimits.settleMarginMs
+  ) {
+    await update({ p_release: true });
+    return { state: "deferred", reason: "time_budget" };
+  }
+  // The ledger counts provider calls, not dispatches: a staged pass makes one call per stage.
+  const gate = await rpc("mark_garden_dispatch", { ...args, p_calls: lines.length });
+  if (gate === "inactive") {
+    await finish({ p_failed: true });
+    return { state: "cancelled" };
+  }
+  if (gate === "settled") return { state: "lease_lost" };
+  if (gate !== "ok") return fail(gate === "budget" ? "budget_stop" : "call_limit");
+  const dispatch = (job.dispatches ?? 0) + 1;
+  const answers = await Promise.all(
+    lines.map(async (line) => {
+      try {
+        const response = await provider.respond(line.body, {
+          timeoutMs: syncLimits.callTimeoutMs,
+          key: `garden-sync-${line.custom_id}-${dispatch}`,
+        });
+        return { custom_id: line.custom_id, response };
+      } catch (error) {
+        // No HTTP status: a timeout or a broken connection. The provider may
+        // have done the work, so usage is unknown.
+        return { custom_id: line.custom_id, unknown: error?.timeout === true ? "timeout" : "network" };
+      }
+    }),
+  );
+  const unknown = answers.find((answer) => answer.unknown);
+  if (unknown) {
+    // The dispatch stays open; the next one books it at the full reservation.
+    await update({ p_release: true });
+    return { state: "retry_scheduled", reason: unknown.unknown };
+  }
+  const answered = answers.filter((answer) => answer.response.status_code === 200);
+  if (!answered.length) {
+    // Refused outright: nothing was generated, so nothing is booked.
+    const retry =
+      answers.every((answer) => answer.response.retryable === true) && job.attempts < 5;
+    await rpc("mark_garden_dispatch", { ...args, p_rejected: true });
+    if (!retry) return fail("provider_error");
+    await update({ p_release: true });
+    return { state: "retry_scheduled", reason: "provider_error" };
+  }
+  // Usage is counted from every answer, whether or not its content survives validation.
+  const usage = {
+    p_input_tokens: answered.reduce((n, a) => n + (a.response.body?.usage?.input_tokens ?? 0), 0),
+    p_output_tokens: answered.reduce((n, a) => n + (a.response.body?.usage?.output_tokens ?? 0), 0),
+  };
+  // The same line shape a batch output file has, so the same parsers apply.
+  const text = answers
+    .map(({ custom_id, response }) =>
+      JSON.stringify({ custom_id, response: { status_code: response.status_code, body: response.body } }),
+    )
+    .join("\n");
+  let parsed;
+  try {
+    parsed = isTendConnect(job) ? parseTendConnect(text, job) : parseBatchLine(text, job);
+  } catch {
+    return fail("invalid_output", usage);
+  }
+  // A synchronous request cannot be recalled. If the pass was cancelled or its
+  // permission revoked while the provider was working, the answer is discarded
+  // here and never stored; only its cost is recorded.
+  if (!(await rpc("check_garden_pass", args))) {
+    await finish({ p_failed: true, ...usage });
+    return { state: "cancelled" };
+  }
+  // The answer is in memory. If the ledger write fails it is retried from here;
+  // the provider is never asked again for an answer already in hand.
+  let stored = false;
+  for (let attempt = 0; attempt < 3 && !stored; attempt += 1) {
+    try {
+      await finish({ p_result: parsed.result, ...usage });
+      stored = true;
+    } catch {
+      if (attempt < 2) await sleep(250 * (attempt + 1));
+    }
+  }
+  if (!stored) {
+    // The ledger will not take this result (its own validation refused it, or the
+    // lease is gone). Settle the pass as failed at its real cost so that no later
+    // tick dispatches again; if even that is refused, the lease is lost.
+    try {
+      await finish({ p_failed: true, ...usage });
+    } catch {
+      return { state: "lease_lost" };
+    }
+    return { state: "failed", reason: "ledger_rejected" };
+  }
+  return parsed.stages
+    ? { state: "complete", transport: "sync", stages: parsed.stages }
+    : { state: "complete", transport: "sync" };
+}
+
 // Dependency injection keeps real notes and provider credentials out of CI.
-export async function runOne({ rpc: ledger, provider, now = Date.now }) {
+const defaultRequests = (job) => (isTendConnect(job) ? requestsFor(job) : [requestFor(job)]);
+const defaultSleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** One worker tick. The result is always a content-free report (see `report`). */
+export async function runOne(options) {
+  return report(await runTick(options));
+}
+async function runTick({ rpc: ledger, provider, now = Date.now, requests = defaultRequests, sleep = defaultSleep }) {
+  const started = now();
   // Ledger failures (including a lost lease) are tagged so the failure path
   // never writes on behalf of a job another worker may now own.
   const rpc = async (name, args) => {
@@ -626,10 +840,13 @@ export async function runOne({ rpc: ledger, provider, now = Date.now }) {
       await finish({ p_failed: true });
       return { state: "expired", reason: "deadline" };
     }
+    if (job.transport === "sync")
+      return await runSync({ job, args, rpc, provider, now, started, update, finish, requests, sleep });
     if (!job.provider_id) {
       let fileId = job.input_file_id;
       if (!fileId) {
-        const lines = isTendConnect(job) ? requestsFor(job) : [requestFor(job)];
+        const lines = requests(job);
+        if (!lines.every((line) => sendable(line.body))) throw Error("unsafe_request");
         fileId = await provider.upload(
           lines.map((line) => JSON.stringify(line)).join("\n") + "\n",
           job.id,
@@ -699,6 +916,45 @@ export async function runOne({ rpc: ledger, provider, now = Date.now }) {
     return { state: retry ? "retry_scheduled" : "failed" };
   }
 }
+/**
+ * Who may invoke the worker: the operator, holding GARDEN_WORKER_SECRET, or the
+ * database scheduler, holding a single-use tick token that `consume` (the
+ * consume_worker_tick RPC) redeems exactly once. The long-lived secret is never
+ * stored in the database or sent through pg_net.
+ */
+export async function authorizeWorker({ header, workerKey, consume }) {
+  if (typeof header !== "string" || !header.startsWith("Bearer ")) return false;
+  const token = header.slice(7);
+  if (typeof workerKey === "string" && workerKey.length >= 32 && token === workerKey) return true;
+  if (!/^tick_[0-9a-f]{64}$/.test(token) || typeof consume !== "function") return false;
+  try {
+    return (await consume(token)) === true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The provider seam. The runtime needs exactly these operations and nothing
+ * else from a model vendor:
+ *
+ *   batch transport   upload(text, passId) -> fileId
+ *                     createBatch(fileId, passId) -> batchId
+ *                     getBatch(batchId) -> { status, output_file_id?, error_file_id? }
+ *                     cancelBatch(batchId), download(fileId) -> text, deleteFile(fileId)
+ *   sync transport    respond(body, { timeoutMs, key }) -> { status_code, body, retryable }
+ *                     - resolves for every HTTP answer; `body` is kept only for 200
+ *                       (error bodies may echo source text and are dropped here);
+ *                     - rejects with error.timeout === true when the call timed out,
+ *                       or a plain error when the connection failed.
+ *
+ * Request bodies are built by requestFor/requestsFor in the Responses shape and
+ * answers are read by parseBatchLine/parseTendConnect ({ status, output[], usage }).
+ * Another vendor is added by writing an adapter with these methods that
+ * translates that request and normalises its answer to that shape. It is a
+ * new workflow version with a full evaluation (ADR-004), not a config change.
+ * Only this OpenAI adapter exists.
+ */
 export function httpProvider(apiKey, fetcher = fetch) {
   async function call(path, options = {}) {
     const response = await fetcher(`https://api.openai.com/v1${path}`, {
@@ -716,6 +972,34 @@ export function httpProvider(apiKey, fetcher = fetch) {
     return response;
   }
   return {
+    async respond(body, { timeoutMs = syncLimits.callTimeoutMs, key } = {}) {
+      // Second check, at the last point before the network.
+      if (!sendable(body)) throw new Error("unsafe_request");
+      let response;
+      let json = null;
+      try {
+        response = await fetcher("https://api.openai.com/v1/responses", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+            ...(key ? { "Idempotency-Key": key } : {}),
+          },
+          body: JSON.stringify(body),
+          signal: AbortSignal.timeout(timeoutMs),
+        });
+        if (response.ok) json = await response.json();
+      } catch (cause) {
+        const error = new Error("provider_request_failed");
+        error.timeout = cause?.name === "TimeoutError" || cause?.name === "AbortError";
+        throw error;
+      }
+      return {
+        status_code: response.status,
+        body: json,
+        retryable: response.status === 429 || response.status >= 500,
+      };
+    },
     async upload(text, id) {
       const body = new FormData();
       body.set("purpose", "batch");

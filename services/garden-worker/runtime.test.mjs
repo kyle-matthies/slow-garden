@@ -862,3 +862,546 @@ test("a lost orphan lease writes nothing further", async () => {
   };
   assert.deepEqual(await drainOrphan(h), { state: "lease_lost" });
 });
+
+/* ---- Synchronous transport ------------------------------------------------ */
+import {
+  syncLimits,
+  httpProvider,
+  sendable,
+  report,
+  authorizeWorker,
+} from "../../supabase/functions/_shared/garden-runtime.mjs";
+
+const answer = (value, usage = { input_tokens: 100, output_tokens: 40 }) => ({
+  status_code: 200,
+  retryable: false,
+  body: {
+    status: "completed",
+    output: [
+      { type: "reasoning", summary: [] },
+      { type: "message", content: [{ type: "output_text", text: JSON.stringify(value) }] },
+    ],
+    usage,
+  },
+});
+const refusal = (status) => ({ status_code: status, body: null, retryable: status === 429 || status >= 500 });
+const timeoutError = () => Object.assign(new Error("provider_request_failed"), { timeout: true });
+const syncJob = (extra = {}) => ({
+  id: "j",
+  token: "t",
+  status: "processing",
+  transport: "sync",
+  dispatches: 0,
+  attempts: 1,
+  snapshot,
+  model: "pinned",
+  workflow_version: "connect-v2",
+  created_at: new Date().toISOString(),
+  ...extra,
+});
+const v3SyncJob = (tiers = { catalog: true, notice: true, resurface: false }) =>
+  syncJob({
+    workflow_version: "tend-connect-v3",
+    snapshot: snapshot.map((s) => ({ ...s, title: "Workspace", role: "changed", created_at: "2026-03-01T00:00:00.000Z" })),
+    context: { tiers },
+  });
+const tendOk = {
+  marks: [{ seed_id: "s1", kind: "theme", label: "workspace", evidence: [{ revision_id: "r1", excerpt: "a quieter workspace" }] }],
+};
+// A ledger stub that records calls and lets a test script each RPC.
+function syncHarness(job, { respond, ledger = {}, now } = {}) {
+  const calls = [];
+  const responds = [];
+  let active = true;
+  const h = {
+    calls,
+    responds,
+    deactivate: () => (active = false),
+    sleep: async () => {},
+    now,
+    rpc: async (name, args) => {
+      calls.push([name, args]);
+      if (ledger[name]) return ledger[name](args, calls);
+      if (name === "claim_garden_pass") return job;
+      if (name === "check_garden_pass") return active;
+      if (name === "mark_garden_dispatch") return args.p_rejected ? "closed" : "ok";
+      return null;
+    },
+    provider: {
+      upload: () => assert.fail("sync never uploads a file"),
+      createBatch: () => assert.fail("sync never creates a batch"),
+      getBatch: () => assert.fail("sync never polls a batch"),
+      cancelBatch: () => assert.fail("sync never cancels a batch"),
+      download: () => assert.fail("sync never downloads a file"),
+      deleteFile: () => assert.fail("sync has no file to delete"),
+      respond: async (body, options) => {
+        responds.push([body, options]);
+        return respond(body, options, h);
+      },
+    },
+  };
+  if (!now) delete h.now;
+  return h;
+}
+const names = (h) => h.calls.map(([name]) => name);
+const finishArgs = (h) => h.calls.find(([name]) => name === "finish_garden_pass")?.[1];
+
+test("sync limits keep a provider call inside its lease and the lease inside the function limit", () => {
+  // ASSUMPTION recorded in the runtime: an Edge Function must answer within 150 seconds.
+  const assumedEdgeLimitMs = 150_000;
+  assert.ok(syncLimits.callTimeoutMs + syncLimits.settleMarginMs <= syncLimits.leaseMs);
+  assert.ok(syncLimits.leaseMs <= syncLimits.invocationBudgetMs);
+  assert.ok(syncLimits.invocationBudgetMs < assumedEdgeLimitMs);
+});
+test("sync: one call, no files, validated result settled with real usage", async () => {
+  const h = syncHarness(syncJob({ reasoning_effort: "low" }), { respond: async () => answer(valid) });
+  assert.deepEqual(await runOne(h), { state: "complete", transport: "sync" });
+  assert.equal(h.responds.length, 1);
+  const [body, options] = h.responds[0];
+  assert.equal(body.store, false);
+  assert.deepEqual(body.reasoning, { effort: "low" });
+  assert.equal(body.tools, undefined);
+  assert.equal(body.background, undefined);
+  assert.equal(options.timeoutMs, syncLimits.callTimeoutMs);
+  assert.equal(options.key, "garden-sync-j-1");
+  assert.deepEqual(names(h), [
+    "claim_garden_pass",
+    "check_garden_pass",
+    "mark_garden_dispatch",
+    "check_garden_pass",
+    "finish_garden_pass",
+  ]);
+  const finished = finishArgs(h);
+  assert.deepEqual(finished.p_result, valid);
+  assert.equal(finished.p_input_tokens, 100);
+  assert.equal(finished.p_output_tokens, 40);
+  assert.equal(finished.p_failed, undefined);
+});
+test("no reasoning effort pinned means the field is not sent", () => {
+  assert.equal("reasoning" in requestFor(syncJob()).body, false);
+  assert.equal("reasoning" in requestsFor(v3SyncJob())[0].body, false);
+  assert.deepEqual(requestsFor({ ...v3SyncJob(), reasoning_effort: "low" })[1].body.reasoning, { effort: "low" });
+});
+test("connect-v2 parsing ignores reasoning metadata", () => {
+  const line = JSON.stringify({ custom_id: "j", response: { status_code: 200, body: answer(valid).body } });
+  assert.deepEqual(parseBatchLine(line, { id: "j", snapshot }).result, valid);
+});
+test("sync v3: stages run concurrently and land independently", async () => {
+  const h = syncHarness(v3SyncJob(), {
+    respond: async (body) =>
+      body.text.format.name === "garden_tend" ? answer(tendOk) : refusal(500),
+  });
+  const result = await runOne(h);
+  assert.equal(result.state, "complete");
+  assert.equal(result.stages.tend, "ok");
+  assert.equal(result.stages.connect, "provider_stage_failed");
+  assert.equal(h.responds.length, 2);
+  assert.deepEqual(h.responds.map(([, o]) => o.key), ["garden-sync-j:tend-1", "garden-sync-j:connect-1"]);
+  assert.equal(finishArgs(h).p_result.marks.length, 1);
+  assert.equal(finishArgs(h).p_input_tokens, 100);
+});
+test("sync: timeout mid-call leaves the dispatch open and schedules a retry", async () => {
+  const h = syncHarness(syncJob(), {
+    respond: async () => {
+      throw timeoutError();
+    },
+  });
+  assert.deepEqual(await runOne(h), { state: "retry_scheduled", reason: "timeout" });
+  assert.equal(finishArgs(h), undefined, "usage is unknown, so the pass is not settled");
+  assert.equal(h.calls.some(([n, a]) => n === "mark_garden_dispatch" && a.p_rejected), false);
+  assert.deepEqual(h.calls.at(-1), ["update_garden_job", { p_id: "j", p_token: "t", p_release: true }]);
+});
+test("sync v3: one stage timing out discards the other stage's answer", async () => {
+  const h = syncHarness(v3SyncJob(), {
+    respond: async (body) => {
+      if (body.text.format.name === "garden_tend") return answer(tendOk);
+      throw timeoutError();
+    },
+  });
+  assert.deepEqual(await runOne(h), { state: "retry_scheduled", reason: "timeout" });
+  assert.equal(finishArgs(h), undefined);
+});
+test("sync: a broken connection is treated as unknown usage, like a timeout", async () => {
+  const h = syncHarness(syncJob(), {
+    respond: async () => {
+      throw new Error("provider_request_failed");
+    },
+  });
+  assert.deepEqual(await runOne(h), { state: "retry_scheduled", reason: "network" });
+});
+test("sync: lease lost after the provider answered stores nothing and never throws", async () => {
+  const h = syncHarness(syncJob(), {
+    respond: async () => answer(valid),
+    ledger: {
+      finish_garden_pass: () => {
+        throw new Error("lease lost");
+      },
+    },
+  });
+  assert.deepEqual(await runOne(h), { state: "lease_lost" });
+  assert.equal(h.responds.length, 1, "the provider is never called again for an answer already in hand");
+  assert.equal(names(h).includes("update_garden_job"), false);
+  assert.equal(names(h).at(-1), "finish_garden_pass");
+});
+test("sync: the redispatch after a lost answer uses a new key and is the ledger's decision", async () => {
+  const h = syncHarness(syncJob({ dispatches: 1, attempts: 2 }), { respond: async () => answer(valid) });
+  assert.equal((await runOne(h)).state, "complete");
+  assert.equal(h.responds[0][1].key, "garden-sync-j-2");
+});
+test("sync: duplicate invocation while the first holds the lease does nothing", async () => {
+  const h = syncHarness(null, { respond: () => assert.fail("no provider call"), ledger: { claim_provider_orphan: () => null } });
+  assert.deepEqual(await runOne(h), { state: "idle" });
+  assert.equal(h.responds.length, 0);
+});
+test("sync: budget stop at dispatch fails the pass without a provider call", async () => {
+  const h = syncHarness(syncJob({ dispatches: 1 }), {
+    respond: () => assert.fail("no provider call"),
+    ledger: { mark_garden_dispatch: () => "budget" },
+  });
+  assert.deepEqual(await runOne(h), { state: "failed", reason: "budget_stop" });
+  assert.equal(finishArgs(h).p_failed, true);
+});
+test("sync: the provider-call limit fails the pass without a provider call", async () => {
+  const h = syncHarness(syncJob({ dispatches: 3 }), {
+    respond: () => assert.fail("no provider call"),
+    ledger: { mark_garden_dispatch: () => "limit" },
+  });
+  assert.deepEqual(await runOne(h), { state: "failed", reason: "call_limit" });
+});
+test("sync: cancelled before dispatch never contacts the provider", async () => {
+  const h = syncHarness(syncJob(), {
+    respond: () => assert.fail("no provider call"),
+    ledger: { mark_garden_dispatch: () => "inactive" },
+  });
+  assert.deepEqual(await runOne(h), { state: "cancelled" });
+});
+test("sync: cancelled while in flight discards the answer and records only its cost", async () => {
+  const h = syncHarness(syncJob(), {
+    respond: async (_body, _options, harness) => {
+      harness.deactivate();
+      return answer(valid);
+    },
+  });
+  assert.deepEqual(await runOne(h), { state: "cancelled" });
+  const finished = finishArgs(h);
+  assert.equal(finished.p_failed, true);
+  assert.deepEqual(finished.p_result, { blooms: [], no_output_reason: null }, "the answer is not passed on");
+  assert.equal(finished.p_input_tokens, 100);
+});
+test("sync: a retryable provider error closes the dispatch uncharged and retries", async () => {
+  const h = syncHarness(syncJob(), { respond: async () => refusal(503) });
+  assert.deepEqual(await runOne(h), { state: "retry_scheduled", reason: "provider_error" });
+  assert.deepEqual(names(h).slice(-2), ["mark_garden_dispatch", "update_garden_job"]);
+  assert.equal(h.calls.at(-2)[1].p_rejected, true);
+  assert.equal(finishArgs(h), undefined);
+});
+test("sync: a permanent refusal closes the dispatch before failing, so nothing is charged", async () => {
+  const h = syncHarness(syncJob(), { respond: async () => refusal(400) });
+  assert.deepEqual(await runOne(h), { state: "failed", reason: "provider_error" });
+  assert.deepEqual(names(h).slice(-2), ["mark_garden_dispatch", "finish_garden_pass"]);
+  assert.equal(h.calls.at(-2)[1].p_rejected, true);
+});
+test("sync: the ledger is told how many provider calls each dispatch makes", async () => {
+  const one = syncHarness(syncJob(), { respond: async () => answer(valid) });
+  await runOne(one);
+  assert.equal(one.calls.find(([n]) => n === "mark_garden_dispatch")[1].p_calls, 1);
+  const two = syncHarness(v3SyncJob(), { respond: async (body) => (body.text.format.name === "garden_tend" ? answer(tendOk) : answer({ blooms: [], no_output_reason: null })) });
+  await runOne(two);
+  assert.equal(two.calls.find(([n]) => n === "mark_garden_dispatch")[1].p_calls, 2);
+  assert.equal(two.responds.length, 2);
+});
+test("sync: a ledger hiccup after the answer is retried from memory, not from the provider", async () => {
+  let failures = 2;
+  const h = syncHarness(syncJob(), {
+    respond: async () => answer(valid),
+    ledger: {
+      finish_garden_pass: () => {
+        if (failures-- > 0) throw new Error("ledger_request_failed");
+        return null;
+      },
+    },
+  });
+  assert.deepEqual(await runOne(h), { state: "complete", transport: "sync" });
+  assert.equal(h.responds.length, 1);
+  assert.equal(names(h).filter((n) => n === "finish_garden_pass").length, 3);
+  assert.deepEqual(h.calls.at(-1)[1].p_result, valid);
+});
+test("sync: an answer the ledger keeps refusing is settled as failed with its real cost, never re-requested", async () => {
+  const h = syncHarness(syncJob(), {
+    respond: async () => answer(valid),
+    ledger: {
+      finish_garden_pass: (args) => {
+        if (!args.p_failed) throw new Error("tier not unlocked");
+        return null;
+      },
+    },
+  });
+  assert.deepEqual(await runOne(h), { state: "failed", reason: "ledger_rejected" });
+  assert.equal(h.responds.length, 1);
+  const last = h.calls.at(-1)[1];
+  assert.equal(last.p_failed, true);
+  assert.equal(last.p_input_tokens, 100);
+  assert.deepEqual(last.p_result, { blooms: [], no_output_reason: null });
+});
+test("sync: a retryable provider error stops retrying after five attempts", async () => {
+  const h = syncHarness(syncJob({ attempts: 5 }), { respond: async () => refusal(429) });
+  assert.deepEqual(await runOne(h), { state: "failed", reason: "provider_error" });
+});
+test("sync: a permanent provider error fails the pass", async () => {
+  const h = syncHarness(syncJob(), { respond: async () => refusal(400) });
+  assert.deepEqual(await runOne(h), { state: "failed", reason: "provider_error" });
+  assert.equal(finishArgs(h).p_failed, true);
+});
+test("sync: invalid output fails the pass but keeps the usage it cost", async () => {
+  const h = syncHarness(syncJob(), {
+    respond: async () => answer({ ...valid, blooms: [{ ...bloom, evidence: [{ revision_id: "r1", excerpt: "invented" }] }] }),
+  });
+  assert.deepEqual(await runOne(h), { state: "failed", reason: "invalid_output" });
+  assert.equal(finishArgs(h).p_failed, true);
+  assert.equal(finishArgs(h).p_output_tokens, 40);
+});
+test("sync: a tool call in the answer is refused", async () => {
+  const withTool = answer(valid);
+  withTool.body.output.push({ type: "function_call", name: "send_email" });
+  const h = syncHarness(syncJob(), { respond: async () => withTool });
+  assert.deepEqual(await runOne(h), { state: "failed", reason: "invalid_output" });
+});
+test("sync: an oversized snapshot is failed before any dispatch", async () => {
+  const big = [{ ...snapshot[0], body: "x".repeat(syncLimits.requestBytes) }];
+  const h = syncHarness(syncJob({ snapshot: big }), { respond: () => assert.fail("no provider call") });
+  assert.deepEqual(await runOne(h), { state: "failed", reason: "oversized_snapshot" });
+  assert.equal(names(h).includes("mark_garden_dispatch"), false);
+});
+test("sync: too little of the function's time left defers without dispatching", async () => {
+  // The claim itself used up the invocation: the clock jumps once the job is in hand.
+  let clock = Date.parse("2026-11-16T00:00:00Z");
+  const job = syncJob({ created_at: new Date(clock).toISOString() });
+  const h = syncHarness(job, {
+    respond: () => assert.fail("no provider call"),
+    now: () => clock,
+    ledger: {
+      claim_garden_pass: () => {
+        clock += 60_000;
+        return job;
+      },
+    },
+  });
+  assert.deepEqual(await runOne(h), { state: "deferred", reason: "time_budget" });
+  assert.equal(names(h).includes("mark_garden_dispatch"), false);
+  assert.deepEqual(h.calls.at(-1)[1], { p_id: "j", p_token: "t", p_release: true });
+});
+test("sync: an expired pass is failed without a provider call", async () => {
+  const h = syncHarness(syncJob({ created_at: new Date(Date.now() - 31 * 3_600_000).toISOString() }), {
+    respond: () => assert.fail("no provider call"),
+  });
+  assert.deepEqual(await runOne(h), { state: "expired", reason: "deadline" });
+});
+test("sync: a cancelled pass that never dispatched is settled, then cleaned with no provider call", async () => {
+  const cancelled = syncJob({ status: "cancelled", settled: false });
+  const first = syncHarness(cancelled, { respond: () => assert.fail("no provider call") });
+  assert.deepEqual(await runOne(first), { state: "cancelled" });
+  const second = syncHarness({ ...cancelled, settled: true }, { respond: () => assert.fail("no provider call") });
+  assert.deepEqual(await runOne(second), { state: "cleaned" });
+  assert.equal(second.calls.at(-1)[1].p_clean, true);
+});
+test("sync: a provider without a synchronous call fails the pass rather than falling back to batch", async () => {
+  const h = syncHarness(syncJob(), {});
+  delete h.provider.respond;
+  assert.deepEqual(await runOne(h), { state: "failed", reason: "transport_unavailable" });
+});
+test("a batch pass never uses the synchronous call", async () => {
+  const h = harness(
+    { id: "j", token: "t", status: "queued", transport: "batch", snapshot, model: "pinned", created_at: new Date().toISOString() },
+    {},
+  );
+  h.provider.respond = () => assert.fail("batch never calls respond");
+  assert.equal((await runOne(h)).state, "submitted");
+});
+test("every request either workflow builds sets store:false, in one place, with no tools", () => {
+  const all = [
+    requestFor(syncJob()),
+    requestFor(syncJob({ reasoning_effort: "low" })),
+    ...requestsFor(v3SyncJob({ catalog: true, notice: true, resurface: true })),
+    ...requestsFor(v3SyncJob({ catalog: true, notice: false, resurface: false })),
+  ];
+  assert.equal(all.length, 5);
+  for (const line of all) {
+    assert.equal(line.body.store, false);
+    assert.equal(sendable(line.body), true);
+    assert.equal("tools" in line.body, false);
+    assert.equal("background" in line.body, false);
+  }
+  for (const unsafe of [{}, { store: true }, { store: "false" }, { store: false, tools: [] }, { store: false, background: true }, null])
+    assert.equal(sendable(unsafe), false);
+});
+test("sync: the body that actually leaves the worker has store:false, for every request of both workflows", async () => {
+  const v2 = syncHarness(syncJob(), { respond: async () => answer(valid) });
+  await runOne(v2);
+  const v3 = syncHarness(v3SyncJob(), { respond: async () => answer(tendOk) });
+  await runOne(v3);
+  const sent = [...v2.responds, ...v3.responds].map(([body]) => body);
+  assert.equal(sent.length, 3);
+  for (const body of sent) assert.equal(body.store, false);
+});
+test("http adapter: refuses to send a request without store:false", async () => {
+  let called = 0;
+  const provider = httpProvider("synthetic-key", async () => {
+    called += 1;
+    return new Response("{}", { status: 200 });
+  });
+  for (const body of [{ model: "m" }, { model: "m", store: true }, { model: "m", store: false, tools: [] }])
+    await assert.rejects(provider.respond(body, { timeoutMs: 1000 }), (error) => error.message === "unsafe_request");
+  assert.equal(called, 0, "nothing reached the network");
+});
+test("sync: a request that lost its store:false is failed closed before any dispatch", async () => {
+  const job = syncJob();
+  // No job field can remove the flag, so a broken builder is injected.
+  const h = syncHarness(job, { respond: () => assert.fail("no provider call") });
+  h.requests = (j) => {
+    const line = requestFor(j);
+    delete line.body.store;
+    return [line];
+  };
+  assert.deepEqual(await runOne(h), { state: "failed", reason: "unsafe_request" });
+  assert.equal(names(h).includes("mark_garden_dispatch"), false);
+});
+
+/* ---- Nothing the provider wrote, and nothing the person wrote, leaves through the worker ---- */
+const SENTINEL = "ZQXSENTINEL mother died in March";
+const SOURCE_SENTINEL = "ZQXSOURCE a private sentence";
+const leakJob = (extra = {}) =>
+  syncJob({
+    workflow_version: "tend-connect-v3",
+    snapshot: [{ revision_id: "r1", seed_id: "s1", title: "ZQXSOURCE title", body: `${SOURCE_SENTINEL} about a quieter workspace.`, created_at: "2026-03-01T00:00:00.000Z", role: "changed" }],
+    context: { tiers: { catalog: true, notice: true, resurface: true } },
+    ...extra,
+  });
+const rawAnswer = (text) => ({ status_code: 200, retryable: false, body: { status: "completed", output: [{ type: "message", content: [{ type: "output_text", text }] }], usage: { input_tokens: 5, output_tokens: 5 } } });
+async function observed(h) {
+  const logged = [];
+  const originals = {};
+  for (const level of ["log", "info", "warn", "error", "debug"]) {
+    originals[level] = console[level];
+    console[level] = (...args) => logged.push(args.map(String).join(" "));
+  }
+  let result;
+  try {
+    result = await runOne(h);
+  } finally {
+    Object.assign(console, originals);
+  }
+  return { result, logged, response: JSON.stringify(result), ledger: JSON.stringify(h.calls) };
+}
+const malformed = [
+  ["not JSON", `${SENTINEL} {"blooms":[]}`],
+  ["JSON of the wrong shape", JSON.stringify({ [SENTINEL]: SENTINEL, blooms: SENTINEL })],
+  ["a bloom whose kind is prose", JSON.stringify({ blooms: [{ kind: SENTINEL, interpretation: SENTINEL, evidence: [{ revision_id: SENTINEL, excerpt: SENTINEL }] }], no_output_reason: SENTINEL })],
+  ["an invented quotation", JSON.stringify({ blooms: [{ kind: "pattern", interpretation: SENTINEL, evidence: [{ revision_id: "r1", excerpt: SENTINEL }, { revision_id: "r1", excerpt: SENTINEL }] }], no_output_reason: null })],
+  ["an empty answer", ""],
+];
+for (const [name, text] of malformed)
+  for (const transport of ["sync", "batch"])
+    test(`no provider or source text leaves the worker: ${transport}, ${name}`, async () => {
+      let h;
+      if (transport === "sync") {
+        h = syncHarness(leakJob(), { respond: async (body) => (body.text.format.name === "garden_tend" ? rawAnswer(text) : rawAnswer(text)) });
+      } else {
+        const job = leakJob({ transport: "batch", provider_id: "b" });
+        const line = (stage) => JSON.stringify({ custom_id: `j:${stage}`, response: { status_code: 200, body: rawAnswer(text).body } });
+        h = harness(job, { getBatch: async () => ({ status: "completed", output_file_id: "out" }), download: async () => `${line("tend")}\n${line("connect")}` });
+      }
+      const seen = await observed(h);
+      for (const where of [seen.response, seen.ledger, seen.logged.join("\n")]) {
+        assert.equal(where.includes("ZQX"), false, where.slice(0, 200));
+        assert.equal(where.includes("mother"), false);
+        assert.equal(where.includes("Unexpected token"), false);
+      }
+      assert.deepEqual(seen.logged, []);
+      assert.ok(["failed", "complete"].includes(seen.result.state));
+    });
+test("a batch output file that is not JSON lines at all leaks nothing either", async () => {
+  const h = harness(leakJob({ transport: "batch", provider_id: "b" }), {
+    getBatch: async () => ({ status: "completed", output_file_id: "out" }),
+    download: async () => SENTINEL,
+  });
+  const seen = await observed(h);
+  assert.equal(seen.result.state, "failed");
+  assert.equal((seen.response + seen.ledger + seen.logged.join("")).includes("ZQX"), false);
+});
+test("stage outcomes are fixed codes: a malformed answer is invalid_json, never the parser's message", () => {
+  const job = leakJob();
+  const line = (stage, text) => JSON.stringify({ custom_id: `j:${stage}`, response: { status_code: 200, body: rawAnswer(text).body } });
+  const parsed = parseTendConnect(`${line("tend", '{"marks":[]}')}\n${line("connect", `${SENTINEL} {`)}`, job);
+  assert.deepEqual(parsed.stages, { tend: "ok", connect: "invalid_json" });
+  assert.throws(() => parseTendConnect(`${line("tend", SENTINEL)}\n${line("connect", SENTINEL)}`, job), (error) => error.message === "no_valid_stage");
+});
+test("the report filter drops anything that is not a known code", () => {
+  assert.deepEqual(report({ state: "complete", transport: "sync", stages: { tend: "ok_dropped_2", connect: SENTINEL, extra: "ok" }, note: SENTINEL }), {
+    state: "complete",
+    transport: "sync",
+    stages: { tend: "ok_dropped_2", connect: "invalid_output" },
+  });
+  assert.deepEqual(report({ state: SENTINEL, reason: SENTINEL }), { state: "unknown", reason: "unknown" });
+  assert.deepEqual(report({ state: "failed", reason: "hello" }), { state: "failed", reason: "unknown" });
+  assert.deepEqual(report(undefined), { state: "unknown" });
+});
+test("valid results reach the ledger but never the worker's response", async () => {
+  const h = syncHarness(syncJob(), { respond: async () => answer(valid) });
+  const seen = await observed(h);
+  assert.equal(seen.response.includes("quieter"), false);
+  assert.equal(seen.ledger.includes("a quieter workspace"), true, "the validated bloom is what the ledger is for");
+  assert.deepEqual(seen.logged, []);
+});
+
+/* ---- Worker authorisation: the operator's secret, or a single-use tick token ---- */
+test("worker authorisation accepts the operator secret or a redeemable tick token, nothing else", async () => {
+  const redeemed = [];
+  const tick = `tick_${"a".repeat(64)}`;
+  const consume = async (token) => {
+    redeemed.push(token);
+    return token === tick && redeemed.length === 1;
+  };
+  const secret = "operator-secret-0123456789abcdef0123";
+  assert.ok(secret.length >= 32);
+  assert.equal(await authorizeWorker({ header: `Bearer ${secret}`, workerKey: secret, consume }), true);
+  assert.equal(redeemed.length, 0, "the operator secret needs no ledger call");
+  assert.equal(await authorizeWorker({ header: `Bearer ${tick}`, workerKey: secret, consume }), true);
+  assert.equal(await authorizeWorker({ header: `Bearer ${tick}`, workerKey: secret, consume }), false, "a token works once");
+  for (const header of [null, "", "Bearer ", "Bearer wrong", `Basic ${secret}`, "Bearer tick_short", `Bearer tick_${"g".repeat(64)}`])
+    assert.equal(await authorizeWorker({ header, workerKey: secret, consume }), false, String(header));
+  assert.equal(redeemed.length, 2, "malformed tokens never reach the ledger");
+  assert.equal(await authorizeWorker({ header: "Bearer undefined", workerKey: undefined, consume }), false);
+  assert.equal(await authorizeWorker({ header: `Bearer ${tick}`, workerKey: secret, consume: async () => { throw new Error("down"); } }), false);
+  assert.equal(await authorizeWorker({ header: `Bearer ${tick}`, workerKey: secret }), false);
+});
+
+test("http adapter: sync call sends store:false to the Responses endpoint and drops error bodies", async () => {
+  const seen = [];
+  const fetcher = async (url, options) => {
+    seen.push([url, options]);
+    return seen.length === 1
+      ? new Response(JSON.stringify({ status: "completed", output: [], usage: {} }), { status: 200 })
+      : new Response(JSON.stringify({ error: { message: "echoed private text" } }), { status: 500 });
+  };
+  const provider = httpProvider("synthetic-key", fetcher);
+  const ok = await provider.respond({ model: "m", store: false }, { timeoutMs: 1000, key: "k" });
+  assert.equal(ok.status_code, 200);
+  assert.equal(seen[0][0], "https://api.openai.com/v1/responses");
+  assert.equal(seen[0][1].headers["Idempotency-Key"], "k");
+  assert.equal(JSON.parse(seen[0][1].body).store, false);
+  const failed = await provider.respond({ model: "m", store: false }, { timeoutMs: 1000 });
+  assert.deepEqual(failed, { status_code: 500, body: null, retryable: true });
+});
+test("http adapter: a timed-out sync call is reported as a timeout, without a body", async () => {
+  const provider = httpProvider("synthetic-key", (_url, options) =>
+    new Promise((_resolve, reject) => {
+      // AbortSignal.timeout does not keep the event loop alive on its own.
+      const keepAlive = setTimeout(() => {}, 5000);
+      options.signal.addEventListener("abort", () => {
+        clearTimeout(keepAlive);
+        reject(options.signal.reason);
+      });
+    }),
+  );
+  await assert.rejects(provider.respond({ model: "m", store: false }, { timeoutMs: 20 }), (error) => error.timeout === true && error.message === "provider_request_failed");
+});

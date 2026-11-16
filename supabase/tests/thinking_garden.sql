@@ -29,6 +29,8 @@ select throws_ok($$select public.claim_garden_pass()$$,'42501',null,'users canno
 select throws_ok($$insert into public.garden_passes(id,garden_id,plot_ids) values('ffffffff-ffff-4fff-8fff-fffffffffff1','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',array['bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1']::uuid[])$$,'55000','AI evaluation gate has not been activated','AI activation is closed by default');
 reset role;
 update private.ai_runtime set enabled=true,approved_at=now(),model='synthetic-test-model';
+-- Tending runs only for allowlisted accounts (private.ai_tenants).
+insert into private.ai_tenants(tenant_id) select id from public.accounts;
 set local role authenticated;
 select throws_ok($$insert into public.garden_passes(id,garden_id,plot_ids) values('ffffffff-ffff-4fff-8fff-fffffffffff1','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',array['bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1']::uuid[])$$,'42501','plot permission denied','AI-off excluded at database boundary');
 update public.plots set ai_enabled=true where id='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1';
@@ -50,7 +52,8 @@ select public.claim_garden_pass() as first_job \gset
 select is((:'first_job'::jsonb->>'status'),'cancelled','service claims cancelled work for cleanup');
 select lives_ok(format('select public.finish_garden_pass(%L::uuid,%L::uuid,%L::jsonb,0,0,true)', :'first_job'::jsonb->>'id', :'first_job'::jsonb->>'token','{"blooms":[],"no_output_reason":null}'),'cancelled job settles budget');
 reset role;
-select ok((select spent_cents>0 from private.ai_months),'unknown usage retains conservative reservation');
+select is((select spent_cents from private.ai_months),0::numeric,'a pass cancelled before anything was sent costs nothing');
+select is((select reserved_cents from private.ai_months),(select coalesce(sum(reserved_cents),0) from private.pass_inputs where actual_cents is null),'and its reservation is released');
 set local role authenticated;
 select lives_ok($$insert into public.garden_passes(id,garden_id,plot_ids) values('ffffffff-ffff-4fff-8fff-fffffffffff3','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',array['bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1']::uuid[])$$,'new isolated pass after cancellation');
 reset role;
