@@ -35,12 +35,29 @@
 -- The migration therefore cannot fail on existing data. It reports, as a
 -- NOTICE with counts only, how many existing rows the new rules would refuse.
 --
--- Lock order for writing, archiving and deleting, everywhere:
---   public.accounts (pass preparation, deletion, import), then gardens, then
---   plots, then seeds, then entries; private.pass_inputs before garden_passes
---   as before. save_entry used to lock the thought first; it now takes the
---   garden and topic share locks before it.
+-- Lock order for writing, archiving, deleting and tending, everywhere:
+--   public.accounts (pass preparation and deletion only), then gardens, then
+--   plots, then seeds, then entries; then private.pass_inputs before
+--   public.garden_passes. save_entry used to lock the thought first; it now
+--   takes the garden and topic share locks before it.
+-- A person's writing never waits on background processing:
+--   * save_entry, create_seed, a new thought and import take only SHARE locks
+--     on the garden and topic, and never the accounts row;
+--   * pass preparation therefore takes SHARE, not UPDATE, on its topics. That
+--     still excludes archiving a topic or changing its tending permission
+--     (both need the row's update lock) and is compatible with writing;
+--   * the scheduled nightly enqueue commits after each account, so the locks
+--     it does hold (the accounts row, the month's budget row, topic share
+--     locks) last for that account's own passes and no longer.
 begin;
+
+-- Fail fast instead of queueing. Several statements here need a brief strong
+-- lock on a busy table (ADD CONSTRAINT on seed_revisions, CREATE TRIGGER,
+-- GRANT). Waiting behind a long transaction would make every later write on
+-- that table wait behind this migration. If a timeout fires the whole
+-- migration rolls back and changes nothing: run it again.
+set local lock_timeout='5s';
+set local statement_timeout='120s';
 
 -- ---------------------------------------------------------------------------
 -- Text helpers. Pure and immutable; used by check constraints, so the roles
@@ -255,11 +272,17 @@ end $$;
 -- other column takes its default or is set by a trigger. No legitimate path
 -- needed the withdrawn columns: the only one that wrote a date was import,
 -- which now goes through import_thought.
+-- A thought's topic (seeds.plot_id) is withdrawn too. The web has no move
+-- action, and a direct UPDATE locks the thought before its garden and topic,
+-- the reverse of the order above (it deadlocked against saves and topic
+-- changes under load). Moving a thought needs an RPC that locks in order;
+-- until one exists it is refused (42501). seeds_refuse_archived_parent still
+-- covers UPDATE for privileged callers.
 -- ---------------------------------------------------------------------------
 revoke insert,update on public.gardens,public.plots,public.seeds,public.entries from authenticated;
 grant insert(id,tenant_id,name),update(name,status,archived_at) on public.gardens to authenticated;
 grant insert(id,tenant_id,garden_id,name,ai_enabled,cross_pollinate),update(name,ai_enabled,cross_pollinate,archived_at) on public.plots to authenticated;
-grant insert(id,tenant_id,garden_id,plot_id,title,position_x,position_y),update(plot_id,title,status,archived_at,position_x,position_y) on public.seeds to authenticated;
+grant insert(id,tenant_id,garden_id,plot_id,title,position_x,position_y),update(title,status,archived_at,position_x,position_y) on public.seeds to authenticated;
 grant insert(id,tenant_id,garden_id,seed_id),update(archived_at) on public.entries to authenticated;
 revoke insert on public.seed_revisions from authenticated;
 grant insert(id,tenant_id,garden_id,seed_id,entry_id,revision_number,body,created_by) on public.seed_revisions to authenticated;
@@ -324,8 +347,39 @@ revoke all on function public.garden_capabilities() from public,anon;
 grant execute on function public.garden_capabilities() to authenticated;
 
 -- The deletion RPCs, each with one added line after the sign-in check:
--- perform private.require_deletion_enabled(). Bodies otherwise as in
+-- perform private.require_deletion_enabled(); delete_entry and delete_seed
+-- also take the garden and topic locks before the thought. Bodies otherwise as in
 -- 20261116010931_in_app_deletion.sql; grants are unchanged.
+-- Deletion follows the same lock order as writing. delete_entry and
+-- delete_seed used to lock the thought and then reach the passes while a topic
+-- change held the topic and reached the same passes from the other side.
+create function private.lock_seed_parents(p_tenant uuid,p_seed_id uuid) returns void
+language plpgsql security definer set search_path='' as $$
+declare v_garden uuid; v_plot uuid;
+begin
+  select garden_id,plot_id into v_garden,v_plot from public.seeds where id=p_seed_id and tenant_id=p_tenant;
+  if not found then return; end if;
+  perform 1 from public.gardens where id=v_garden for share;
+  perform 1 from public.plots where id=v_plot for share;
+end $$;
+revoke all on function private.lock_seed_parents(uuid,uuid) from public,anon,authenticated;
+
+-- Erasing a garden takes the garden, then its topics, before any pass. Body
+-- otherwise as in 20261116010931_in_app_deletion.sql.
+create or replace function private.erase_garden(p_tenant uuid,p_garden_id uuid) returns void
+language plpgsql security definer set search_path='' as $$
+begin
+  perform 1 from public.gardens where id=p_garden_id and tenant_id=p_tenant for update;
+  perform 1 from public.plots where tenant_id=p_tenant and garden_id=p_garden_id order by id for update;
+  -- Passes first: their inputs, blooms and marks cascade, and source deletes below stay cheap.
+  perform private.lock_pass_inputs(array(select id from public.garden_passes where tenant_id=p_tenant and garden_id=p_garden_id));
+  delete from public.garden_passes where tenant_id=p_tenant and garden_id=p_garden_id;
+  delete from public.seeds where tenant_id=p_tenant and garden_id=p_garden_id;
+  delete from public.plots where tenant_id=p_tenant and garden_id=p_garden_id;
+  delete from public.gardens where tenant_id=p_tenant and id=p_garden_id;
+end $$;
+revoke all on function private.erase_garden(uuid,uuid) from public,anon,authenticated;
+
 create or replace function public.deletion_preview(p_kind text,p_id uuid default null) returns jsonb
 language plpgsql stable security definer set search_path='' as $$
 declare v_tenant uuid:=auth.uid();
@@ -345,7 +399,9 @@ begin
   perform 1 from public.accounts where id=v_tenant for update;
   select seed_id into v_seed from public.entries where id=p_entry_id and tenant_id=v_tenant;
   if v_seed is null then return jsonb_build_object('deleted',false); end if;
-  -- save_entry serialises on the thought; so does deletion.
+  -- Garden and topic before the thought (the lock order), then the thought:
+  -- save_entry serialises on it; so does deletion.
+  perform private.lock_seed_parents(v_tenant,v_seed);
   perform 1 from public.seeds where id=v_seed and tenant_id=v_tenant for update;
   receipt:=private.deletion_scope(v_tenant,'entry',p_entry_id);
   if receipt is null then return jsonb_build_object('deleted',false); end if;
@@ -362,6 +418,8 @@ begin
   perform private.require_deletion_enabled();
   -- Serialise with pass preparation and with other deletions by this account.
   perform 1 from public.accounts where id=v_tenant for update;
+  -- Garden and topic before the thought (the lock order).
+  perform private.lock_seed_parents(v_tenant,p_seed_id);
   perform 1 from public.seeds where id=p_seed_id and tenant_id=v_tenant for update;
   if not found then return jsonb_build_object('deleted',false); end if;
   receipt:=private.deletion_scope(v_tenant,'seed',p_seed_id);
@@ -435,6 +493,253 @@ begin
 end $$;
 
 -- ---------------------------------------------------------------------------
+-- Background processing must not hold a person's writing up.
+-- ---------------------------------------------------------------------------
+-- Pass preparation: the topic lock is FOR SHARE (it was FOR UPDATE, which
+-- conflicts with the share lock a save now takes and made a save wait for the
+-- whole enqueue transaction). SHARE still conflicts with the row update that
+-- archives a topic or changes its permissions, so the permissions this pass
+-- freezes cannot change under it. Two preparations for one account are still
+-- serialised by the accounts row. Body otherwise as in 20261010004736_tending_tiers.sql.
+create or replace function private.prepare_pass() returns trigger language plpgsql security definer set search_path='' as $$
+declare cfg private.ai_runtime; p public.plots; snap jsonb; perms jsonb:='{}'; cost numeric; m date:=date_trunc('month',now() at time zone 'UTC')::date; budget private.ai_months;
+  scope text; v3 boolean; since timestamptz; changed jsonb; changed_ids uuid[]; trimmed integer:=0; candidates jsonb:='[]'; ctx jsonb:='{}'; idx jsonb;
+  n_entries integer; n_weeks integer; newest timestamptz; oldest timestamptz; notice boolean; resurface boolean; terms text[]; q tsquery; corr jsonb;
+begin
+  -- Only privileged code can set trigger='nightly' (users have no column grant);
+  -- every other pass must come from its own tenant.
+  if new.trigger is distinct from 'nightly' and (auth.uid() is null or auth.uid()<>new.tenant_id) then raise exception 'authentication required' using errcode='42501'; end if;
+  select * into cfg from private.ai_runtime where singleton;
+  if not cfg.enabled then raise exception 'AI evaluation gate has not been activated' using errcode='55000'; end if;
+  perform 1 from public.accounts where id=new.tenant_id for update;
+  if not exists(select 1 from public.gardens where id=new.garden_id and tenant_id=new.tenant_id and status='active') then raise exception 'garden unavailable' using errcode='42501'; end if;
+  if cardinality(new.plot_ids)<>(select count(distinct v) from unnest(new.plot_ids) v) then raise exception 'duplicate plots' using errcode='22023'; end if;
+  scope:=(select string_agg(x::text,',' order by x) from unnest(new.plot_ids) x);
+  new.scope_key:=scope;
+  -- One active pass per permission scope, and a small ceiling per tenant.
+  if exists(select 1 from public.garden_passes where tenant_id=new.tenant_id and scope_key=scope and status in('queued','processing')) then raise exception 'a reflection is already in progress' using errcode='55000'; end if;
+  if (select count(*) from public.garden_passes where tenant_id=new.tenant_id and status in('queued','processing'))>=8 then raise exception 'too many reflections in progress' using errcode='55000'; end if;
+  for p in select * from public.plots where id=any(new.plot_ids) order by id for share loop
+    if p.tenant_id<>new.tenant_id or p.garden_id<>new.garden_id or not p.ai_enabled or p.archived_at is not null or (cardinality(new.plot_ids)>1 and not p.cross_pollinate) then raise exception 'plot permission denied' using errcode='42501'; end if;
+    perms:=perms||jsonb_build_object(p.id,p.permission_version);
+  end loop;
+  if (select count(*) from jsonb_object_keys(perms))<>cardinality(new.plot_ids) then raise exception 'plot unavailable' using errcode='42501'; end if;
+  v3:=cfg.workflow_version like 'tend-connect-v3%';
+  if not v3 then
+    select coalesce(jsonb_agg(jsonb_build_object('revision_id',c.revision_id,'entry_id',c.entry_id,'seed_id',c.seed_id,'plot_id',s.plot_id,'body',c.body,'created_at',c.created_at) order by c.created_at,c.entry_id),'[]') into snap
+      from public.current_entries c join public.seeds s on s.id=c.seed_id where c.tenant_id=new.tenant_id and s.plot_id=any(new.plot_ids) and s.status='active' and c.archived_at is null;
+    if jsonb_array_length(snap)=0 then raise exception 'write an entry before inviting a reflection' using errcode='22023'; end if;
+  else
+    -- The watermark is the last completed pass's snapshot time (its created_at), not when it
+    -- finished: writing saved while a pass was in flight was never in its snapshot.
+    select max(created_at) into since from public.garden_passes where tenant_id=new.tenant_id and scope_key=scope and status='complete';
+    select count(*),count(distinct date_trunc('week',c.created_at)),min(c.created_at) into n_entries,n_weeks,oldest
+      from public.current_entries c join public.seeds s on s.id=c.seed_id where c.tenant_id=new.tenant_id and s.plot_id=any(new.plot_ids) and s.status='active' and c.archived_at is null;
+    if n_entries=0 then raise exception 'write an entry before inviting a reflection' using errcode='22023'; end if;
+    -- What changed, newest first, within about 60 KB; older changes join the candidate pool.
+    with changes as (
+      select c.revision_id,c.entry_id,c.seed_id,s.plot_id,s.title,c.body,c.created_at,greatest(c.created_at,c.revised_at) as touched,
+        sum(octet_length(c.body)+240) over(order by greatest(c.created_at,c.revised_at) desc,c.entry_id rows unbounded preceding) as running
+      from public.current_entries c join public.seeds s on s.id=c.seed_id
+      where c.tenant_id=new.tenant_id and s.plot_id=any(new.plot_ids) and s.status='active' and c.archived_at is null
+        and (since is null or greatest(c.created_at,c.revised_at)>since))
+    select coalesce(jsonb_agg(jsonb_build_object('revision_id',revision_id,'entry_id',entry_id,'seed_id',seed_id,'plot_id',plot_id,'title',title,'body',body,'created_at',created_at,'role','changed') order by touched desc,entry_id) filter(where running<=60000 or touched=(select max(touched) from changes)),'[]'),
+      coalesce(array_agg(entry_id) filter(where running<=60000 or touched=(select max(touched) from changes)),'{}'),
+      count(*) filter(where not(running<=60000 or touched=(select max(touched) from changes))),
+      max(touched)
+      into changed,changed_ids,trimmed,newest from changes;
+    if jsonb_array_length(changed)=0 then raise exception 'nothing new to tend since the last return' using errcode='22023'; end if;
+    notice:=n_entries>=6 and n_weeks>=3;
+    resurface:=oldest<=newest-interval '28 days';
+    if notice or resurface then
+      -- The changed writing's most frequent words (4+ letters) find related older entries.
+      select array_agg(lexeme) into terms from (
+        select t.lexeme from unnest(to_tsvector('simple'::regconfig,(select string_agg(x->>'body',' ') from jsonb_array_elements(changed) x))) t
+        where char_length(t.lexeme)>=4 order by array_length(t.positions,1) desc,t.lexeme limit 48) w;
+      if terms is not null then
+        q:=array_to_string(array(select ''''||replace(replace(t,'\','\\'),'''','''''')||'''' from unnest(terms) t),' | ')::tsquery;
+        select coalesce(jsonb_agg(item order by rank desc,created_at),'[]') into candidates from (
+          select jsonb_build_object('revision_id',c.revision_id,'entry_id',c.entry_id,'seed_id',c.seed_id,'plot_id',s.plot_id,'title',s.title,'body',c.body,'created_at',c.created_at,'role','candidate') as item,
+            ts_rank_cd(to_tsvector('simple'::regconfig,c.body),q)
+              + case when exists(select 1 from public.tending_marks tm where tm.seed_id=c.seed_id and tm.kind='theme' and lower(tm.label)=any(terms)
+                  and not exists(select 1 from public.tending_mark_responses x where x.mark_id=tm.id and x.response='prune')) then 0.2 else 0 end as rank,
+            c.created_at
+          from public.current_entries c join public.seeds s on s.id=c.seed_id
+          where c.tenant_id=new.tenant_id and s.plot_id=any(new.plot_ids) and s.status='active' and c.archived_at is null
+            and not (c.entry_id=any(changed_ids)) and to_tsvector('simple'::regconfig,c.body)@@q
+            and octet_length(c.body)<=8000
+          order by rank desc,c.created_at limit 12) r;
+      end if;
+    end if;
+    -- Orientation only: titles and kept labels. Never evidence.
+    select coalesce(jsonb_agg(jsonb_build_object('seed_id',s.id,'title',s.title,'labels',
+        (select coalesce(jsonb_agg(distinct tm.label),'[]') from public.tending_marks tm
+          where tm.seed_id=s.id and tm.kind='theme' and not exists(select 1 from public.tending_mark_responses x where x.mark_id=tm.id and x.response='prune')))),'[]')
+      into idx from (select id,title from public.seeds where tenant_id=new.tenant_id and plot_id=any(new.plot_ids) and status='active' order by updated_at desc limit 200) s;
+    snap:=changed||candidates;
+    ctx:=jsonb_build_object('tiers',jsonb_build_object('catalog',true,'notice',notice,'resurface',resurface),
+      'since',since,'changed',jsonb_array_length(changed),'trimmed',trimmed,'candidates',jsonb_array_length(candidates),'index',idx);
+  end if;
+  -- UTF-8 byte count is a conservative token ceiling; reject rather than silently truncate.
+  if octet_length(snap::text)+octet_length(ctx::text)>100000 then raise exception 'select fewer plots for this reflection' using errcode='22023'; end if;
+  -- tend-connect-v3 sends the snapshot twice (tend and connect stages).
+  cost:=case when v3 then ceil(((2*(octet_length(snap::text)+octet_length(ctx::text))+20000)*cfg.input_cents_per_million+8000*cfg.output_cents_per_million)/1000000*1.25)
+    else ceil(((octet_length(snap::text)+10000)*cfg.input_cents_per_million+4000*cfg.output_cents_per_million)/1000000*1.25) end;
+  insert into private.ai_months(month) values(m) on conflict do nothing;
+  select * into budget from private.ai_months where month=m for update;
+  if budget.reserved_cents+budget.spent_cents+cost>cfg.hard_cap_cents then raise exception 'AI budget reached' using errcode='55000'; end if;
+  update private.ai_months set reserved_cents=reserved_cents+cost where month=m;
+  -- Deferrable FK allows creation inside BEFORE INSERT.
+  insert into private.pass_inputs(pass_id,snapshot,permissions,workflow_version,model,budget_month,reserved_cents,input_rate,output_rate,context)
+    values(new.id,snap,perms,cfg.workflow_version,cfg.model,m,cost,cfg.input_cents_per_million,cfg.output_cents_per_million,ctx);
+  select coalesce(jsonb_agg(jsonb_build_object('correction',r.correction,'evidence',b.evidence)),'[]') into corr
+    from public.bloom_responses r join public.blooms b on b.id=r.bloom_id join public.garden_passes prev on prev.id=b.pass_id
+    where r.tenant_id=new.tenant_id and r.response='correct' and prev.status='complete' and prev.plot_ids <@ new.plot_ids;
+  if v3 then
+    -- Pruned blooms and labels are remembered so they do not recur.
+    corr:=corr||(select coalesce(jsonb_agg(x),'[]') from (
+      select jsonb_build_object('pruned',b.kind,'interpretation',b.interpretation) as x
+        from public.bloom_responses r join public.blooms b on b.id=r.bloom_id join public.garden_passes prev on prev.id=b.pass_id
+        where r.tenant_id=new.tenant_id and r.response='prune' and prev.status='complete' and prev.plot_ids <@ new.plot_ids
+      union all
+      select jsonb_build_object('pruned',tm.kind,'label',tm.label)
+        from public.tending_mark_responses r join public.tending_marks tm on tm.id=r.mark_id join public.garden_passes prev on prev.id=tm.pass_id
+        where r.tenant_id=new.tenant_id and r.response='prune' and prev.plot_ids <@ new.plot_ids
+      limit 40) y);
+  end if;
+  update private.pass_inputs set corrections=corr where pass_id=new.id;
+  if octet_length(corr::text)>10000 then raise exception 'correction context too large; review scope' using errcode='22023'; end if;
+  new.status:='queued';new.no_output_reason:=null;new.finished_at:=null;new.created_at:=now();
+  return new;
+end $$;
+
+-- Invalidation takes a pass's input lock before its row, the order the worker,
+-- deletion and allowlist removal already use. Bodies otherwise as before.
+create or replace function private.invalidate_plot_passes() returns trigger language plpgsql security definer set search_path='' as $$
+begin
+  if old.ai_enabled is distinct from new.ai_enabled or old.cross_pollinate is distinct from new.cross_pollinate or old.archived_at is distinct from new.archived_at then
+    new.permission_version:=old.permission_version+1;
+    perform private.lock_pass_inputs(array(select id from public.garden_passes where new.id=any(plot_ids) and status in('queued','processing','complete')));
+    update public.garden_passes set status=case when status='complete' then 'withdrawn' else 'cancelled' end,finished_at=now()
+      where new.id=any(plot_ids) and status in('queued','processing','complete');
+  else new.permission_version:=old.permission_version; end if;
+  return new;
+end $$;
+create or replace function private.invalidate_source_passes() returns trigger language plpgsql security definer set search_path='' as $$
+declare key_name text:=case when tg_table_name='seeds' then 'seed_id' else 'entry_id' end; affected uuid[];
+begin
+  if tg_op='UPDATE' and old.archived_at is not distinct from new.archived_at then return new; end if;
+  select array_agg(pass_id) into affected from private.pass_inputs i where exists(select 1 from jsonb_array_elements(i.snapshot) s where s->>key_name=old.id::text);
+  perform private.lock_pass_inputs(affected);
+  update public.garden_passes set status=case when status='complete' then 'withdrawn' else 'cancelled' end,finished_at=now()
+    where id=any(affected) and status in('queued','processing','complete');
+  if tg_op='DELETE' then
+    update private.pass_inputs set snapshot='[]',corrections='[]',context='{}' where pass_id=any(affected);
+    delete from public.blooms where pass_id=any(affected);
+    delete from public.tending_marks where pass_id=any(affected);
+    return old;
+  end if;
+  return new;
+end $$;
+
+-- Nightly enqueue, one account at a time. The work for one account is
+-- private.enqueue_nightly_for; private.enqueue_nightly_passes keeps its
+-- signature and result and still runs every account in the caller's
+-- transaction (operator and test use). The schedule now calls a procedure that
+-- COMMITs after each account, so no account's locks outlive its own passes.
+create function private.enqueue_nightly_for(p_tenant uuid,p_now timestamptz default now(),p_per_tenant integer default 6) returns integer
+language plpgsql security definer set search_path='' as $$
+declare s record; made integer:=0; last timestamptz;
+  v_month date:=date_trunc('month',now() at time zone 'UTC')::date; v_soft integer; v_used numeric;
+begin
+  if not (select enabled from private.ai_runtime where singleton) then return 0; end if;
+  select soft_cap_cents into v_soft from private.ai_runtime where singleton;
+  insert into private.ai_months(month) values(v_month) on conflict do nothing;
+  if not exists(select 1 from public.accounts acc where acc.id=p_tenant and acc.tend_overnight and extract(hour from p_now at time zone acc.timezone)=2
+      and exists(select 1 from private.ai_tenants t where t.tenant_id=acc.id)) then return 0; end if;
+  if exists(select 1 from public.garden_passes where tenant_id=p_tenant and trigger='nightly' and created_at>p_now-interval '20 hours') then return 0; end if;
+  for s in
+    select pl.garden_id,array_agg(pl.id order by pl.id) as plot_ids
+      from public.plots pl join public.gardens g on g.id=pl.garden_id and g.status='active'
+      where pl.tenant_id=p_tenant and pl.ai_enabled and pl.archived_at is null
+      group by pl.garden_id,case when pl.cross_pollinate then null else pl.id end
+  loop
+    exit when made>=p_per_tenant;
+    -- Same watermark as prepare_pass: the last completed snapshot, not its finish time.
+    select max(created_at) into last from public.garden_passes
+      where tenant_id=p_tenant and scope_key=(select string_agg(x::text,',' order by x) from unnest(s.plot_ids) x) and status='complete';
+    continue when not exists(select 1 from public.current_entries c join public.seeds sd on sd.id=c.seed_id
+      where c.tenant_id=p_tenant and sd.plot_id=any(s.plot_ids) and sd.status='active' and c.archived_at is null
+        and (last is null or greatest(c.created_at,c.revised_at)>last));
+    -- Automatic passes pause at the soft cap (see 20261116023935_ai_tenant_allowlist.sql):
+    -- checked before every pass, read without FOR UPDATE on purpose.
+    select m.reserved_cents+m.spent_cents into v_used from private.ai_months m where m.month=v_month;
+    if v_used>=v_soft then return made; end if;
+    begin
+      insert into public.garden_passes(id,tenant_id,garden_id,plot_ids,trigger) values(gen_random_uuid(),p_tenant,s.garden_id,s.plot_ids,'nightly');
+      made:=made+1;
+    exception when sqlstate '55000' or sqlstate '22023' or sqlstate '42501' then
+      -- Budget, in-progress, size or permission: leave this scope for another night.
+      null;
+    end;
+  end loop;
+  return made;
+end $$;
+revoke all on function private.enqueue_nightly_for(uuid,timestamptz,integer) from public,anon,authenticated;
+
+create function private.nightly_accounts(p_now timestamptz) returns uuid[]
+language sql stable security definer set search_path='' as $$
+  select coalesce(array_agg(acc.id order by acc.id),'{}') from public.accounts acc
+    where acc.tend_overnight and extract(hour from p_now at time zone acc.timezone)=2
+      and exists(select 1 from private.ai_tenants t where t.tenant_id=acc.id);
+$$;
+revoke all on function private.nightly_accounts(timestamptz) from public,anon,authenticated;
+
+create or replace function private.enqueue_nightly_passes(p_now timestamptz default now(),p_per_tenant integer default 6) returns integer
+language plpgsql security definer set search_path='' as $$
+declare a uuid; n integer:=0; v_month date:=date_trunc('month',now() at time zone 'UTC')::date; v_soft integer; v_used numeric;
+begin
+  if not (select enabled from private.ai_runtime where singleton) then return 0; end if;
+  select soft_cap_cents into v_soft from private.ai_runtime where singleton;
+  foreach a in array private.nightly_accounts(p_now) loop
+    n:=n+private.enqueue_nightly_for(a,p_now,p_per_tenant);
+    -- At or above the soft cap the run stops, as before.
+    select m.reserved_cents+m.spent_cents into v_used from private.ai_months m where m.month=v_month;
+    if v_used>=v_soft then return n; end if;
+  end loop;
+  return n;
+end $$;
+revoke all on function private.enqueue_nightly_passes(timestamptz,integer) from public,anon,authenticated;
+
+-- The same gates as private.tick_nightly_enqueue: runtime on, nightly on, worker configured.
+create function private.nightly_gates_open() returns boolean
+language sql stable security definer set search_path='' as $$
+  select coalesce((select enabled and nightly_enabled from private.ai_runtime where singleton),false)
+    and private.garden_worker_url() is not null;
+$$;
+revoke all on function private.nightly_gates_open() from public,anon,authenticated,service_role;
+
+-- What the schedule runs. A procedure because only a procedure can COMMIT
+-- between accounts; for the same reason it is not SECURITY DEFINER and has no
+-- SET clause (Postgres forbids transaction control in either), so every name
+-- in it is schema-qualified and it is executable only by its owner, which is
+-- also the role pg_cron runs the job as.
+create procedure private.run_nightly_enqueue(p_now timestamptz default now())
+language plpgsql as $$
+declare a uuid; ids uuid[];
+begin
+  if not private.nightly_gates_open() then return; end if;
+  ids:=private.nightly_accounts(p_now);
+  commit;
+  foreach a in array ids loop
+    perform private.enqueue_nightly_for(a,p_now);
+    commit;
+  end loop;
+end $$;
+revoke all on procedure private.run_nightly_enqueue(timestamptz) from public,anon,authenticated,service_role;
+select cron.schedule('slow-garden-nightly','7 * * * *','call private.run_nightly_enqueue()');
+
+-- ---------------------------------------------------------------------------
 -- Blocker 6: import as one bounded transaction.
 -- The caller sends the identifiers the web already derives (deterministic, so
 -- a retry is a replay). Limits are per call, like the server's per-request
@@ -461,7 +766,9 @@ end $$;
 --     cannot move the date of, or add to, an entry it is not creating.
 -- SECURITY DEFINER because the owner cannot write entries.created_at; every
 -- statement is keyed to auth.uid().
--- Lock order: accounts, garden, topic, thought (then entries, in save_entry).
+-- Lock order: garden, topic, thought (then entries, in save_entry). It does not
+-- take the accounts row, so it never waits on pass preparation; deletion and
+-- import exclude each other on the garden, topic or thought row they share.
 -- ---------------------------------------------------------------------------
 create function public.import_thought(p_plot_id uuid,p_seed_id uuid,p_title text,p_entries jsonb) returns jsonb
 language plpgsql security definer set search_path='' as $$
@@ -493,8 +800,6 @@ begin
       or octet_length(p_entries::text)+octet_length(p_title)>1048576+256*jsonb_array_length(p_entries) then
     raise exception 'import too large' using errcode='22023';
   end if;
-  -- Serialise with pass preparation and deletion, which take this lock first.
-  perform 1 from public.accounts where id=v_tenant for update;
   select * into p from public.plots where id=p_plot_id and tenant_id=v_tenant;
   if p.id is null then raise exception 'choose an active topic' using errcode='SGA02'; end if;
   select g.status into v_garden_status from public.gardens g where g.id=p.garden_id and g.tenant_id=v_tenant for share;

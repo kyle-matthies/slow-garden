@@ -263,6 +263,8 @@ select ok(has_column_privilege('authenticated','public.gardens','name','update')
   and has_column_privilege('authenticated','public.plots','ai_enabled','update') and has_column_privilege('authenticated','public.plots','cross_pollinate','update')
   and has_column_privilege('authenticated','public.seeds','title','update') and has_column_privilege('authenticated','public.seeds','status','update')
   and has_column_privilege('authenticated','public.seeds','position_x','insert'),'everything the web writes keeps its privilege');
+select ok(not has_column_privilege('authenticated','public.seeds','plot_id','update') and not has_column_privilege('authenticated','public.seeds','garden_id','update')
+  and has_column_privilege('authenticated','public.seeds','plot_id','insert'),'a thought is placed when it is created and cannot be moved by its owner''s session');
 select ok(has_column_privilege('authenticated','public.entries','archived_at','update')
   and has_column_privilege('authenticated','public.entries','id','insert')
   and has_column_privilege('authenticated','public.seed_revisions','body','insert'),'archiving and ordinary writing keep their privileges');
@@ -304,7 +306,13 @@ select throws_ok($$insert into public.seeds(garden_id,plot_id,title) values('4aa
 select throws_ok($$select public.create_seed('4aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2','Legacy path into an archived garden')$$,
   'SGA02','this garden is archived; restore it to write here','the original create_seed API is refused there too');
 select throws_ok($$update public.seeds set plot_id='4bbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2' where id='4ccccccc-cccc-4ccc-8ccc-ccccccccccc1'$$,
-  'SGA02','this topic is archived; restore it to write here','an existing thought cannot be moved into an archived topic');
+  '42501',null,'an owner cannot move a thought to another topic directly: there is no move privilege until a move RPC exists');
+select throws_ok($$update public.seeds set plot_id='4bbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb3' where id='4ccccccc-cccc-4ccc-8ccc-ccccccccccc1'$$,
+  '42501',null,'whatever the topic');
+reset role;
+select throws_ok($$update public.seeds set plot_id='4bbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2' where id='4ccccccc-cccc-4ccc-8ccc-ccccccccccc1'$$,
+  'SGA02','this topic is archived; restore it to write here','and for privileged code the trigger still refuses a move into an archived topic');
+set local role authenticated;
 select throws_ok($$update public.seeds set garden_id='4aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2',plot_id='4bbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb3' where id='4ccccccc-cccc-4ccc-8ccc-ccccccccccc1'$$,
   '42501',null,'nor into another garden at all: the owner holds no privilege to change a thought''s garden');
 select is((select plot_id from public.seeds where id='4ccccccc-cccc-4ccc-8ccc-ccccccccccc1'),'4bbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1'::uuid,'it stays where it was');
@@ -358,8 +366,10 @@ update public.plots set archived_at=null where id='4bbbbbbb-bbbb-4bbb-8bbb-bbbbb
 update public.gardens set status='active',archived_at=null where id='4aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2';
 select lives_ok($$insert into public.seeds(garden_id,plot_id,title) values('4aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1','4bbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2','After restoring the topic')$$,'a restored topic takes new thoughts again');
 select lives_ok($$select public.save_entry('4ccccccc-cccc-4ccc-8ccc-ccccccccccc3',gen_random_uuid(),gen_random_uuid(),'After restoring the garden')$$,'a restored garden takes new entries again');
-select lives_ok($$update public.seeds set plot_id='4bbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2' where id='4ccccccc-cccc-4ccc-8ccc-ccccccccccc1'$$,'and a thought can be moved into the restored topic');
+reset role;
+select lives_ok($$update public.seeds set plot_id='4bbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2' where id='4ccccccc-cccc-4ccc-8ccc-ccccccccccc1'$$,'privileged code can move a thought into the restored topic');
 update public.seeds set plot_id='4bbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1' where id='4ccccccc-cccc-4ccc-8ccc-ccccccccccc1';
+set local role authenticated;
 
 -- ---------------------------------------------------------------- 5. import
 select is(public.import_thought('4bbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1','4ccccccc-cccc-4ccc-8ccc-ccccccccccd1',E'  Imported thought\n',

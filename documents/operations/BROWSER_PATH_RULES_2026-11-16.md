@@ -1,6 +1,6 @@
 # Database rules for the browser data path
 
-- Date: 2026-11-16 (revised the same day after an independent review; see "Review findings")
+- Date: 2026-11-16 (revised twice the same day after independent reviews; see "Review findings" and "Second review")
 - Scope: one migration, `supabase/migrations/20261116041903_browser_path_rules.sql`, its
   tests, the store's use of it, and this record.
 - Requirements: the eight "cannot move safely yet" blockers in
@@ -15,10 +15,12 @@
 | File | Change |
 |---|---|
 | `supabase/migrations/20261116041903_browser_path_rules.sql` | New. Created with `supabase migration new browser_path_rules`; edited in place after review (never applied anywhere but the local stack). |
-| `supabase/tests/browser_path_rules.sql` | New. 277 tests. |
+| `supabase/tests/browser_path_rules.sql` | New. 280 tests. |
+| `supabase/tests/browser_path_rules_background.sql` | New. 28 tests, up to six real sessions: saves against held background transactions, per-account commits, lock order. |
 | `supabase/tests/browser_path_rules_concurrency.sql` | New. 26 tests, two real sessions over dblink. |
 | `scripts/test-upgrade-browser-path-rules.sh` | New. Applies the migration over rows the older constraints accepted and the new rules refuse. |
 | `supabase/tests/deletion.sql`, `deletion_concurrency.sql` | One line each to switch deletion on (and off again in cleanup), because deletion ships switched off. |
+| `supabase/tests/scheduling.sql` | One expectation: the nightly job's command is now `call private.run_nightly_enqueue()`. |
 | `applications/web/src/types/database.ts` | Two functions added (`garden_capabilities`, `import_thought`). See "Types". |
 | `store/rules.ts` | Blank-character list, limits, capability parsing, the combination rule, import limits and messages, archived-place messages, SQLSTATE names. |
 | `store/queries.ts` | `readCapabilities`; `loadGardenWith` combines supplied flags with the database's answer. |
@@ -92,18 +94,29 @@ foreign key on a direct insert, 42501 "seed unavailable" from `save_entry`).
 
 **Writing and archiving serialise.** Every archive check takes `FOR SHARE` on the row it
 reads; an archive needs that row's lock. Lock order everywhere: `accounts` (pass
-preparation, deletion, import), then garden, topic, thought, entry. `save_entry` used to
-lock the thought first; it now takes the garden and topic share locks before it. Writers
-only ever take share locks on gardens and topics, so they do not block each other. One
-known exception: an owner update that *moves* a thought holds the thought's row lock
-before the trigger takes the share locks; it can only deadlock against a concurrent
-garden deletion, Postgres resolves that by aborting one of them (40P01, already phrased
-by the web), and the app has no move action.
+preparation and deletion only), then garden, topic, thought, entry, then
+`private.pass_inputs` before `public.garden_passes`. `save_entry` used to lock the thought
+first; it now takes the garden and topic share locks before it. Deleting an entry or a
+thought takes the garden and topic before the thought; erasing a garden takes the garden,
+then its topics, before any pass; topic and source invalidation take a pass's input lock
+before its row.
+
+**A person's writing never waits on background processing.** Saves, new thoughts and
+import take only share locks on the garden and topic and never the accounts row. Pass
+preparation therefore takes `FOR SHARE`, not `FOR UPDATE`, on its topics: that is
+compatible with writing and still excludes archiving a topic or changing its tending
+permission (both need the row's update lock; tested). The scheduled nightly enqueue is
+now `call private.run_nightly_enqueue()`, a procedure that commits after each account, so
+the locks it does hold (the accounts row, the month's budget row, topic share locks) last
+for that account's own passes and no longer. `private.enqueue_nightly_passes` keeps its
+signature and still runs in the caller's transaction for operator and test use.
 
 **Dates and revision numbers belong to the database.** The owner's session can no
 longer set or move `created_at` on gardens, topics, thoughts, entries or revisions, nor
-`updated_at`, nor a topic's `permission_version`: column grants name exactly what the
-web writes. No legitimate path needed the withdrawn columns except import, which now
+`updated_at`, nor a topic's `permission_version`, nor a thought's topic (`plot_id`):
+column grants name exactly what the web writes. A direct move of a thought locked in
+the reverse order and deadlocked under load; the web has no move action, so it is
+refused (42501) until a move RPC exists that locks in order. No legitimate path needed the withdrawn columns except import, which now
 goes through the RPC. An API caller's `revision_number` is replaced with the next number
 for its thought (the existing scheme numbers per thought, not per entry).
 `accounts.created_at` is still owner-writable; nothing reads it.
@@ -185,6 +198,81 @@ Finding 1 is the reviewer's own execution; the old function is gone and was not 
 Not repaired, by design: a thought whose highest revision number is already 2147483647
 (only possible through a past direct insert) still cannot take another save. The hosted
 report counts these.
+
+## Second review
+
+| # | Finding | Resolution | Tests |
+|---|---|---|---|
+| 1 | Pass preparation's `FOR UPDATE` on the topic made a save wait for the whole enqueue transaction | `prepare_pass` takes `FOR SHARE`; nightly enqueue commits per account; import no longer takes the accounts row | `browser_path_rules_background.sql` cases 1 to 3 |
+| 2 | A direct move of a thought locked in reverse order (deadlocks) | `plot_id` removed from the owner's update grant; the archived-parent trigger stays for privileged callers | `browser_path_rules.sql` section 3 |
+| 3 | `delete_seed` against topic changes could deadlock | Deletion takes garden and topic before the thought; invalidation takes pass inputs before the pass row; `erase_garden` takes garden then topics first | background file cases 4 and 5 |
+| 4 | `ADD CONSTRAINT` could queue behind a long transaction and block writes | `set local lock_timeout='5s'` and `statement_timeout='120s'` at the top | see "Retry" |
+
+**Measured, local stack.** A save arriving 1 s into a pass-preparation transaction on the
+same topic held open for 6 s:
+
+| | Idle save | Save during the held transaction |
+|---|---|---|
+| Reviewer, original `save_entry` | | 5.7 ms |
+| Reviewer, first revision | | 5,023 ms |
+| Here, first revision (before this fix) | 16.5 ms | 5,008 ms |
+| Here, after this fix (two runs) | 6.4 ms, 10.5 ms | 6.4 ms, 9.3 ms |
+
+The new test file was run against the first revision before the fix: 12 of its 28
+assertions failed, including every "completes without waiting" case (lock timeout).
+
+**Background paths reviewed against the locks writing takes** (garden share, topic share,
+thought update, entry share):
+
+| Path | Locks on accounts, gardens, plots, seeds, entries | Conflict with writing |
+|---|---|---|
+| Pass preparation (person or nightly) | accounts update; topics share; garden key share (foreign key) | none |
+| Nightly enqueue | as preparation, per account, released at that account's commit | none |
+| Worker claim, publish check, job update | none (pass inputs and pass rows only) | none |
+| Worker finish | thought key share, from the foreign key on a new mark | waits for, or holds up, a save on that thought for one statement |
+| Allowlist removal | none | none |
+| Topic or source invalidation (a person's own archive or settings change) | the row being changed | by design: this is what writing must wait for |
+| Deletion RPCs (a person's own action) | accounts update; garden and topic share (entry, thought) or update (topic, garden) | by design |
+
+Still possible, not fixed here, and resolved by Postgres aborting one side (40P01, which
+the web already phrases as "The garden was busy for a moment. Nothing was erased; please
+try again." for deletion):
+
+- deleting a thought while the worker publishes marks for that same thought (the
+  deletion holds the thought and wants the pass inputs; the worker holds them and wants
+  a key share on the thought);
+- a person cancelling a pass at the instant the worker claims it (the cancel takes the
+  pass row, then its inputs through the cleanup trigger; the claim takes them the other
+  way round). Both are in the tending and deletion code and predate this migration.
+
+**What changed in `save_entry` for a caller.**
+
+| Case | Before | Now |
+|---|---|---|
+| Thought or topic archived | 22023 "restore this thought before writing" | `SGA02` with a message naming what is archived |
+| Garden archived | accepted | `SGA02` |
+| Entry archived | 42501 "entry unavailable" | unchanged from `save_entry`; `SGA02` on a direct revision insert |
+| Body over 20,000 UTF-16 units, or only whitespace by JavaScript's definition | accepted when the older code-point and space-only checks passed | 23514 |
+| The thought changes garden or topic between the first read and its lock | not possible to observe | 40001, the same "entry changed" answer as a stale edit; cannot happen through the API now that moves are refused |
+| Locks | thought | garden share, topic share, then thought |
+| Caller cannot see the thought | 42501 "seed unavailable" after locking | same answer, before any lock |
+
+**Deploy order.**
+
+- Web first, then the migration: safe. The web tolerates a database without the new
+  functions and keeps today's behaviour until they exist.
+- Migration first, old web still deployed: saves, new thoughts, archiving and responses
+  keep working. The old import saves an entry and then fails at its date update, so the
+  person sees "Could not import" and that entry is dated today. A later run through the
+  new import skips it as a replay and does not re-date it. No writing is lost either way;
+  the cost is the date of entries imported in that window.
+- Deletion stays off in both orders until the database switch and the environment flag
+  are both on.
+
+**Retry.** If the migration reports `canceling statement due to lock timeout` (55P03) or
+a statement timeout (57014), a long transaction held a table it needed. Nothing was
+applied (one transaction). Wait for that transaction to finish, or find it in
+`pg_stat_activity` (state and duration only), and run the same migration again.
 
 ## PostgREST transcript (local)
 
@@ -287,10 +375,12 @@ revision after review changed no signature.
 ## Executed
 
 Local stack (`supabase` CLI 3.1.0, Postgres 17, database-only), 2026-11-16, after the
-review fixes:
+second review's fixes (the PostgREST transcript is from the first revision and was not
+repeated; no signature or grant it exercises changed except that a thought can no
+longer be moved):
 
 - `npx supabase db reset`: all 12 migrations apply.
-- `npx supabase test db`: 11 files, **712 tests**, pass; run twice. Before this work: 9
+- `npx supabase test db`: 12 files, **743 tests**, pass; run twice. Before this work: 9
   files, 409 tests.
 - `npx supabase db lint --schema public,private --level warning --fail-on error`: no
   schema errors.
@@ -303,15 +393,21 @@ review fixes:
 - PostgREST transcript above (image `postgrest/postgrest:v13.0.7` pulled for it; container
   removed).
 - From `applications/web`: `npx tsc --noEmit` exit 0; `npx eslint` exit 0;
-  `npx vitest run` twice, 40 files, 290 tests, pass both times; `npm run test:node`, 88
+  `npx vitest run` twice, 40 files, 292 tests, pass both times; `npm run test:node`, 88
   pass.
-- The reversal below, inside a transaction that was rolled back: no error, no object left.
+- The reversal below, inside a transaction that was rolled back: no error, no object left,
+  the nightly job back on its old command.
+- Local pg_cron (1.6.4) ran a `call` of a procedure that commits, twice, status
+  succeeded; and ran `call private.run_nightly_enqueue()` with the gates closed.
 
 ## Not executed, not verified
 
 - Anything hosted: the report query, the migration, advisors, the canary.
 - The Supabase gateway and auth service, `supabase-js`, and the browser store against a
   real database or in a browser.
+- pg_cron on the hosted project running a committing procedure (version and worker mode
+  there are unknown; if it refuses, the job fails visibly in `cron.job_run_details` and
+  nothing is enqueued).
 - That a running PostgREST picks up the migration's `notify` (it was started after the
   migration; a manual `notify` during the transcript did reload it).
 - The pre-fix behaviour of finding 1 (taken from the reviewer's run).
@@ -334,9 +430,20 @@ their dates.
 
 ```sql
 begin;
--- 1. Functions back to their earlier bodies: the six deletion RPCs as in
---    20261116010931_in_app_deletion.sql, save_entry as in 20260907003913_web_thinking_garden.sql.
--- (run those seven definitions here, each as `create or replace function`, exactly as written in those files)
+-- 1. Functions back to their earlier bodies, each as `create or replace function`, exactly as written in:
+--      20261116010931_in_app_deletion.sql: deletion_preview, delete_entry, delete_seed, delete_plot,
+--        delete_garden, delete_account, private.erase_garden
+--      20260907003913_web_thinking_garden.sql: save_entry
+--      20261010004736_tending_tiers.sql: private.prepare_pass, private.invalidate_source_passes
+--      20260907004656_manual_garden_passes.sql: private.invalidate_plot_passes
+--      20261116023935_ai_tenant_allowlist.sql: private.enqueue_nightly_passes
+-- (run those twelve definitions here)
+select cron.schedule('slow-garden-nightly','7 * * * *','select private.tick_nightly_enqueue()');
+drop procedure private.run_nightly_enqueue(timestamptz);
+drop function private.nightly_gates_open();
+drop function private.enqueue_nightly_for(uuid,timestamptz,integer);
+drop function private.nightly_accounts(timestamptz);
+drop function private.lock_seed_parents(uuid,uuid);
 drop function private.require_deletion_enabled();
 drop function public.garden_capabilities();
 drop table private.deployment_switches;
