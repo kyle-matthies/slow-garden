@@ -788,8 +788,12 @@
 }
 .specimen-plate {
   position: relative;
+  /* Offset and gap came from a same-named rule in level-pages.css before the
+     Pages plate was renamed thought-plate; kept so the plate does not move. */
+  top: 16px;
   display: grid;
   justify-items: center;
+  gap: 18px;
   width: 100%;
   padding: 1.5rem 1rem 1.05rem;
   border: 1px solid var(--sheet-edge);
@@ -986,111 +990,208 @@
   pointer-events: none;
 }
 
-@media (max-width: 640px) {
+/* ── Phone first ───────────────────────────────────────────────────────
+   From here to the min-width block is the phone scene, at every width; the
+   block after it restores the wide-screen values. */
+.garden-scene {
+  min-height: 30rem;
+}
+.scene-title {
+  top: 0.6rem;
+  left: max(0.6rem, env(safe-area-inset-left));
+  padding: 0.55rem 0.8rem;
+}
+.scene-turn {
+  top: 38%;
+  width: 2.75rem;
+  height: 2.75rem;
+}
+.scene-turn-left {
+  left: max(0.5rem, env(safe-area-inset-left));
+}
+.scene-turn-right {
+  right: max(0.5rem, env(safe-area-inset-right));
+}
+.scene-dock {
+  bottom: 0.5rem;
+  width: calc(100% - 1rem);
+  padding: 0.5rem;
+}
+.dock-chips {
+  flex-wrap: nowrap;
+  justify-content: flex-start;
+  width: 100%;
+  overflow-x: auto;
+  /* Swiping the chips never turns the garden or the page behind them. */
+  overscroll-behavior-x: contain;
+  touch-action: pan-x;
+  scrollbar-width: none;
+}
+.dock-chip {
+  min-height: 44px;
+  white-space: nowrap;
+}
+.scene-dock {
+  width: calc(100% - 1rem);
+  max-width: none;
+}
+/* :where keeps this at single-class weight, so the short-landscape rule for
+   .dock-actions further down still decides there. */
+:where(.dock-topic) .dock-actions {
+  flex-wrap: nowrap;
+  gap: 0.25rem;
+}
+.dock-topic .dock-actions > * {
+  flex: 0 1 auto;
+  white-space: nowrap;
+}
+.plant-focus {
+  top: auto;
+  right: 0.5rem;
+  left: 0.5rem;
+  bottom: 0.5rem;
+  width: auto;
+  max-height: 82%;
+  grid-template-columns: 1fr;
+}
+.focus-specimen {
+  position: static;
+  min-height: 0;
+  padding: 1.1rem 1rem 0.9rem;
+  border-right: 0;
+  border-bottom: 1px dashed var(--sheet-edge);
+}
+.specimen-plate {
+  width: min(100%, 17rem);
+  padding: 1.1rem 0.8rem 0.8rem;
+}
+.specimen-plant {
+  height: clamp(5rem, 13vh, 7.5rem);
+}
+.focus-body {
+  padding: 1rem 1.1rem 0;
+}
+/* Write and Close stay in reach at the foot of the sheet while it scrolls. */
+.focus-actions {
+  position: sticky;
+  bottom: 0;
+  margin: 1rem -1.1rem 0;
+  padding: 0.6rem 1.1rem;
+  border-top: 1px solid var(--sheet-edge);
+  background: var(--sheet);
+}
+.focus-actions {
+  flex-wrap: nowrap;
+}
+.focus-actions > :not(.primary-button) {
+  flex: none;
+}
+.bed-sign {
+  min-width: 8rem;
+  padding: 0.45rem 0.7rem;
+}
+@media (min-width: 641px) {
   .garden-scene {
-    min-height: 30rem;
+    min-height: 34rem;
   }
   .scene-title {
-    top: 0.6rem;
-    left: max(0.6rem, env(safe-area-inset-left));
-    padding: 0.55rem 0.8rem;
+    top: 1rem;
+    left: 1rem;
+    padding: 0.8rem 1.15rem 0.85rem;
   }
   .scene-turn {
-    top: 38%;
-    width: 2.75rem;
-    height: 2.75rem;
+    top: 46%;
+    width: 3rem;
+    height: 3rem;
   }
   .scene-turn-left {
-    left: max(0.5rem, env(safe-area-inset-left));
+    left: 1rem;
   }
   .scene-turn-right {
-    right: max(0.5rem, env(safe-area-inset-right));
+    right: 1rem;
   }
   .scene-dock {
-    bottom: 0.5rem;
-    width: calc(100% - 1rem);
-    padding: 0.5rem;
+    bottom: 1rem;
+    width: max-content;
+    max-width: min(76rem, calc(100% - 2rem));
+    padding: 0.55rem 0.75rem;
   }
   .dock-chips {
-    flex-wrap: nowrap;
-    justify-content: flex-start;
-    width: 100%;
-    overflow-x: auto;
-    /* Swiping the chips never turns the garden or the page behind them. */
-    overscroll-behavior-x: contain;
-    touch-action: pan-x;
-    scrollbar-width: none;
+    flex-wrap: wrap;
+    justify-content: center;
+    width: auto;
+    overflow-x: visible;
+    overscroll-behavior-x: auto;
+    touch-action: auto;
+    scrollbar-width: auto;
   }
   .dock-chip {
-    min-height: 44px;
-    white-space: nowrap;
+    min-height: 40px;
+    white-space: normal;
   }
-  .scene-dock {
-    width: calc(100% - 1rem);
-    max-width: none;
-  }
-  .dock-topic .dock-actions {
-    flex-wrap: nowrap;
-    gap: 0.25rem;
+  :where(.dock-topic) .dock-actions {
+    flex-wrap: wrap;
+    gap: 0.5rem;
   }
   .dock-topic .dock-actions > * {
-    flex: 0 1 auto;
-    white-space: nowrap;
+    white-space: normal;
   }
+  .plant-focus {
+    top: 1rem;
+    right: 1rem;
+    left: auto;
+    bottom: 1rem;
+    width: min(60rem, calc(100% - 2rem));
+    max-height: none;
+    grid-template-columns: minmax(15rem, 21rem) minmax(0, 1fr);
+  }
+  .focus-specimen {
+    position: sticky;
+    min-height: 100%;
+    padding: 1.5rem 1.25rem;
+    border-right: 1px dashed var(--sheet-edge);
+    border-bottom: 0;
+  }
+  .specimen-plate {
+    width: 100%;
+    padding: 1.5rem 1rem 1.05rem;
+  }
+  .specimen-plant {
+    height: clamp(13rem, 46vh, 25rem);
+  }
+  .focus-body {
+    padding: 1.3rem 1.5rem 1.5rem;
+  }
+  .focus-actions {
+    position: static;
+    bottom: auto;
+    flex-wrap: wrap;
+    margin: 1.3rem 0 0;
+    padding: 0;
+    border-top: 0;
+    background: none;
+  }
+  .focus-actions > :not(.primary-button) {
+    flex: 0 1 auto;
+  }
+  .bed-sign {
+    min-width: 9.5rem;
+    padding: 0.55rem 1rem 0.6rem;
+  }
+}
+/* Narrow-only additions to buttons whose wide-screen size belongs to the
+   shared button rules in globals.css: there is no value to restore here, so
+   these stay a max-width query on purpose. */
+@media (max-width: 640px) {
   .dock-topic .dock-actions button {
     min-height: 44px;
     padding-inline: 0.55rem;
     font-size: 0.86rem;
   }
-  .plant-focus {
-    top: auto;
-    right: 0.5rem;
-    left: 0.5rem;
-    bottom: 0.5rem;
-    width: auto;
-    max-height: 82%;
-    grid-template-columns: 1fr;
-  }
-  .focus-specimen {
-    position: static;
-    min-height: 0;
-    padding: 1.1rem 1rem 0.9rem;
-    border-right: 0;
-    border-bottom: 1px dashed var(--sheet-edge);
-  }
-  .specimen-plate {
-    width: min(100%, 17rem);
-    padding: 1.1rem 0.8rem 0.8rem;
-  }
-  .specimen-plant {
-    height: clamp(5rem, 13vh, 7.5rem);
-  }
-  .focus-body {
-    padding: 1rem 1.1rem 0;
-  }
-  /* Write and Close stay in reach at the foot of the sheet while it scrolls. */
-  .focus-actions {
-    position: sticky;
-    bottom: 0;
-    margin: 1rem -1.1rem 0;
-    padding: 0.6rem 1.1rem;
-    border-top: 1px solid var(--sheet-edge);
-    background: var(--sheet);
-  }
-  .focus-actions {
-    flex-wrap: nowrap;
-  }
   .focus-actions .primary-button {
     flex: 1 1 0;
     min-width: 0;
     padding-inline: 12px;
-  }
-  .focus-actions > :not(.primary-button) {
-    flex: none;
-  }
-  .bed-sign {
-    min-width: 8rem;
-    padding: 0.45rem 0.7rem;
   }
 }
 
@@ -1207,10 +1308,15 @@
 .over-scene .garden-settings {
   background: var(--sheet);
 }
-@media (max-width: 760px) {
+/* Phone: the page over the Meadow runs edge to edge. */
+.over-scene .garden-frame {
+  margin-top: 0;
+  border-radius: 0;
+}
+@media (min-width: 761px) {
   .over-scene .garden-frame {
-    margin-top: 0;
-    border-radius: 0;
+    margin-top: 1.5rem;
+    border-radius: 6px;
   }
 }
 
@@ -1424,11 +1530,14 @@
 .ring-new.is-aside .ring-new-copy {
   display: none;
 }
+/* Upright, in the part of the card that shows; the dock carries the same
+   action at full size for every screen. */
 .ring-new.is-aside .plain-button {
   min-width: 44px;
-  padding: 0.6rem 0.3rem;
-  white-space: nowrap;
-  writing-mode: vertical-rl;
+  min-height: 44px;
+  padding: 0.3rem 0.2rem;
+  line-height: 1.15;
+  text-align: right;
 }
 .ring-new-mark {
   font-size: 2rem;
@@ -1443,9 +1552,52 @@
 .ring-new .new-area {
   text-align: left;
 }
+/* With the name field open the form says what a garden is, so the card's own
+   mark and line step aside and the card grows to hold Create and Cancel
+   instead of scrolling them out of sight on a phone. */
+.ring-new:has(.new-area) {
+  align-content: start;
+  height: auto;
+  min-height: 100%;
+  padding: 0.9rem 1rem 0.8rem;
+  overflow: visible;
+}
+.ring-new:has(.new-area) .ring-new-mark,
+.ring-new:has(.new-area) .ring-new-copy {
+  display: none;
+}
+.ring-new .new-area > p {
+  margin: 0;
+}
+.ring-new .new-area > p[role="status"]:empty {
+  display: none;
+}
+/* Phone: the dock spans the screen, so "Enter" keeps one line and the two
+   quieter actions (new garden, back) share the row under it. */
 .ring-dock {
   z-index: 400;
+  right: 0.5rem;
+  left: 0.5rem;
   width: auto;
+  gap: 0.25rem 0.5rem;
+  transform: none;
+}
+.ring-dock .primary-button {
+  flex: 1 1 100%;
+}
+.ring-dock-new {
+  min-height: 44px;
+}
+@media (min-width: 641px) {
+  .ring-dock {
+    right: auto;
+    left: 50%;
+    gap: 0.5rem;
+    transform: translateX(-50%);
+  }
+  .ring-dock .primary-button {
+    flex: 0 1 auto;
+  }
 }
 .garden-ring .scene-turn {
   z-index: 400;
@@ -1468,11 +1620,17 @@
 .ring-flight {
   display: none;
 }
-@media (max-width: 640px) {
+/* Phone: one garden fills most of the width; wider, the cards settle. */
+.ring-card {
+  top: calc(76vw * -0.32);
+  left: calc(76vw / -2);
+  width: 76vw;
+}
+@media (min-width: 641px) {
   .ring-card {
-    top: calc(76vw * -0.32);
-    left: calc(76vw / -2);
-    width: 76vw;
+    top: calc(min(26rem, 62vw) * -0.32);
+    left: calc(min(26rem, 62vw) / -2);
+    width: min(26rem, 62vw);
   }
 }
 @media (prefers-reduced-motion: reduce) {

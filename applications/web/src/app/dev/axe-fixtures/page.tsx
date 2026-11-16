@@ -20,14 +20,18 @@ export const dynamic = "force-dynamic";
 export default async function AxeFixturesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ state?: string; thoughts?: string; gardens?: string }>;
+  searchParams: Promise<{ state?: string; thoughts?: string; gardens?: string; deletion?: string }>;
 }) {
   if (process.env.GARDEN_AXE_FIXTURES !== "1") notFound();
-  const { state, thoughts, gardens } = await searchParams;
+  const { state, thoughts, gardens, deletion } = await searchParams;
+  // Fixture only: show the deletion controls so they can be looked at and
+  // checked without a backend (`?deletion=off` hides them again). Production
+  // reads GARDEN_DELETION_ENABLED in lib/garden/data.ts, which stays off.
+  const deletionAvailable = deletion !== "off";
   if (state === "error") return <ErrorFixture />;
   if (state === "loading") return <Loading />;
   if (state === "import") return <ImportForm gardens={FIXTURE.gardens} gardenId={FIXTURE.gardenId} plots={FIXTURE.plots.filter((p) => !p.archived_at)} />;
-  if (state === "first-run") return <Suspense><GardenWorkspace data={{ ...FIXTURE, gardens: [], gardenId: "", plots: [], seeds: [], entries: [] }} /></Suspense>;
+  if (state === "first-run") return <Suspense><GardenWorkspace data={{ ...FIXTURE, deletionAvailable, gardens: [], gardenId: "", plots: [], seeds: [], entries: [] }} /></Suspense>;
   if (state === "scale") {
     // A synthetic, tended garden for performance receipts (ADR-007 budget).
     const count = Math.min(Math.max(Number(thoughts) || 100, 1), 1000);
@@ -45,6 +49,7 @@ export default async function AxeFixturesPage({
         <GardenWorkspace
           data={{
             ...data,
+            deletionAvailable,
             gardens: [...data.gardens, ...extra],
             tending: syntheticTending(data, "full"),
             account: { tendOvernight: false, timezone: "UTC" },
@@ -55,7 +60,7 @@ export default async function AxeFixturesPage({
   }
   return (
     <Suspense>
-      <GardenWorkspace data={{ ...FIXTURE, tendingHistory: { available: true, passes: [{ id: "synthetic-pass", status: "complete", createdAt: "2026-11-02T10:00:00Z", finishedAt: "2026-11-02T10:01:00Z" }] } }} />
+      <GardenWorkspace data={{ ...FIXTURE, deletionAvailable, tendingHistory: { available: true, passes: [{ id: "synthetic-pass", status: "complete", createdAt: "2026-11-02T10:00:00Z", finishedAt: "2026-11-02T10:01:00Z" }] } }} />
     </Suspense>
   );
 }

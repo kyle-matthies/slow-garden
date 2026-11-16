@@ -159,7 +159,13 @@ export function GardenSearch({
             type="search"
             placeholder={plotId ? "Search this topic…" : "Search your garden…"}
             value={query}
+            // Native keyboard hints only; results come from the person's own
+            // writing, never from suggestion or completion.
             autoComplete="off"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+            enterKeyHint="search"
             onChange={(e) => onQueryChange(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "ArrowDown" && hits.length > 0) {

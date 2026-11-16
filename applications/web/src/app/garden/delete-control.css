@@ -1,7 +1,36 @@
 /* Permanent deletion. Kept apart from every shared stylesheet. */
+/* Closed: quieter than archive beside it (lighter, muted, no colour), so the
+   everyday choice stays the obvious one. It turns red only when reached for. */
 .delete-trigger {
-  color: var(--error);
   min-height: 44px;
+  color: var(--ink-muted);
+  font-weight: 500;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, currentColor 35%, transparent);
+  text-underline-offset: 3px;
+}
+.delete-trigger:hover:not(:disabled),
+.delete-trigger:focus-visible,
+.delete-trigger:active:not(:disabled) {
+  color: var(--error);
+  text-decoration-color: currentColor;
+}
+/* Phone: the entry's actions wrap and delete lands on a line of its own. Its
+   words sit at the top of its 44px target, so it reads as the next line of the
+   same list instead of floating under an empty band; the target's spare height
+   hangs into the card's bottom padding. */
+.entry-actions .delete-trigger {
+  display: inline-flex;
+  align-items: flex-start;
+  margin-bottom: -14px;
+  padding-top: 2px;
+}
+@media (min-width: 761px) {
+  .entry-actions .delete-trigger {
+    align-items: center;
+    margin-bottom: 0;
+    padding-top: 0;
+  }
 }
 .delete-trigger:disabled {
   cursor: not-allowed;
@@ -14,13 +43,16 @@
   outline: 3px solid var(--moss);
   outline-offset: 2px;
 }
+/* Opened: nothing else in the garden looks like this. A red band across the
+   top, a red heading, and the archive/delete distinction set apart. */
 .delete-dialog {
   width: min(520px, calc(100vw - 32px));
   max-height: calc(100dvh - 32px);
   overflow: auto;
-  border: 1px solid var(--line);
+  border: 1px solid var(--error);
+  border-top-width: 8px;
   border-radius: 18px;
-  padding: 26px;
+  padding: 22px 26px 26px;
   color: var(--ink);
   background: var(--surface-solid);
   box-shadow: var(--shadow);
@@ -30,7 +62,8 @@
   background: rgba(20, 30, 24, 0.55);
 }
 .delete-dialog h2 {
-  margin: 0 0 6px;
+  margin: 0 0 10px;
+  color: var(--error);
   font-size: 1.3rem;
   line-height: 1.25;
   overflow-wrap: anywhere;
@@ -39,7 +72,11 @@
   margin: 0 0 12px;
   line-height: 1.5;
 }
-.delete-distinction {
+.delete-dialog .delete-distinction {
+  margin-bottom: 14px;
+  border-radius: 8px;
+  padding: 8px 12px;
+  background: color-mix(in srgb, var(--error) 10%, transparent);
   font-weight: 700;
 }
 .delete-scope {

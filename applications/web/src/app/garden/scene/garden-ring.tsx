@@ -320,7 +320,11 @@ export function GardenRing({
   currentId: string;
   onEnter: (id: string) => void;
   onClose: () => void;
-  newGarden?: ReactNode;
+  /**
+   * The control that plants a new garden. Given `true` when the person asked
+   * for a new garden from the dock, so the name field is already open.
+   */
+  newGarden?: ReactNode | ((startOpen: boolean) => ReactNode);
 }) {
   const night = useSyncExternalStore(subscribeDark, getDark, () => false);
   const reduced = useReducedMotion() ?? false;
@@ -333,6 +337,9 @@ export function GardenRing({
   const theta = useMotionValue(start * step);
   const [selected, setSelected] = useState(start);
   const [leaving, setLeaving] = useState<string | null>(null);
+  // "New garden" in the dock brings the waiting card forward with its name
+  // field open; turning to it by hand shows the card's own button first.
+  const [planting, setPlanting] = useState(false);
   const root = useRef<HTMLElement>(null);
   const [width, setWidth] = useState(1000);
   useEffect(() => {
@@ -350,6 +357,7 @@ export function GardenRing({
   function select(index: number, focus = false) {
     const i = ((index % count) + count) % count;
     setSelected(i);
+    if (i !== gardens.length) setPlanting(false);
     const target = nearestAngle(theta.get(), i * step);
     if (reduced) theta.set(target);
     else animate(theta, target, SPRING);
@@ -504,14 +512,18 @@ export function GardenRing({
                   Plant a new garden: a separate space with its own light.
                 </p>
                 {selected === gardens.length ? (
-                  newGarden
+                  typeof newGarden === "function" ? (
+                    newGarden(planting)
+                  ) : (
+                    newGarden
+                  )
                 ) : (
                   <button
                     type="button"
-                    className="plain-button"
+                    className="plain-button ring-new-forward"
                     onClick={() => select(gardens.length)}
                   >
-                    Bring forward
+                    New garden
                   </button>
                 )}
               </div>
@@ -546,6 +558,18 @@ export function GardenRing({
               onClick={() => enter(current.id)}
             >
               Enter {current.name}
+            </button>
+          )}
+          {newGarden && selected !== gardens.length && (
+            <button
+              type="button"
+              className="secondary-button ring-dock-new"
+              onClick={() => {
+                setPlanting(true);
+                select(gardens.length);
+              }}
+            >
+              ＋ New garden
             </button>
           )}
           <button type="button" className="plain-button" onClick={onClose}>

@@ -239,6 +239,9 @@ export function ImportForm({
                 className="import-title"
                 value={f.title}
                 maxLength={160}
+                autoComplete="off"
+                autoCapitalize="sentences"
+                enterKeyHint="done"
                 disabled={pending || f.attempted}
                 onChange={(e) => update(f.key, { title: e.target.value })}
               />

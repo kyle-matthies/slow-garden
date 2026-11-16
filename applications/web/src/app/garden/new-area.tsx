@@ -6,12 +6,15 @@ export function NewArea({
   kind,
   parentId,
   onCreated,
+  startOpen = false,
 }: {
   kind: "garden" | "plot" | "seed";
   parentId: string;
   onCreated: (id: string) => void;
+  /** Show the name field straight away: the person already asked for it. */
+  startOpen?: boolean;
 }) {
-  const [open, setOpen] = useState(false),
+  const [open, setOpen] = useState(startOpen),
     [name, setName] = useState(""),
     [pending, setPending] = useState(false),
     [error, setError] = useState("");
@@ -69,6 +72,9 @@ export function NewArea({
         maxLength={kind === "seed" ? 160 : 120}
         required
         autoFocus
+        autoComplete="off"
+        autoCapitalize="sentences"
+        enterKeyHint="done"
         disabled={pending}
       />
       <div className="action-row">

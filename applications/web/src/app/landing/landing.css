@@ -491,32 +491,60 @@
   color: var(--ink-muted);
   font-size: 0.86rem;
 }
-@media (max-width: 900px) {
-  .growth-landing .method-panels { grid-template-columns: minmax(0, 1fr); }
-  .growth-landing .method-panel + .method-panel { border-left: 0; border-top: 1px solid var(--line); }
-  .growth-landing .method-tending { min-height: 64px; }
-  .growth-landing .landing-never-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
-@media (max-width: 760px) {
-  .growth-landing .landing-frame { width: calc(100% - 36px); }
-  .growth-landing .landing-nav { min-height: 68px; gap: 12px; }
-  .growth-landing .landing-nav-links { gap: 16px; }
-  .growth-landing .landing-nav-links .text-link { display: none; }
-  .growth-landing .landing-hero { padding-block: 10px 48px; }
-  .growth-landing h1 { font-size: clamp(2.9rem, 13vw, 4rem); }
-  .growth-landing h1 span { display: block; width: fit-content; margin-inline: auto; }
-  .growth-landing .landing-lede { font-size: 1rem; }
-  .growth-landing .landing-preview-note { border-radius: 14px; }
-  .growth-landing .method-sequence-head { justify-content: center; text-align: center; }
-  .growth-landing .landing-example-options { justify-content: center; }
+/* Phone first: from here to the min-width blocks is the phone page, at every
+   width. 761px restores the roomier page; 901px sets the three method panels
+   and the three-column list side by side. */
+.growth-landing .method-panels { grid-template-columns: minmax(0, 1fr); }
+.growth-landing .method-panel + .method-panel { border-left: 0; border-top: 1px solid var(--line); }
+.growth-landing .method-tending { min-height: 64px; }
+.growth-landing .landing-frame { width: calc(100% - 36px); }
+.growth-landing .landing-nav { min-height: 68px; gap: 12px; }
+.growth-landing .landing-nav-links { gap: 16px; }
+.growth-landing .landing-nav-links .text-link { display: none; }
+.growth-landing .landing-hero { padding-block: 10px 48px; }
+.growth-landing h1 { font-size: clamp(2.9rem, 13vw, 4rem); }
+.growth-landing h1 span { display: block; width: fit-content; margin-inline: auto; }
+.growth-landing .landing-lede { font-size: 1rem; }
+.growth-landing .landing-preview-note { border-radius: 14px; }
+.growth-landing .method-sequence-head { justify-content: center; text-align: center; }
+.growth-landing .landing-example-options { justify-content: center; }
+.growth-landing .landing-method,
+.growth-landing .landing-never,
+.growth-landing .landing-privacy { padding-block: 44px; }
+.growth-landing .landing-steps,
+.growth-landing .landing-privacy-grid,
+.growth-landing .landing-never-list { grid-template-columns: 1fr; gap: 26px; margin-top: 28px; }
+.growth-landing .landing-steps h3 { margin-top: 6px; }
+.growth-landing .landing-start { padding: 52px 0 60px; }
+@media (min-width: 761px) {
+  .growth-landing .landing-frame { width: min(1120px, calc(100% - 48px)); }
+  .growth-landing .landing-nav { min-height: 72px; gap: 24px; }
+  .growth-landing .landing-nav-links { gap: 28px; }
+  .growth-landing .landing-nav-links .text-link { display: inline-flex; }
+  .growth-landing .landing-hero { padding-block: 8px 64px; }
+  .growth-landing h1 { font-size: clamp(3rem, 5.2vw, 4.7rem); }
+  .growth-landing h1 span { display: inline-block; width: auto; margin-inline: 0; }
+  .growth-landing .landing-lede { font-size: 1.1rem; }
+  .growth-landing .landing-preview-note { border-radius: 999px; }
+  .growth-landing .landing-preview-wide { border-radius: 14px; }
+  .growth-landing .method-sequence-head { justify-content: space-between; text-align: inherit; }
+  .growth-landing .landing-example-options { justify-content: normal; }
   .growth-landing .landing-method,
   .growth-landing .landing-never,
-  .growth-landing .landing-privacy { padding-block: 44px; }
+  .growth-landing .landing-privacy { padding-block: 64px; }
   .growth-landing .landing-steps,
-  .growth-landing .landing-privacy-grid,
-  .growth-landing .landing-never-list { grid-template-columns: 1fr; gap: 26px; margin-top: 28px; }
-  .growth-landing .landing-steps h3 { margin-top: 6px; }
-  .growth-landing .landing-start { padding: 52px 0 60px; }
+  .growth-landing .landing-privacy-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 36px; margin-top: 40px; }
+  .growth-landing .landing-never-list { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 30px 36px; margin-top: 36px; }
+  .growth-landing .landing-steps h3 { margin-top: 16px; }
+  .growth-landing .landing-start { padding: 72px 0 80px; }
+}
+@media (min-width: 901px) {
+  .growth-landing .method-panels { grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.72fr) minmax(0, 1.23fr); }
+  .growth-landing .method-panel + .method-panel { border-left: 1px solid var(--line); border-top: 0; }
+  /* Restated after the line above: the night panel has no left rule. */
+  .growth-landing .method-night.method-panel { border-left-color: transparent; }
+  .growth-landing .method-tending { min-height: 84px; }
+  .growth-landing .landing-never-list { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 @media (prefers-reduced-motion: reduce) {
   .growth-landing { scroll-behavior: auto; }

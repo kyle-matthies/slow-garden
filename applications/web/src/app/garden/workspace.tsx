@@ -793,16 +793,17 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
                 : router.push(`/garden?garden=${id}`)
             }
             onClose={() => navigate("", "", readViewPreference())}
-            newGarden={
+            newGarden={(startOpen) => (
               <NewArea
                 kind="garden"
                 parentId=""
+                startOpen={startOpen}
                 onCreated={(id) => {
                   router.push(`/garden?garden=${id}`);
                   refresh();
                 }}
               />
-            }
+            )}
           />
         </div>
       ) : sceneOverview && garden ? (
@@ -987,7 +988,7 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
             /* LEVEL 3 · THOUGHT: a specimen sheet. Plant and facts on the
                left, the writing page first on the right, then dated entries. */
             <div className="specimen-sheet">
-              <aside className="specimen-plate" aria-label="About this thought">
+              <aside className="thought-plate" aria-label="About this thought">
                 <div className="specimen-frame">
                   <ThoughtPlant seedId={seed.id} entries={data.entries} />
                 </div>

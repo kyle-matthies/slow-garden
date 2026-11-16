@@ -38,3 +38,9 @@ it("the workspace shows delete beside archive when deletion is switched on", () 
   expect(screen.getByRole("button", { name: "Delete thought…" })).toBeVisible();
   expect(screen.getAllByRole("button", { name: "Delete entry…" }).length).toBeGreaterThan(0);
 });
+
+it("the Pages thought plate has its own class, apart from the plant-focus plate in scene.css", () => {
+  const { container } = openThought(false);
+  expect(container.querySelector("aside.thought-plate")).not.toBeNull();
+  expect(container.querySelector(".specimen-plate")).toBeNull();
+});

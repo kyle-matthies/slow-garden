@@ -271,23 +271,6 @@ a {
   overflow: hidden;
   background: var(--landing-bg);
 }
-
-.site-nav,
-.hero,
-.principles,
-.app-header,
-.garden-layout,
-.auth-shell {
-  width: min(1180px, calc(100% - 40px));
-  margin-inline: auto;
-}
-
-.site-nav {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  min-height: 84px;
-}
 .wordmark {
   font-family: var(--font-editorial), serif;
   font-size: 1.7rem;
@@ -305,52 +288,13 @@ a {
   border-bottom: 1px solid var(--moss);
 }
 
-.hero {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(360px, 0.82fr);
-  gap: clamp(36px, 7vw, 100px);
-  align-items: center;
-  min-height: 680px;
-  padding: 70px 0 110px;
-}
-
 .eyebrow,
-.panel-kicker,
-.seed-card span,
-.bloom-card span,
-.principle-number {
+.panel-kicker {
   color: var(--moss);
   font-size: var(--text-xs);
   font-weight: 750;
   letter-spacing: 0.13em;
   text-transform: uppercase;
-}
-
-.hero h1,
-.auth-copy h1,
-.garden-title,
-.empty-state h2 {
-  margin: 16px 0 22px;
-  font-family: var(--font-editorial), serif;
-  font-weight: 540;
-  letter-spacing: -0.045em;
-  line-height: 0.96;
-}
-.hero h1 {
-  max-width: 780px;
-  font-size: clamp(3.5rem, 7vw, 6.8rem);
-}
-.hero-lede {
-  max-width: 650px;
-  color: var(--ink-muted);
-  font-size: clamp(1.03rem, 1.5vw, 1.25rem);
-  line-height: 1.65;
-}
-.hero-actions {
-  display: flex;
-  align-items: center;
-  gap: 24px;
-  margin-top: 34px;
 }
 
 .primary-button,
@@ -382,118 +326,7 @@ a {
   background: var(--surface);
   border: 1px solid var(--line);
 }
-
-.garden-preview {
-  position: relative;
-  min-height: 520px;
-  border: 1px solid var(--glass-line);
-  border-radius: 42% 58% 44% 56% / 52% 42% 58% 48%;
-  background:
-    var(--preview-wash),
-    url("/meadow-background.png") center / cover;
-  box-shadow: var(--shadow);
-}
-.garden-preview::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: var(--preview-vignette);
-  pointer-events: none;
-}
-.seed-card,
-.bloom-card {
-  position: absolute;
-  z-index: 1;
-  width: min(245px, 67%);
-  border: 1px solid var(--line);
-  color: var(--card-ink);
-  box-shadow: var(--card-shadow);
-  line-height: 1.45;
-}
-.seed-card {
-  padding: 20px 22px;
-  border-radius: 22px 22px 22px 7px;
-  background: var(--card-bg);
-}
-.seed-card span,
-.bloom-card span {
-  display: block;
-  margin-bottom: 8px;
-}
-.seed-card-one {
-  top: 82px;
-  left: 8%;
-  transform: rotate(-2deg);
-}
-.seed-card-two {
-  right: 6%;
-  bottom: 92px;
-  transform: rotate(2deg);
-}
-.bloom-card {
-  top: 48%;
-  left: 45%;
-  padding: 21px 23px;
-  border-radius: 28px;
-  background: var(--card-accent-bg);
-  transform: translate(-34%, -50%);
-}
-
-.principles {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 1px;
-  margin-bottom: 80px;
-  overflow: hidden;
-  border: 1px solid var(--line);
-  border-radius: 28px;
-  background: var(--line);
-}
-.principles article {
-  min-height: 260px;
-  padding: 34px;
-  background: var(--surface-solid);
-}
-.principles h2 {
-  margin: 54px 0 12px;
-  font-family: var(--font-editorial), serif;
-  font-size: 2rem;
-  font-weight: 600;
-}
-.principles p {
-  color: var(--ink-muted);
-  line-height: 1.62;
-}
-
-.auth-page,
-.garden-page {
-  min-height: 100vh;
-  min-height: 100dvh;
-  background:
-    var(--page-wash),
-    url("/meadow-background.png") center / cover fixed;
-}
-.auth-shell {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(340px, 460px);
-  gap: clamp(40px, 9vw, 120px);
-  align-items: center;
-  min-height: 100vh;
-  padding-block: 56px;
-}
-.auth-copy h1 {
-  max-width: 660px;
-  font-size: clamp(3.2rem, 7vw, 6.3rem);
-}
-.auth-copy p {
-  max-width: 550px;
-  color: var(--ink-muted);
-  line-height: 1.65;
-}
-.auth-panel,
-.capture-panel,
-.empty-state {
+.auth-panel {
   border: 1px solid var(--glass-line);
   border-radius: 28px;
   background: var(--surface);
@@ -549,26 +382,6 @@ a {
 .status-message[data-error="true"] {
   color: var(--error);
 }
-
-.app-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  min-height: 78px;
-}
-.header-actions {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-.identity-label {
-  max-width: 220px;
-  overflow: hidden;
-  color: var(--ink-muted);
-  font-size: 0.82rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 .plain-button {
   border: 0;
   color: var(--moss-deep);
@@ -576,109 +389,15 @@ a {
   cursor: pointer;
   font-weight: 700;
 }
-.garden-layout {
-  display: grid;
-  grid-template-columns: minmax(280px, 0.6fr) minmax(0, 1.4fr);
-  gap: 24px;
-  padding: 34px 0 80px;
-}
-.garden-sidebar {
-  display: flex;
-  min-height: 620px;
-  flex-direction: column;
-  padding: 26px;
-  border: 1px solid var(--line);
-  border-radius: 28px;
-  background: var(--surface);
-}
-.garden-title {
-  margin-top: 8px;
-  font-size: clamp(2.7rem, 5vw, 4.2rem);
-}
 .garden-list {
   display: grid;
   gap: 8px;
   margin: 22px 0 30px;
 }
-.garden-pill {
-  display: flex;
-  min-height: 44px;
-  align-items: center;
-  border-radius: 14px;
-  padding: 0 14px;
-  color: var(--ink-muted);
-}
-.garden-pill[data-active="true"] {
-  color: var(--ink);
-  background: var(--surface);
-  box-shadow: var(--pill-shadow);
-}
-.inline-form {
-  display: grid;
-  gap: 10px;
-  margin-top: auto;
-}
-.inline-form input {
-  min-width: 0;
-  border: 0;
-  border-bottom: 1px solid var(--line);
-  background: transparent;
-  padding: 10px 2px;
-}
-.garden-main {
-  min-width: 0;
-}
-.capture-panel {
-  padding: 26px;
-}
-.capture-panel h2 {
-  margin: 6px 0 4px;
-  font-family: var(--font-editorial), serif;
-  font-size: 2rem;
-}
-.seed-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 18px;
-  margin-top: 24px;
-}
-.thought-card {
-  min-height: 170px;
-  border: 1px solid var(--line);
-  border-radius: 22px 22px 22px 8px;
-  background: var(--surface-solid);
-  padding: 22px;
-  box-shadow: var(--card-shadow);
-}
-.thought-card p {
-  margin: 16px 0 30px;
-  line-height: 1.58;
-  white-space: pre-wrap;
-}
-.thought-card time {
-  color: var(--ink-muted);
-  font-size: 0.75rem;
-}
-.empty-state {
-  width: min(680px, calc(100% - 32px));
-  margin: 12vh auto 0;
-  padding: clamp(36px, 7vw, 80px);
-  text-align: center;
-}
-.empty-state h2 {
-  font-size: clamp(3rem, 7vw, 5.5rem);
-}
-.empty-state p {
-  max-width: 520px;
-  margin: 0 auto 26px;
-  color: var(--ink-muted);
-  line-height: 1.6;
-}
 
-/* The retired first landing page (.hero, .auth-shell, .garden-layout and
-   friends above) is no longer rendered; its two desktop-first phone blocks were
-   removed with the mobile-first pass (D-024). The live landing page is
-   landing/landing.css. */
+/* The retired first landing page (.hero, .auth-shell, .garden-layout,
+   .garden-preview and friends) was removed from this file once no markup used
+   it. The live landing page is landing/landing.css. */
 
 @media (prefers-reduced-motion: reduce) {
   html {
@@ -690,10 +409,6 @@ a {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
-  }
-  .auth-page,
-  .garden-page {
-    background-attachment: scroll;
   }
 }
 
