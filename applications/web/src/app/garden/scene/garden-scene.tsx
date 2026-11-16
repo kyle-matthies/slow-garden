@@ -225,6 +225,7 @@ export function GardenScene({
     width: size.width,
     height: size.height,
     zoom,
+    settle: interactive,
     // Grass and beds travel together when the camera turns.
     thetaScale:
       frame && metrics ? frame.ppd / (metrics.width / metrics.fov) : 1,

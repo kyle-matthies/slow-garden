@@ -867,3 +867,83 @@ Journey `copy-states`, both store modes and both sizes, with screenshots read by
 - The hosted token lifetime, and the hosted cost of the auth round trip.
 - `deletion-off`, the first run's build sizes, and tending end to end were not rerun.
 - Receipts are again only in the scratch directory; the numbers above are the record.
+
+## Drag budget after the meadow change: fixed
+
+Later on 2026-11-16, for item 2 of the re-verification (the 1280 drag missing ADR-007's
+20 ms). Production build of a scratch copy of `applications/web` (`npm run build`,
+exit 0), `accessibility/perf-check.mjs` run unmodified from that copy as section 5
+describes, alone on the machine, three cold runs before the fix and three after. The
+script needs no Supabase stack and none was started. Same container: 4 vCPU, no GPU,
+headless Chromium. No git.
+
+**Cause, checked in a trace.** The re-verification's reading was right, with one
+addition. A drag frame does no more script than the old loop did (animation-frame
+script p95 1.5 to 3.2 ms; the far layer and its strips stay cached). The cost is in
+Chromium's `Commit` step, 10 to 16 ms at p95 at full quality, where the canvases'
+drawing is carried to the compositor, and it falls as the grass is thinned and the
+canvas softened. `perf-check.mjs` means to exclude canvas rasterisation but the two
+event names it looks for do not occur in this Chromium (it reports 0 % in every row,
+in every run of this record), so the budget figure includes it. The old loop had
+reached the lowest quality before anyone touched the meadow; after D-030 the first
+drag started at full quality and needed about 12 s of dragging to get there.
+
+**Fix.** `src/lib/garden/scene/quality.ts` (new) and `scene/atmosphere.ts`:
+
+- A scene the person can turn settles its quality once, 300 ms after its first paint:
+  a burst of real frames judged in windows of eight by the same two signals as before
+  (drawing cost and frame interval). It only lowers quality, steps twice when far over
+  (half the display rate or worse), and stops at the first window that is not slow or
+  at the floor: nine frames on a device that keeps pace, at most 45 on one that
+  does not (three windows to reach the floor on this container, by the unit test's
+  arithmetic; not counted in the browser). The picture does not move during it. The backdrop behind
+  the writing page never does this.
+- Where it settles is remembered in `localStorage` (two numbers and the canvas area,
+  key `slow-garden:meadow-quality:v1`), so a later visit on the same device and a
+  similar screen starts there with no burst. Unreadable storage only means it settles
+  again.
+- While the camera moves it adapts as before, and now also steps twice when far over.
+- Nothing runs at rest: after the burst no frame is requested until the camera moves.
+- Tests: `quality.test.ts` (10) and five new cases in `atmosphere.test.ts`. The
+  earlier test for repainting after a resolution change still passes unchanged.
+
+**Measured.** p95 main-thread frame cost in ms, three cold runs each (a new browser
+context per row, so nothing is remembered):
+
+| Budget | Fixture | Before fix | After fix |
+|---|---|---|---|
+| ≤ 20 ms at 1280 | 100 thoughts | 17.1, 18.1, 17.8 | 10.4, 11.1, 9.3 |
+| ≤ 20 ms at 1280 | 1,000 thoughts | 19.5, 19.0, 17.9 | 12.5, 12.3, 11.7 |
+| ≤ 20 ms at 1280 | ring of 24 | 4.3, 3.7, 4.5 | 3.8, 3.9, 3.6 |
+| ≤ 33 ms at 390, 4x | 100 thoughts | 10.1, 10.2, 12.0 | 8.8, 13.3, 9.1 |
+| ≤ 33 ms at 390, 4x | 1,000 thoughts | 11.9, 10.0, 12.1 | 10.3, 10.9, 8.3 |
+| ≤ 33 ms at 390, 4x | ring of 24 | 16.1, 13.4, 18.2 | 16.0, 16.1, 16.2 |
+
+All six runs ended `PASS`; the "before" runs here passed with no margin where the
+re-verification's failed, which is the same result within its spread. Main thread
+while the meadow sits still (the script's 5 s window, which begins after the burst):
+1280 at 1x, 1.3 to 1.8 % before and 1.2 to 1.7 % after; 390 at 4x, 5.9 to 6.7 % before
+and 5.0 to 6.9 % after; reduced motion 0 to 0.2 %; ring 0.1 to 0.2 %.
+
+**One thing that got worse on this harness, left as it is.** With 1,000 thoughts at
+1280 the `requestAnimationFrame` interval is now a median 50 ms where the cold run
+before the fix showed 33 ms (100 thoughts: 33 ms both ways). Forcing levels showed
+why: half canvas resolution lowers main-thread cost (p95 14.1 against 16.4 ms at full
+resolution, same thinned grass) but this software compositor then delivers frames
+more slowly, presumably scaling the canvases up. The floor, half resolution included,
+is where the old loop also ended on this machine by the same rule; the difference is
+that it is now reached before the first drag. A GPU scales for free, so this says
+nothing certain about real hardware, but the governor does not check that a
+resolution step actually improved pacing, and it should if this harness is to be
+believed. Not changed here.
+
+**Not verified.** A machine with a GPU, a real phone, Safari. How the burst looks on a
+fast device (expected: nothing visible; one window, no change) and on a slow one (the
+grass thins once within the first second). The remembered level across real visits
+(unit-tested only). Whether 300 ms is late enough to miss hydration on a slow phone:
+at 4x throttle here it did not lower the phone numbers' margin, but a burst that
+judges a busy page slow starts the meadow thinner than it need be until a later drag
+restores it. Journeys, axe and growth were not rerun for this change.
+
+Checks from `applications/web`: `tsc --noEmit` clean, `eslint .` clean, `vitest run`
+51 files, 403 tests, pass.

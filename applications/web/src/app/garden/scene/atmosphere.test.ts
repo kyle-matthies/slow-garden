@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { paletteFor } from "@/lib/garden/scene/palette";
+import { FLOOR, QUALITY_KEY, remember } from "@/lib/garden/scene/quality";
 import { GardenAtmosphere } from "./atmosphere";
 
 /**
@@ -35,7 +36,7 @@ function canvas() {
   return element;
 }
 
-function build() {
+function build(settle = false) {
   let theta = 0;
   const far = canvas();
   const back = canvas();
@@ -46,12 +47,14 @@ function build() {
     horizon: 0.42,
     fov: 88,
     getTheta: () => theta,
+    settle,
   });
   atmosphere.resize(390, 844);
   return { atmosphere, far, turn: (to: number) => (theta = to) };
 }
 
 beforeEach(() => {
+  window.localStorage.clear();
   frames = [];
   clears = vi.fn();
   vi.stubGlobal("Path2D", class { moveTo = noop; lineTo = noop; quadraticCurveTo = noop; bezierCurveTo = noop; closePath = noop; arc = noop; ellipse = noop; });
@@ -68,6 +71,7 @@ beforeEach(() => {
   }) as typeof document.createElement);
 });
 afterEach(() => {
+  vi.useRealTimers();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
@@ -124,5 +128,82 @@ describe("the resting atmosphere", () => {
     }
     expect(resizedAt).toBeGreaterThan(0);
     expect(frames.filter((f) => f !== noop).length).toBe(resizedAt);
+  });
+});
+
+describe("settling quality before the first touch", () => {
+  const live = () => frames.filter((f) => f !== noop).length;
+  /** Run the burst at a steady frame interval until it asks for no more frames. */
+  function burst(interval: number) {
+    let now = 5000;
+    let ran = 0;
+    while (ran < frames.length && ran < 500) frames[ran++]((now += interval));
+    return ran;
+  }
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  });
+
+  it("a scene nobody turns schedules nothing at all", () => {
+    build(false);
+    vi.advanceTimersByTime(5000);
+    expect(frames).toHaveLength(0);
+  });
+
+  it("waits for the page to arrive, judges one short window, and rests at full quality on a device that keeps pace", () => {
+    const { far } = build(true);
+    expect(frames).toHaveLength(0);
+    vi.advanceTimersByTime(299);
+    expect(frames).toHaveLength(0);
+    vi.advanceTimersByTime(1);
+    expect(frames).toHaveLength(1);
+    const width = far.width;
+    // Eight intervals need nine frames; then nothing more is requested.
+    expect(burst(16.7)).toBe(9);
+    expect(live()).toBe(9);
+    expect(far.width).toBe(width);
+    expect(JSON.parse(window.localStorage.getItem(QUALITY_KEY)!)).toMatchObject({ q: 1, r: 1 });
+  });
+
+  it("goes straight to the floor on a device that never keeps pace, in about a second of frames, and paints the result", () => {
+    const { far } = build(true);
+    const width = far.width;
+    vi.advanceTimersByTime(300);
+    clears.mockClear();
+    const ran = burst(33.4);
+    expect(ran).toBeLessThanOrEqual(30);
+    expect(far.width).toBe(Math.round(width * FLOOR.resolution));
+    expect(JSON.parse(window.localStorage.getItem(QUALITY_KEY)!)).toMatchObject({ q: FLOOR.quality, r: FLOOR.resolution });
+    // Resting again: no frame is pending, and the last choice was painted.
+    expect(frames).toHaveLength(ran);
+    expect(clears.mock.calls.length).toBeGreaterThan(ran * 2);
+  });
+
+  it("starts where this device settled last time, without a burst", () => {
+    const ideal = Math.min(window.devicePixelRatio || 1, 2);
+    remember(window.localStorage, FLOOR, 390 * 844 * ideal * ideal);
+    const settled = build(true);
+    const fresh = (window.localStorage.clear(), build(false));
+    expect(settled.far.width).toBe(Math.round(fresh.far.width * FLOOR.resolution));
+    vi.advanceTimersByTime(5000);
+    expect(frames).toHaveLength(0);
+  });
+
+  it("a camera move during the burst shares its frames, and destroying the scene ends it", () => {
+    const { atmosphere, turn } = build(true);
+    vi.advanceTimersByTime(300);
+    turn(3);
+    atmosphere.redraw();
+    expect(frames).toHaveLength(1);
+    frames[0](5016);
+    expect(frames).toHaveLength(2);
+    atmosphere.destroy();
+    frames[1](5033);
+    expect(frames).toHaveLength(2);
+
+    const late = build(true);
+    late.atmosphere.destroy();
+    vi.advanceTimersByTime(5000);
+    expect(frames).toHaveLength(2);
   });
 });

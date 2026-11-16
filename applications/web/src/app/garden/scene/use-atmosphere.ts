@@ -22,6 +22,7 @@ export function useAtmosphere({
   height,
   zoom,
   thetaScale = 1,
+  settle = false,
 }: {
   far: React.RefObject<HTMLCanvasElement | null>;
   back: React.RefObject<HTMLCanvasElement | null>;
@@ -37,6 +38,8 @@ export function useAtmosphere({
   zoom?: MotionValue<number>;
   /** Grass degrees per camera degree, so grass and beds travel together. */
   thetaScale?: number;
+  /** The person can turn this scene, so it settles its quality after first paint. */
+  settle?: boolean;
 }) {
   const engine = useRef<GardenAtmosphere | null>(null);
   const scale = useRef(thetaScale);
@@ -55,6 +58,7 @@ export function useAtmosphere({
       fov,
       getTheta: () => theta.get() * scale.current,
       getZoom: () => zoom?.get() ?? 1,
+      settle,
     });
     engine.current = atmosphere;
     atmosphere.resize(width, height);
