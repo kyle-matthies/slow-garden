@@ -36,7 +36,11 @@
 --    deletion; compatible with key-share. (create_seed takes no thought lock.)
 -- 4. Archiving or restoring a thought or an entry now takes the account's row
 --    first (a statement trigger, before any row is locked), the first lock of
---    every deletion. They used to take the thought and then pass inputs while a
+--    every deletion. A change to a topic's tending, cross-connection or archive
+--    state takes the account's row and then its pass inputs before the topic, so
+--    a change queued behind the worker no longer holds the topic against saves.
+--    Deletion (private.erase_derived) takes every pass input of the tenant, in
+--    id order, before it touches any. They used to take the thought and then pass inputs while a
 --    deletion held pass inputs and reached for others, and deadlocked under load.
 --    Lock order: accounts, the allowlist row, gardens, topics, thoughts, entries,
 --    pass inputs (in id order), passes, the cycle row, the month.
@@ -48,7 +52,9 @@
 -- Reversal (as the operator, runtime disabled, queues drained):
 --   drop trigger seeds_account_first on public.seeds;
 --   drop trigger entries_account_first on public.entries;
---   drop function private.lock_account_first();
+--   drop trigger plots_account_first on public.plots;
+--   drop function private.lock_account_first(), private.lock_account_and_inputs_first();
+--   re-create private.erase_derived from 20261116010931_in_app_deletion.sql;
 --   drop trigger passes_lock_inputs_first on public.garden_passes;
 --   create trigger passes_lock_inputs_first before update on public.garden_passes
 --     for each statement execute function private.lock_own_pass_inputs();
@@ -58,6 +64,8 @@
 --     (only with private.bloom_cycles empty: its key changes back below);
 --   drop function private.pass_cycle(uuid), private.garden_cycle_near(uuid,timestamptz,uuid[]);
 --   alter table private.nightly_skips drop constraint nightly_skips_garden_fkey;
+--   drop index private.nightly_skips_garden_idx;
+--   drop index private.pass_inputs_cycle_idx;   (goes with the column below; listed for completeness)
 --   alter table private.pass_inputs drop column cycle_id;
 --   alter table private.bloom_cycles drop constraint bloom_cycles_pkey, drop column id, drop column started_at,
 --     add primary key(garden_id,cycle_date);
@@ -73,12 +81,24 @@ alter table private.bloom_cycles drop constraint bloom_cycles_pkey;
 alter table private.bloom_cycles
   add column id bigint generated always as identity,
   add column started_at timestamptz;
-update private.bloom_cycles set started_at=cycle_date::timestamp at time zone 'UTC' where started_at is null;
+-- Cycles recorded before this migration (by date) get the moment they really
+-- started: when the latest nightly pass of that garden and date was created.
+-- Where no such pass is left, the latest moment that date can have been
+-- anywhere on earth, or now if that is still ahead: late rather than early, so
+-- the garden is not started again too soon. Their passes are linked to them.
+update private.bloom_cycles c set started_at=coalesce(
+  (select max(gp.created_at) from public.garden_passes gp join private.pass_inputs i on i.pass_id=gp.id
+     where gp.garden_id=c.garden_id and gp.trigger='nightly' and i.cycle_date=c.cycle_date),
+  least(now(),(c.cycle_date+1)::timestamp at time zone 'UTC'+interval '12 hours'))
+  where started_at is null;
 alter table private.bloom_cycles alter column started_at set not null;
 alter table private.bloom_cycles add primary key(id);
 create index bloom_cycles_garden_idx on private.bloom_cycles(garden_id,started_at);
 alter table private.pass_inputs add column cycle_id bigint references private.bloom_cycles(id) on delete set null;
 create index pass_inputs_cycle_idx on private.pass_inputs(cycle_id);
+update private.pass_inputs i set cycle_id=c.id
+  from public.garden_passes gp, private.bloom_cycles c
+  where gp.id=i.pass_id and gp.trigger='nightly' and i.cycle_id is null and c.garden_id=gp.garden_id and c.cycle_date=i.cycle_date;
 
 -- The garden's cycle within twenty hours of a moment, either side, or null.
 -- Also not null (0) while the garden has a nightly pass from before cycles
@@ -427,7 +447,10 @@ grant execute on function public.import_thought(uuid,uuid,text,jsonb) to authent
 create function private.lock_account_first() returns trigger language plpgsql security definer set search_path='' as $$
 begin
   if auth.uid() is not null then
-    perform 1 from public.accounts where id=auth.uid() for update;
+    -- NO KEY UPDATE: waits for, and is waited for by, pass preparation and
+    -- deletion (which take the row FOR UPDATE), but does not hold up a statement
+    -- that only references the account, such as creating a garden.
+    perform 1 from public.accounts where id=auth.uid() for no key update;
   end if;
   return null;
 end $$;
@@ -436,6 +459,64 @@ create trigger seeds_account_first before update of status,archived_at on public
   for each statement when (current_user='authenticated') execute function private.lock_account_first();
 create trigger entries_account_first before update of archived_at on public.entries
   for each statement when (current_user='authenticated') execute function private.lock_account_first();
+
+-- A person changing a topic's tending, cross-connection or archive state used to
+-- take the topic row and then wait for pass inputs (private.invalidate_plot_passes),
+-- so with the worker's ingestion in progress the queued change held the topic and
+-- every save and import into it waited behind the worker. The change now takes
+-- the account's row and then the inputs of every pass it could invalidate, in id
+-- order, before the statement touches the topic: while it waits it holds nothing
+-- a save needs. The account's row first keeps it in order with deletions, which
+-- take the topic before pass inputs.
+create function private.lock_account_and_inputs_first() returns trigger language plpgsql security definer set search_path='' as $$
+begin
+  if auth.uid() is not null then
+    perform 1 from public.accounts where id=auth.uid() for no key update;
+    perform private.lock_pass_inputs(array(select id from public.garden_passes
+      where tenant_id=auth.uid() and status in('queued','processing','complete')));
+  end if;
+  return null;
+end $$;
+revoke all on function private.lock_account_and_inputs_first() from public,anon,authenticated;
+create trigger plots_account_first before update of ai_enabled,cross_pollinate,archived_at on public.plots
+  for each statement when (current_user='authenticated') execute function private.lock_account_and_inputs_first();
+
+-- Deletion takes every pass input of the tenant up front. Body otherwise as in
+-- 20261116010931_in_app_deletion.sql.
+create or replace function private.erase_derived(p_tenant uuid,p_seed_ids uuid[],p_entry_ids uuid[],p_index_seed_ids uuid[]) returns void
+language plpgsql security definer set search_path='' as $$
+declare affected uuid[]; gone_labels text[];
+begin
+  -- Every pass input of the tenant, in id order, before anything else here. The
+  -- last statement below rewrites the orientation index of passes outside
+  -- `affected`; taking only `affected` first and reaching for the rest later
+  -- deadlocked with a cancel or an allowlist removal that took them in between.
+  perform private.lock_pass_inputs(array(select gp.id from public.garden_passes gp where gp.tenant_id=p_tenant));
+  affected:=private.derived_passes(p_tenant,p_seed_ids,p_entry_ids,p_index_seed_ids);
+  select coalesce(array_agg(lower(label)) filter(where label<>''),'{}') into gone_labels
+    from public.tending_marks where pass_id=any(affected) or (tenant_id=p_tenant and seed_id=any(p_seed_ids));
+  -- Withdraw first: the existing cleanup trigger then queues the provider batch
+  -- and files for cancellation and deletion, and a cancelled pass can no longer
+  -- publish (check_garden_pass) whatever the provider returns.
+  update public.garden_passes set status=case when status='complete' then 'withdrawn' else 'cancelled' end,finished_at=now()
+    where id=any(affected) and status in('queued','processing','complete');
+  update private.pass_inputs set snapshot='[]',corrections='[]',context='{}' where pass_id=any(affected);
+  delete from public.blooms where pass_id=any(affected);
+  delete from public.tending_marks where pass_id=any(affected);
+  -- What remains are finished passes whose orientation index names the
+  -- thoughts or carries labels that are now gone. They keep their returns; the
+  -- index loses those thoughts, and those labels wherever they appear.
+  update private.pass_inputs i set
+    context=jsonb_set(i.context,'{index}',(select coalesce(jsonb_agg(
+        case when jsonb_typeof(x->'labels')='array' then jsonb_set(x,'{labels}',
+          (select coalesce(jsonb_agg(l),'[]') from jsonb_array_elements(x->'labels') l where (lower(l#>>'{}')=any(gone_labels)) is not true))
+        else x end),'[]')
+      from jsonb_array_elements(i.context->'index') x where (x->>'seed_id'=any(p_index_seed_ids::text[])) is not true))
+    from public.garden_passes gp
+    where gp.id=i.pass_id and gp.tenant_id=p_tenant and not (i.pass_id=any(affected))
+      and jsonb_typeof(i.context->'index')='array';
+end $$;
+revoke all on function private.erase_derived(uuid,uuid[],uuid[],uuid[]) from public,anon,authenticated;
 
 -- ---------------------------------------------------------------------------
 -- 5. The nightly procedure: COMMIT first, no guessing.

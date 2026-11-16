@@ -383,13 +383,94 @@ engineer's); the Edge Function; a load test on the newer image.
 
 - **Zero-share passes still cost provider money** (9.3).
 - **Archive and restore now wait for that account's pass preparation or deletion in
-  progress.** Milliseconds, and it is what removes the deadlock, but it is a new wait
-  on a person's action. Saving, renaming, moving and importing do not take that lock.
+  progress, for as long as it lasts** (corrected in 9.7: an earlier version of this
+  line said "milliseconds"). It is what removes the deadlock, but it is a new wait on
+  a person's action. Saving, renaming, moving and importing do not take that lock.
 - **A zone hop that lands a garden's next 02:00 less than twenty hours after its last
   night skips that night.** Smaller, never larger.
 - **The twenty-hour rule is per garden**, so one account's gardens can be tended in
   different hours after a zone change; each still gets at most three.
 - **Invited passes** remain outside the nightly budget (section 2).
-- `private.erase_derived` (first deletion migration) still updates pass inputs outside
-  the set it locked first. With archive and restore now queued behind deletions this
-  no longer deadlocked under the load above; it was not rewritten.
+- `private.erase_derived` updated pass inputs outside the set it locked first. A wider
+  load than mine showed it still deadlocked against a cancel and an allowlist removal;
+  it is rewritten in 9.7.
+
+### 9.7 Amendments after the review of the seventh migration
+
+The seventh migration was reviewed before merge (safe to apply at defaults, with
+findings) and amended in place; no eighth migration, no merged file touched.
+
+| # | Finding | Done | Test, seen failing first |
+|---|---|---|---|
+| 1 | Deletion still deadlocked against a person's cancel and an allowlist removal: `erase_derived` locked some pass inputs, then reached for others | `erase_derived` is redefined to lock every pass input of the tenant, in id order, before touching any. Against the lock order: it runs after the account, garden, topic and thought locks every deletion already holds, and every other path takes pass inputs in id order too | `tending_cycle_fixes_concurrency.sql` case 2b. Before: "deadlock detected" on the cancel |
+| 2 | With ingestion uncommitted and a person's topic change queued behind it, saves and imports into that topic hit a lock timeout (the queued change held the topic) | A statement trigger on a topic's tending, cross-connection and archive columns takes the account's row and then the pass inputs the change could invalidate, before the statement touches the topic. While it waits it holds nothing a save needs | Case 2c. Before: 300 ms lock timeout. After: save 3 ms, import 3 ms |
+| 3 | The backfill gave a legacy cycle UTC midnight as its start, so a deleted legacy pass let a tick twelve hours later reopen the night | The backfill uses the real creation time of the latest nightly pass of that garden and date, links those passes to the cycle, and where no pass is left uses the latest moment that date can have been (never the future) | New `scripts/test-upgrade-tending-cycles.sh`: passes with the amended file, fails ("cycle did not keep the moment its pass was created") with the committed one |
+| 4 | The documented reversal left `nightly_skips_garden_idx` behind | Reversal corrected in the migration header and in ACTIVATION_PREREQUISITES §9, with the other objects this amendment added | n/a |
+| 5 | Waits described as "milliseconds" | Corrected below and in the runbook | measured |
+
+Case 1 of the concurrency file changed with finding 2: a topic change now takes the
+account's row first, so against an archive in flight it queues instead of running
+alongside. The test asserts both complete, without a deadlock, and that the queued
+change holds neither the topic nor a pass input while it waits.
+
+**What waits for what now, stated plainly.**
+
+- Archiving or restoring a thought or an entry, and changing a topic's tending,
+  cross-connection or archive state, take the account's row. They wait for the whole
+  time another holder has it: a pass being prepared, a nightly enqueue for that
+  account, a deletion, or another such change. Measured here: an archive behind a
+  holder that kept the row for 4 s took 3.4 s (it started half a second in); the
+  reviewer measured 5.4 s behind a 6 s holder.
+- A topic change also waits for that account's ingestion in progress, holding the
+  account's row meanwhile, so an archive, an invitation or a deletion queues behind it.
+- Creating a garden waits behind pass preparation and deletion, as it did before this
+  work (they hold the row FOR UPDATE). It does not wait behind an archive or a topic
+  change (they take NO KEY UPDATE): 102 ms against an archive's lock held for 4 s,
+  3.6 s against a FOR UPDATE holder.
+- Saving, renaming, moving and importing take none of these: 91 ms and 76 ms end to
+  end behind a 4 s holder (about 80 ms of that is starting the client).
+- **The longest holders of an account's row measured in normal operation**, alone, on
+  production-shaped synthetic data: nightly enqueue for one account 105 ms; deleting
+  a whole garden 113 ms; deleting a topic of twenty thoughts 34 ms; inviting a
+  reflection 21 ms; deleting an entry or a thought 8 ms. So the real-world wait for
+  an archive is of that order, not seconds, unless something holds the row abnormally
+  long. Under the mixed load below these operations averaged 30 to 220 ms.
+- **A failed night closes the garden for twenty hours.** The cycle opens when the
+  night's passes are created; if they fail or are cancelled the garden is not tended
+  again until twenty hours on.
+- **Moving east can bring nights closer.** After a time-zone change a garden can be
+  tended again as soon as twenty hours after its last night: a new cycle each time,
+  still at most three blooms per cycle.
+
+**The reviewer's extended mix** (adds random entry deletes, cancel-all, topic, garden
+and entry archive, import, new thoughts, all-topic toggles; 24 clients, 120 s,
+Postgres 17.6). Two of its scripts stopped a client on an "archived" refusal, so in
+the first runs all 24 clients had stopped before the end (19 of 24 in the "before"
+run); those runs are not counted. With the two scripts made to tolerate that refusal
+and no client stopping:
+
+| Run | Deadlocks (40P01) in 120 s | Transactions | Save latency, ms: p50 / p95 / p99 / max |
+|---|---:|---:|---|
+| Before (seventh as committed), 1 | 3 (cancel 2, allowlist 1) | 15,574 | 1.6 / 3.8 / 10.4 / 69.7 |
+| Before, 2 | 2 (cancel 1, delete 1) | 15,523 | 1.5 / 3.1 / 5.2 / 21.4 |
+| After (amended), 1 | 0 | 17,817 | 1.5 / 3.9 / 8.3 / 28.8 |
+| After, 2 | 0 | 17,645 | 1.6 / 5.8 / 9.3 / 46.4 |
+| After, 3 | 0 | 18,097 | 1.6 / 6.4 / 11.8 / 67.8 |
+
+**Runs after the amendment.**
+
+| Command | Image | Result |
+|---|---|---|
+| CI's exact steps from a stopped stack, twice | Postgres 17.6 | 14 migrations; lint clean; 16 files, **977 tests, PASS**, both times |
+| The same with CLI 3.1.0 | Postgres 17.11 | 977 tests, PASS; lint clean |
+| Generated types against `database.ts` | 17.6 | identical (so `tsc` was not rerun) |
+| `scripts/test-upgrade.sh`, `test-upgrade-browser-path-rules.sh`, `test-upgrade-tending-cycles.sh` | 17.6 | all exit 0 |
+| Runtime tests, dry-run canary, tests/evaluation | n/a | 93/93, 24/24, 29/29 |
+| `scripts/hosted-canary.sql`, `scripts/hosted-nightly-canary.sql` locally | 17.6 | both passed |
+
+Not fixed: the waits above are by design; a deletion now locks every pass input of
+the account for its duration (the worker's claim skips locked inputs; an ingestion
+already under way waits for the deletion to finish); zero-share passes (9.3). Not executed: anything hosted; the web suites; a
+load test on the newer image. For the fail-first run of the upgrade script the
+repository's seventh migration file was swapped for the committed version and then
+restored (verified identical to the amended file).

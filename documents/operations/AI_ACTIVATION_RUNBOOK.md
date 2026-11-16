@@ -409,9 +409,25 @@ and effort they were frozen with.
   bloom.** The night's three are shared 1, 1, 1 among the first three scopes (most new
   writing first); every further scope is still sent to the provider for its marks and
   has its blooms withheld. Not redesigned here; noted for D-028.
-- **Archiving or restoring a thought or an entry now waits for that account's pass
-  preparation or deletion in progress** (milliseconds; it takes the account's row
-  first, as deletions do). Saving, renaming and moving do not.
+- **Archiving or restoring a thought or an entry, and changing a topic's tending,
+  cross-connection or archive state, wait for the whole time another holder has that
+  account's row**: a pass being prepared, a nightly enqueue for the account, a
+  deletion, or another such change. Not a fixed few milliseconds: measured, an archive
+  behind a 4 s holder took 3.4 s (the reviewer measured 5.4 s behind 6 s). The longest
+  holders measured in normal operation on production-shaped synthetic data were a
+  nightly enqueue for one account (105 ms) and deleting a whole garden (113 ms);
+  inviting a reflection held it 21 ms, deleting an entry or a thought 8 ms, a topic
+  34 ms. A topic change also waits for that account's ingestion in progress, and
+  holds the account's row while it does. Creating a garden waits behind pass
+  preparation and deletion too (as it did before this work), though not behind an
+  archive. Saving, renaming, moving and importing take none of these locks: a save
+  behind a held ingestion with a topic change queued took 3 ms.
+- **A failed night closes the garden for twenty hours.** The cycle opens when the
+  night's passes are created; if they then fail or are cancelled, that garden is not
+  tended again until twenty hours later.
+- **Moving east can bring nights closer together.** After a time-zone change a garden
+  can be tended again as soon as twenty hours after its last night (a new cycle each
+  time; still at most three blooms per cycle), not only after twenty-four.
 - **The three-bloom cap is per garden per night for nightly passes only.** An invited
   reflection is its own cycle of up to three; a person who invites one for each of
   several topics in a day can see more than three new blooms in that garden that day.

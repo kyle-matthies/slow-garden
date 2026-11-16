@@ -239,7 +239,9 @@ empty or expendable: its key changes back, and passes lose their link to a cycle
 ```sql
 drop trigger seeds_account_first on public.seeds;
 drop trigger entries_account_first on public.entries;
-drop function private.lock_account_first();
+drop trigger plots_account_first on public.plots;
+drop function private.lock_account_first(), private.lock_account_and_inputs_first();
+-- re-create private.erase_derived from 20261116010931_in_app_deletion.sql
 drop trigger passes_lock_inputs_first on public.garden_passes;
 create trigger passes_lock_inputs_first before update on public.garden_passes
   for each statement execute function private.lock_own_pass_inputs();
@@ -250,7 +252,8 @@ create trigger passes_lock_inputs_first before update on public.garden_passes
 drop function private.pass_cycle(uuid), private.garden_cycle_near(uuid,timestamptz,uuid[]);
 alter table private.nightly_skips drop constraint nightly_skips_garden_fkey;
 drop index private.nightly_skips_garden_idx;
-alter table private.pass_inputs drop column cycle_id;
+drop index private.bloom_cycles_garden_idx;
+alter table private.pass_inputs drop column cycle_id;   -- its index pass_inputs_cycle_idx goes with it
 delete from private.bloom_cycles a using private.bloom_cycles b
   where a.garden_id=b.garden_id and a.cycle_date=b.cycle_date and a.id<b.id;   -- the old key allows one row per garden and date
 alter table private.bloom_cycles drop constraint bloom_cycles_pkey, drop column id, drop column started_at,
@@ -258,8 +261,8 @@ alter table private.bloom_cycles drop constraint bloom_cycles_pkey, drop column 
 ```
 
 Effect: a time-zone change across the date line can again reopen a garden's night;
-a save can again wait behind the worker; the archive and topic-change deadlocks
-return. Do not run nightly tending without it.
+a save can again wait behind the worker or behind a queued topic change; the archive,
+topic-change and deletion-against-cancel deadlocks return. Do not run nightly tending without it.
 
 **6. `20261116061751_tending_followups`**
 
