@@ -121,3 +121,31 @@ it("arriving with Pages remembered keeps a topic or thought that no longer exist
   open(`?topic=${FIXTURE.plots[0].id}`);
   expect(window.location.search).toBe(`?topic=${FIXTURE.plots[0].id}&garden=${FIXTURE.gardenId}&view=list`);
 });
+
+it("Returns, after a pass that finished with nothing to say and with tending inactive: tended before, never 'no AI has read'", () => {
+  // The loader dates "last tended" from blooms and marks; a pass that returned
+  // neither is known only from the pass record.
+  const quiet: GardenData = {
+    ...FIXTURE,
+    aiAvailable: false,
+    tending: { marks: [], themes: [], blooms: [] },
+    tendingHistory: {
+      available: true,
+      passes: [
+        { id: "p2", status: "failed", createdAt: "2026-11-04T02:00:00Z", finishedAt: "2026-11-04T02:01:00Z" },
+        { id: "p1", status: "complete", createdAt: "2026-11-03T02:00:00Z", finishedAt: "2026-11-03T02:05:00Z" },
+      ],
+    },
+  };
+  open("?view=returns", quiet);
+  const text = document.querySelector(".returns-page")!.textContent ?? "";
+  expect(text).toContain("Last tended");
+  expect(text).toContain("Tending is not active now.");
+  expect(text).toContain("No bloom is showing. Earlier tending passes are in the full record below.");
+  expect(text).not.toContain("no AI has read");
+  expect(document.querySelector(".returns-tended time")?.getAttribute("datetime")).toBe("2026-11-03T02:05:00Z");
+  cleanup();
+  // No finished pass on record: the never-tended wording stays, and is true.
+  open("?view=returns", { ...quiet, tendingHistory: { available: true, passes: [quiet.tendingHistory!.passes[0]] } });
+  expect(document.querySelector(".returns-page")!.textContent).toContain("so no AI has read your writing");
+});

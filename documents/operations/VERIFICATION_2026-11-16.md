@@ -643,3 +643,227 @@ Two durable choices were made here and belong in `documents/DECISION_LOG.md`: th
 server confirms the session with the auth server on every garden request; and the
 resting scene is painted once and animated only by the compositor, which narrows
 ADR-007's "canvas atmosphere layer for grass, wind, pollen" to grass and hills.
+
+## Re-verification
+
+- When: 2026-11-16, 09:33 to 10:28 UTC, after the "Follow-ups fixed" changes, D-029,
+  D-030 and migration `20261116080454_tending_lock_and_cycle_fixes.sql`.
+- Same rules and environment as the first run (Node v22.23.4, Next 16.4.3, Supabase CLI
+  3.1.0, `supabase/postgres:17.11.0.018`, Chromium 153.0.8010.12 headless, 4 vCPU, no
+  GPU). Nothing hosted, no git, the dev server on :3147 and the `slow-garden` database
+  container untouched.
+- Stack: `slow-garden-qa` rebuilt from scratch from the current `supabase/` (ports
+  5662x, same five rate-limit changes and `deletion_enabled = true` as before). All
+  **fourteen** migrations applied, the seven dated 20261116 among them. Stopped with
+  `--no-backup` at the end; no container or volume of it remains.
+- Builds: fresh copies of `applications/web`, built twice (server store on :3148,
+  browser store on :3162), exit 0, no warnings; rebuilt once more after the app fix in
+  item 4. Every result below is from the final builds unless it says otherwise.
+
+| Item | Result |
+|---|---|
+| 1. Cookie replay after "Sign out on all devices", server store | **pass**: refused on page load, server action, export and history. The data API still honours the copied token (read and write) for the rest of its 3600 s |
+| 2. `perf-check.mjs` | **fail at 1280**: the 1,000-thought drag missed 20 ms in 3 of 4 runs (19.5 to 21.4 ms); phone budgets met with wide margin; the resting meadow now idles |
+| 3. Journeys, HTTP check, axe, growth | **pass** in every configuration |
+| 4. Returns and stale-location copy | stale location **reads true**; Returns was **still wrong for a pass that returned nothing**, fixed here |
+| 5. pgTAP and upgrade scripts | **pass**: 977 tests in 16 files; the three upgrade scripts pass, run against a renamed scratch stack (see the item) |
+
+### 1. Copied cookies after "Sign out on all devices"
+
+`scripts/test-web-journeys.mjs`, journey `sign-out`; the replay is now asserted instead
+of noted. Server store, both sizes:
+
+    ok   server store: a captured server action replays while signed in (200), then is undone
+    ok   sign out on all devices: the copied refresh token and access token are refused by the auth service
+    ok   copied cookies after sign out everywhere, server store: 3 garden pages show sign-in at /login; the replayed server action (200) changed nothing; export 401, export Markdown 401, history 401
+    note data API with the copied access token after sign out everywhere: read answered 1 row(s); write accepted (undone); token lifetime 3600 s, 3597 s left at sign-out
+
+- The cookie jar is copied while signed in, the account signs out on all devices in
+  its own browser, and the copy is replayed in a fresh browser context.
+- **Page load:** the garden in Pages, a thought page and the import page each land on
+  `/login` with the sign-in form and none of the account's writing in the response.
+- **Server action:** one real action (archive an entry) is captured from the page and
+  replayed with the same headers and body. Replayed while still signed in it archives
+  the entry (the control, then undone). Replayed with the copied cookies after the
+  sign-out the HTTP answer is still 200, as server actions answer, and the entry is
+  not archived (read back with the service role 1.5 s later).
+- **Routes:** `/garden/export`, `/garden/export?format=md&garden=…` and
+  `/garden/history?entry=…` answer 401.
+- **What still works, and for how long.** The copied access token sent straight to the
+  data API (PostgREST, publishable key) still read the account's revision and still
+  renamed a topic (put back by the script). That holds until the token's `exp`: the
+  local lifetime is 3600 s (`jwt_expiry`), and 3597 to 3599 s of it were left at the
+  moment of sign-out because the token had just been issued, so the worst case is the
+  whole hour. The refresh token is refused, so it cannot be extended. The hosted
+  lifetime was not read.
+- **Browser store:** unchanged and as D-029 says. The replayed cookies still opened
+  the garden (`note browser store, copied cookies replayed … the garden was still shown`).
+  The settings sentence for each store mode is asserted and matches what was observed.
+
+### 2. Performance against ADR-007 after the meadow change
+
+`perf-check.mjs` as before (production build served by the script, 1280x800 at 1x with a
+mouse, 390x844 at 4x CPU throttle with touch, 10 s drag), alone on the machine. Four
+runs: server build three times, browser build once. p95 main-thread frame cost in ms;
+"before" is the range of the three runs in section 5.
+
+| Budget | Fixture | Before | server 1 | server 2 | server 3 | browser | Verdict |
+|---|---|---|---|---|---|---|---|
+| ≤ 20 ms at 1280 | 100 thoughts | 9.6 to 11.1 | **20.1** | 18.3 | 18.9 | 18.0 | missed once, no margin |
+| ≤ 20 ms at 1280 | 1,000 thoughts | 11.8 to 15.2 | **21.4** | **21.2** | 19.5 | **20.6** | **missed in 3 of 4** |
+| ≤ 20 ms at 1280 | ring of 24 | 4.1 | 4.0 | 3.9 | 4.4 | 4.4 | met |
+| ≤ 33 ms at 390, 4x | 100 thoughts | 26.2 to 28.8 | 11.7 | 10.5 | 11.2 | 10.3 | met |
+| ≤ 33 ms at 390, 4x | 1,000 thoughts | 27.7 to 30.1 | 10.2 | 12.4 | 10.5 | 11.9 | met, 20 ms spare |
+| ≤ 33 ms at 390, 4x | ring of 24 | 15.5 to 17.1 | 14.0 | 17.3 | 17.1 | 17.1 | met |
+| images ≤ 350 KB on phone | all | 0 KB | 0 KB | 0 KB | 0 KB | 0 KB | met |
+
+Script verdicts: `FAIL (2)`, `FAIL (1)`, `PASS`, `FAIL (1)`.
+
+Main thread while the meadow sits still, production build (the script's 5 s window):
+
+| Profile | Before | After (four runs) | Reduced motion |
+|---|---|---|---|
+| 1280, 1x, 100 / 1,000 thoughts | 14.3 to 18.1 % | 1.4 to 1.8 % | 0 % |
+| 390, 4x, 100 / 1,000 thoughts | 85.2 to 95.9 % | 5.6 to 7.7 % | 0.1 to 0.2 % |
+| ring of 24, either profile | 0.1 to 0.3 % | 0.1 to 0.4 % | 0 to 0.1 % |
+
+So D-030 did what it set out to do: the resting meadow costs about a twelfth of what it
+did on both profiles, the phone drag is less than half its former cost (median 5.9 to
+7.3 ms, was 14 to 15), and long tasks on the phone meadow went from 5 to 10 per drag to
+none. Worst single frame at 390: 19 to 36 ms (was 62 to 92).
+
+**The 1280 drag got slower, and why.** Median frame cost is unchanged (7.2 to 10.5 ms,
+was 6.0 to 8.3), but the p95 rose by 6 to 9 ms. `scene/atmosphere.ts` thins the grass
+and lowers canvas resolution when drawing or frame pacing is slow (`adapt()`), one step
+per 60 drawn frames. While the old loop drew every frame at rest, that had already
+happened before anyone touched the meadow. Now nothing draws at rest, so the first drag
+starts at full quality and steps down only while the camera moves. Checked with a
+scratch copy of the script that drags for 12 s before it starts measuring (1280 only,
+two runs each, same build):
+
+| Fixture | no warm-up | after a 12 s warm-up drag |
+|---|---|---|
+| 100 thoughts | 17.2, 16.6 | 11.3, 11.6 |
+| 1,000 thoughts | 18.3, 20.3 | 14.0, 11.7 |
+
+With the warm-up the old numbers come back. So the cost is the first seconds of the
+first drag on a machine that needs the lower quality; on this GPU-less container that
+is every load. Not fixed here: the remedy is a choice about the scene (decide sooner
+than 60 frames, time the one resting paint and start lower, or remember the quality
+reached), each of which changes how the meadow looks on first touch, and none was
+small and certain. As it stands the ADR-007 desktop budget is **not met** on this
+harness, and D-030's "drag budgets not re-measured" is now measured. What a desktop
+with a GPU does is still unknown.
+
+### 3. Journeys, HTTP check, axe and growth
+
+`test-web-journeys.mjs`, same four commands as section 3, final builds:
+
+| Configuration | Result |
+|---|---|
+| server store · 1440x900 | 15 passed, 0 failed, 2 not applicable |
+| server store · iPhone 14 metrics (390x664, Chromium) | 15 passed, 0 failed, 2 not applicable |
+| browser store · 1440x900 | 15 passed, 0 failed, 2 not applicable |
+| browser store · iPhone 14 metrics | 15 passed, 0 failed, 2 not applicable |
+
+The fifteenth journey is the new `copy-states` (item 4). Two-account isolation: the same
+lines as section 4 in all four (19 reads, 28 writes and deletions, 10 addresses, one
+tab), still with no cross-account read or write. Deletion including the re-sign-in
+step: pass in all four. `deletion-off` was not rerun.
+
+- `test-local-http.mjs`: both `PASS` lines on the server build and on the browser build.
+- `axe-check.mjs` against `next start` with fixtures: `PASS` on both builds, 248 state
+  runs each with 0 findings of any severity, 186 touch-viewport runs, 174 contrast rows
+  all AA, `SKIP cabinet` (7 min 44 s and 7 min 46 s). The moderate finding seen once in
+  the first run did not recur.
+- `growth-check.mjs`: `{"ok":true,"profiles":8}` on both builds.
+- `npm test`: 50 files, 388 tests, pass. `eslint .` and `tsc --noEmit`: clean.
+
+**The added auth round trip.** A signed-in request with the same cookies, sent in turn
+to the first run's server build ("before", `getClaims`) and to this one ("after",
+`getUser`), both against this stack, 60 timed requests each after 10 warm-ups, whole
+response read:
+
+| Request | Before, median (p95) | After, median (p95) | Difference |
+|---|---|---|---|
+| garden page, Pages (`/garden?garden=…&view=list`) | 27.1 ms (40.5) | 30.0 ms (45.8) | +2.9 ms |
+| `/garden/history?entry=…` | 6.8 ms (10.2) | 9.4 ms (11.9) | +2.6 ms |
+| `/garden/export` | 15.0 ms (18.7) | 17.8 ms (21.9) | +2.8 ms |
+| `GET /auth/v1/user` on its own | | 2.8 ms (4.5) | |
+
+The whole difference is the one call, about 3 ms here where the auth service is on the
+same machine. On the hosted app it will be one network round trip from the server to
+the auth service, which this cannot measure. No journey slowed visibly or timed out.
+
+### 4. The two pieces of copy, in a real browser at 390 and 1440
+
+Journey `copy-states`, both store modes and both sizes, with screenshots read by eye.
+
+- **Stale location.** An address whose topic and thought do not exist shows the garden
+  and "That location is no longer available. Showing its nearest available parent."
+  once, on the first screen, and still there 1.5 s later; in Pages it sits above the
+  garden banner, in the Meadow it is a card above the topic buttons, clear of the phone
+  tab bar. It reads as one true thing. No overflow at either size.
+- **Returns, tended before and inactive now. This was still wrong, and is fixed.** The
+  state was made the way it really arises: a finished pass in the database that
+  returned no bloom and no mark, the most ordinary outcome of "earn the reveal". The
+  page still said "Nothing has been returned. Tending is not active for this account
+  yet, so no AI has read your writing.", which is false: the writing had been read.
+  The follow-up's new wording keys on `tending.lastTendedAt`, and the loader only ever
+  dates that from blooms and marks, so a pass that said nothing left no trace; the
+  unit test set the field by hand. The first run of this record did not catch it
+  either, because its synthetic pass had a bloom row.
+  - Fix, test first: `applications/web/src/app/garden/workspace.tsx` passes Returns
+    the later of `lastTendedAt` and the newest finished pass in `tendingHistory`
+    (which the page already loads). A new case in `workspace.test.tsx` failed before
+    the change and passes after; a failed or unfinished pass does not count, and an
+    account with no finished pass keeps the never-tended sentence.
+  - After the rebuild, all four configurations show, in this order: "Last tended Nov
+    16, 2026, 9:40 AM UTC", "Tending is not active now. What was returned before stays
+    here to read, and nothing new will arrive until tending is active.", "No bloom is
+    showing. Earlier tending passes are in the full record below.", and in the full
+    record "Tending is not active now, so nothing new will arrive until it is. Your
+    tending choices are saved, and past returns stay here to read." followed by the
+    pass itself, "Nothing new to offer". Nowhere "no AI has read your writing", and no
+    button to start a pass. It now reads as one true thing.
+  - One soft spot left: "What was returned before stays here to read" is said even
+    when nothing was ever returned. It is not false beside the next line, but a pass
+    with a bloom reads better. With a bloom (the two-account journey's account A) the
+    bloom is listed under the same sentence. Wording only; not changed.
+
+### 5. Database tests and the upgrade scripts
+
+- pgTAP, `supabase test db --local supabase/tests` on the rebuilt stack with all
+  fourteen migrations: **16 files, 977 tests, pass** (43 s), run with the deletion
+  switch at its shipped default and switched back on afterwards.
+- `scripts/test-upgrade.sh`, `test-upgrade-browser-path-rules.sh` and
+  `test-upgrade-tending-cycles.sh` accept only the shared `.local-runtime` stack named
+  `slow-garden-web-thinking`, and each one resets it. Starting and resetting that
+  shared stack was refused by this session's permission check, so the scripts were not
+  run as committed. They were run from a scratch copy against a separate stack: the
+  three files copied byte for byte except the project name (`slow-garden-qa-upgrade`,
+  ports 5672x), with the current migrations. All three exit 0:
+
+      Upgrade preserves all 30 source revisions, timestamps and IDs; latest entry and full export verified.
+      Browser path rules apply over legacy rows: 0 existing rows changed or rejected; legacy rows still archive, restore, revise and export; new rows of the same kinds are refused.
+      Nightly cycles upgrade in place: 2 legacy cycles kept their counts; the one with a pass kept its real start and its link; neither night could be reopened twelve hours later; the next night opened 2 new cycles.
+
+  That stack was stopped with `--no-backup`. The scripts need a `supabase` command on
+  the path; here it exists only through `npx`, so a one-line wrapper was used.
+
+### Changed by this pass
+
+- `scripts/test-web-journeys.mjs`: the cookie replay is asserted (server store) with a
+  captured server action, the data-API note reports the token's remaining life, the
+  settings sentence is checked per store, and the new `copy-states` journey.
+- `applications/web/src/app/garden/workspace.tsx` and `workspace.test.tsx`: the
+  Returns fix above.
+- This section. Nothing under `supabase/` and nothing in the scene.
+
+### Still not verified
+
+- The 1280 drag on a machine with a GPU, and any real phone, Safari or WebKit.
+- The upgrade scripts exactly as committed, on the stack they name.
+- The hosted token lifetime, and the hosted cost of the auth round trip.
+- `deletion-off`, the first run's build sizes, and tending end to end were not rerun.
+- Receipts are again only in the scratch directory; the numbers above are the record.

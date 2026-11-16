@@ -914,7 +914,9 @@ journey(
 );
 
 journey("sign-out", async () => {
-  const { email, ids } = await fixtureAccount("signout");
+  const { email, ids } = await fixtureAccount("signout", {
+    entries: ["Synthetic entry."],
+  });
   await signIn(email);
   await page.goto(pagesUrl(ids));
   await fromMore("Sign out");
@@ -939,10 +941,56 @@ journey("sign-out", async () => {
   const kept = await context.cookies();
   const session = sessionFromCookies(kept);
   assert.ok(session?.refresh_token, "the session cookie holds a refresh token");
+  const archivedAt = async () =>
+    (await admin.from("entries").select("archived_at").eq("id", ids.entries[0]).single()).data
+      .archived_at;
+  // Server store: keep one real server action (archive this entry) to replay
+  // later, undo it, and prove the replay works while the session is alive.
+  let action = null;
+  const replayAction = (requester) =>
+    requester.post(action.url, { headers: action.headers, data: action.body });
+  if (storeMode === "server") {
+    await page.goto(thoughtUrl(ids));
+    const [sent] = await Promise.all([
+      page.waitForRequest((r) => r.method() === "POST" && !!r.headers()["next-action"]),
+      page.getByRole("button", { name: "Archive entry", exact: true }).click(),
+    ]);
+    const headers = sent.headers();
+    action = {
+      url: sent.url(),
+      body: sent.postData(),
+      headers: Object.fromEntries(
+        ["next-action", "content-type", "accept", "next-router-state-tree"]
+          .filter((h) => headers[h])
+          .map((h) => [h, headers[h]]),
+      ),
+    };
+    await expect.poll(archivedAt).not.toBeNull();
+    const restore = async () => {
+      assert.equal(
+        (await admin.from("entries").select("id").eq("id", ids.entries[0])).error,
+        null,
+      );
+      await page.goto(`${base}/garden?garden=${ids.garden}&topic=${ids.topic}&thought=${ids.thought}&view=archive`);
+      await page.getByRole("button", { name: "Restore entry", exact: true }).click();
+      await expect.poll(archivedAt).toBeNull();
+    };
+    await restore();
+    const alive = await replayAction(context.request);
+    await expect.poll(archivedAt).not.toBeNull();
+    await restore();
+    pass(`server store: a captured server action replays while signed in (${alive.status()}), then is undone`);
+  }
   await page.goto(pagesUrl(ids));
   await fromMore("Settings & export");
+  await expect(page.locator(".garden-settings")).toContainText(
+    storeMode === "server"
+      ? "Other browsers are asked to sign in again the next time they load or save."
+      : "Other browsers can keep working until the access they already hold runs out, within about an hour",
+  );
   await page.getByRole("button", { name: "Sign out on all devices", exact: true }).click();
   await expect(page).toHaveURL(/\/login/);
+  const signedOutAtMs = Date.now();
   const reuse = await createClient(config.API_URL, config.PUBLISHABLE_KEY, {
     auth: { persistSession: false, autoRefreshToken: false },
   }).auth.refreshSession({ refresh_token: session.refresh_token });
@@ -955,17 +1003,56 @@ journey("sign-out", async () => {
   });
   assert.ok(who.status === 401 || who.status === 403, "the auth service refuses the old access token");
   pass("sign out on all devices: the copied refresh token and access token are refused by the auth service");
-  // Recorded, not asserted: a copied cookie jar replayed against the app. The
-  // access token is a signed JWT that data requests accept until it expires.
+  // The cookies copied beforehand, replayed in another browser.
   const replay = await browser.newContext({ ...contextOptions });
   await replay.addCookies(kept);
   const other = await replay.newPage();
-  await other.goto(pagesUrl(ids));
-  await other.waitForTimeout(2500);
-  const shown = await other.locator(".bed-card").count();
+  if (storeMode === "server") {
+    // The server confirms the session with the auth service on every request
+    // (D-029): the copy is refused on its next page load, action and route.
+    for (const address of [pagesUrl(ids), thoughtUrl(ids), `${base}/garden/import?garden=${ids.garden}`]) {
+      await other.goto(address);
+      await expect(other.getByLabel("Email address")).toBeVisible();
+      await expect(other).toHaveURL(/\/login/);
+      await expect(other.locator(".journal-entry, .bed-card, .garden-scene")).toHaveCount(0);
+      assert.ok(!(await other.content()).includes("Synthetic entry."), "no writing in the refused page");
+    }
+    const refusedAction = await replayAction(replay.request);
+    const refusedText = await refusedAction.text();
+    await new Promise((r) => setTimeout(r, 1500));
+    assert.equal(await archivedAt(), null, "the replayed server action changed nothing");
+    assert.ok(!refusedText.includes("Synthetic entry."));
+    const exported = await replay.request.get(`${base}/garden/export`);
+    const exportedMd = await replay.request.get(`${base}/garden/export?format=md&garden=${ids.garden}`);
+    const history = await replay.request.get(`${base}/garden/history?entry=${ids.entries[0]}`);
+    assert.equal(exported.status(), 401);
+    assert.equal(exportedMd.status(), 401);
+    assert.equal(history.status(), 401);
+    for (const r of [exported, exportedMd, history])
+      assert.ok(!(await r.text()).includes("Synthetic entry."));
+    pass(`copied cookies after sign out everywhere, server store: 3 garden pages show sign-in at /login; the replayed server action (${refusedAction.status()}) changed nothing; export 401, export Markdown 401, history 401`);
+  } else {
+    await other.goto(pagesUrl(ids));
+    await other.waitForTimeout(2500);
+    const shown = await other.locator(".bed-card").count();
+    console.log(
+      `  note browser store, copied cookies replayed after sign out everywhere: ${shown ? "the garden was still shown (this store never asks the app's server; the token is honoured until it expires, D-029)" : "the sign-in screen was shown"}`,
+    );
+  }
   await replay.close();
+  // Recorded, not asserted: the data API with the copied access token alone.
+  const claims = JSON.parse(Buffer.from(session.access_token.split(".")[1], "base64url").toString());
+  const direct = createClient(config.API_URL, config.PUBLISHABLE_KEY, {
+    auth: { persistSession: false, autoRefreshToken: false },
+    global: { headers: { authorization: `Bearer ${session.access_token}` } },
+  });
+  const read = await direct.from("seed_revisions").select("id");
+  const before = (await admin.from("plots").select("name").eq("id", ids.topic2).single()).data.name;
+  const write = await direct.from("plots").update({ name: "Renamed after sign-out" }).eq("id", ids.topic2).select("id");
+  const wrote = !write.error && (write.data ?? []).length === 1;
+  if (wrote) await direct.from("plots").update({ name: before }).eq("id", ids.topic2);
   console.log(
-    `  note copied cookies replayed after sign out everywhere: ${shown ? "the garden was still shown (access token valid until it expires)" : "the sign-in screen was shown"}`,
+    `  note data API with the copied access token after sign out everywhere: read ${read.error ? `refused (${read.error.code ?? read.status})` : `answered ${read.data.length} row(s)`}; write ${wrote ? "accepted (undone)" : `refused (${write.error?.code ?? "0 rows"})`}; token lifetime ${claims.exp - claims.iat} s, ${claims.exp - Math.round(signedOutAtMs / 1000)} s left at sign-out`,
   );
 });
 
@@ -1118,6 +1205,70 @@ journey(
     );
   },
   { when: deletionOn },
+);
+
+// Two states whose wording has to read as one true thing: Returns for an
+// account that was tended once and is not tended now, and an address whose
+// topic and thought no longer exist. Screenshots go to the artifacts directory.
+journey(
+  "copy-states",
+  async () => {
+    const { email, ids, userId } = await fixtureAccount("copy", {
+      entries: ["Synthetic entry."],
+    });
+    const lit = (v) => `'${String(v).replaceAll("'", "''")}'`;
+    // A finished pass that returned nothing, written straight into the local
+    // database with triggers skipped (the runtime is off locally).
+    assert.ok(
+      localSql(
+        `set local session_replication_role = replica;
+         insert into public.garden_passes(id,tenant_id,garden_id,plot_ids,status,finished_at)
+           values(${lit(crypto.randomUUID())},${lit(userId)},${lit(ids.garden)},array[${lit(ids.topic)}]::uuid[],'complete',now());`,
+      ),
+      "a finished pass was written",
+    );
+    await signIn(email);
+    await page.goto(`${base}/garden?garden=${ids.garden}&view=returns`);
+    const returns = page.locator(".level-returns");
+    await expect(returns).toContainText("Last tended");
+    await expect(returns).toContainText(
+      "Tending is not active now. What was returned before stays here to read, and nothing new will arrive until tending is active.",
+    );
+    await expect(returns).toContainText(
+      "No bloom is showing. Earlier tending passes are in the full record below.",
+    );
+    await expect(returns).not.toContainText("no AI has read your writing");
+    await expect(returns).not.toContainText("not active for this account yet");
+    await noSidewaysScroll("returns, tended before");
+    // The loading screen must be gone, not merely underneath or on top.
+    await expect(page.getByText("Gathering what you left here…")).toHaveCount(0);
+    await page.screenshot({ path: path.join(artifacts, `copy-returns-${storeMode}-${deviceName}.png`) });
+    await page.getByRole("button", { name: "Open the full record", exact: true }).click();
+    await expect(returns).toContainText(
+      "Tending is not active now, so nothing new will arrive until it is. Your tending choices are saved, and past returns stay here to read.",
+    );
+    await expect(returns).not.toContainText("not active for this account yet");
+    await expect(page.getByRole("button", { name: "Invite a reflection" })).toHaveCount(0);
+    await expect(returns.getByRole("status").filter({ hasText: "Opening Returns" })).toHaveCount(0);
+    await page.screenshot({ path: path.join(artifacts, `copy-returns-record-${storeMode}-${deviceName}.png`), fullPage: true });
+    if (process.env.GARDEN_TEST_DEBUG) console.log((await returns.innerText()).replace(/\n+/g, " | "));
+    pass("Returns, tended before and inactive now: last tended, not active now, no bloom showing; never 'no AI has read your writing'; the full record says the same");
+    for (const view of ["list", ""]) {
+      await page.evaluate((v) => localStorage.setItem("slow-garden:garden-view", v || "garden"), view);
+      await page.goto(`${base}/garden?garden=${ids.garden}&topic=${crypto.randomUUID()}&thought=${crypto.randomUUID()}`);
+      const notice = page.getByText("That location is no longer available. Showing its nearest available parent.");
+      await expect(notice).toBeVisible();
+      await page.waitForTimeout(1500);
+      await expect(notice).toBeVisible();
+      await expect(notice).toHaveCount(1);
+      await noSidewaysScroll("stale location");
+      const box = await notice.boundingBox();
+      assert.ok(box && box.y >= 0 && box.y + box.height <= viewportHeight, "the notice is on the first screen");
+      await page.screenshot({ path: path.join(artifacts, `copy-stale-${view || "meadow"}-${storeMode}-${deviceName}.png`) });
+    }
+    pass("a stale address says so once, on the first screen, in Pages and in the Meadow, and keeps saying it");
+  },
+  { when: !!process.env.GARDEN_TEST_DB_CONTAINER },
 );
 
 // Two accounts: B must not read or write anything of A's, through the pages or

@@ -231,6 +231,18 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
     return () => { cancelled = true; };
   }, [data.tenantId]);
   const garden = data.gardens.find((g) => g.id === data.gardenId);
+  // "Last tended" is dated from blooms and marks, but a pass may finish with
+  // nothing to say. The pass record still shows the writing was read, so
+  // Returns takes the later of the two and never says nothing was read.
+  const lastQuietPass = data.tendingHistory?.passes.find(
+    (p) => p.status === "complete" && p.finishedAt,
+  )?.finishedAt;
+  const returnsTending =
+    lastQuietPass &&
+    (!tending.lastTendedAt ||
+      Date.parse(lastQuietPass) > Date.parse(tending.lastTendedAt))
+      ? { ...tending, lastTendedAt: lastQuietPass }
+      : tending;
   const requestedTopic = params.get("topic") ?? "";
   const requestedThought = params.get("thought") ?? "";
   const plotId = data.plots.find((p) => p.id === requestedTopic)?.id ?? "";
@@ -995,7 +1007,7 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
           ) : returnsMode ? (
             /* Returns: the AI's output has its own page, in its own material. */
             <ReturnsPage
-              tending={tending}
+              tending={returnsTending}
               seeds={data.seeds}
               tendingActive={data.aiAvailable}
               onOpenThought={openThought}
