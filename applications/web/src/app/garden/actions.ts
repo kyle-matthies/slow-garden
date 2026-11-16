@@ -9,6 +9,7 @@ import {
   validateEntryBody,
   validateTimezone,
 } from "@/lib/garden/validation";
+import * as rules from "@/lib/garden/store/rules";
 
 async function authenticated() {
   const db = await createClient();
@@ -152,8 +153,7 @@ export async function setPlotPermissions(
   }
 }
 export async function signOut(scope: "local" | "global" = "local") {
-  if (scope !== "local" && scope !== "global")
-    throw new Error("Invalid sign-out scope");
+  rules.assertSignOutScope(scope);
   const db = await createClient();
   const { error } = await db.auth.signOut({ scope });
   if (error) throw new Error("Sign-out failed. Please retry.");
@@ -186,14 +186,7 @@ export async function inviteReflection(
       garden_id: gardenId,
       plot_ids: plotIds,
     });
-    if (error)
-      return {
-        ok: false,
-        message:
-          error.code === "55000"
-            ? "A reflection is already pending, the AI budget is reached, or the quality gate is not active. Try again later."
-            : "Check the selected topics and their tending settings before retrying.",
-      };
+    if (error) return rules.passRequestRefusal(error);
     revalidatePath("/garden");
     return { ok: true, id };
   } catch {
@@ -293,8 +286,8 @@ export async function respondToMark(
   markId: string,
   response: "keep" | "prune",
 ): Promise<ActionResult> {
-  if (response !== "keep" && response !== "prune")
-    return { ok: false, message: "Choose keep or prune." };
+  const invalid = rules.validateMarkResponse(response);
+  if (invalid) return { ok: false, message: invalid };
   try {
     const { db, tenantId } = await authenticated();
     const { data: existing } = await db
@@ -346,33 +339,10 @@ export async function setTendingPreferences(
 }
 
 /** What a permanent deletion will erase, counted by the database from the same sets it deletes. */
-export type DeletionKind = "entry" | "seed" | "plot" | "garden" | "account";
-export type DeletionCounts = {
-  gardens: number;
-  topics: number;
-  thoughts: number;
-  entries: number;
-  versions: number;
-  returns: number;
-  responses: number;
-  marks: number;
-};
-export type DeletionPreview =
-  | { ok: true; counts: DeletionCounts; confirmPhrase: string | null }
-  | { ok: false; message: string };
-const DELETION_KINDS: readonly DeletionKind[] = [
-  "entry",
-  "seed",
-  "plot",
-  "garden",
-  "account",
-];
-const DELETION_ID =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const DELETION_UNAVAILABLE =
-  "Deletion is not available yet. Nothing was erased.";
-/** SQLSTATE raised by delete_account when the session is not a live, recent sign-in. */
-const RECENT_SIGN_IN_REQUIRED = "SGA01";
+export type DeletionKind = rules.DeletionKind;
+export type DeletionCounts = rules.DeletionCounts;
+export type DeletionPreview = rules.DeletionPreview;
+const DELETION_UNAVAILABLE = rules.DELETION_UNAVAILABLE;
 /**
  * Ship-order switch. Off by default: the deletion migration must be applied
  * to the database before this is turned on. While off, no delete control is
@@ -381,36 +351,14 @@ const RECENT_SIGN_IN_REQUIRED = "SGA01";
 function deletionOn(): boolean {
   return process.env.GARDEN_DELETION_ENABLED === "true";
 }
-export type DeleteAccountResult =
-  | { ok: true }
-  | { ok: false; message: string; reauth?: true };
-function deletionCounts(value: unknown): DeletionCounts | null {
-  if (!value || typeof value !== "object") return null;
-  const row = value as Record<string, unknown>;
-  const read = (key: keyof DeletionCounts) =>
-    typeof row[key] === "number" ? (row[key] as number) : 0;
-  return {
-    gardens: read("gardens"),
-    topics: read("topics"),
-    thoughts: read("thoughts"),
-    entries: read("entries"),
-    versions: read("versions"),
-    returns: read("returns"),
-    responses: read("responses"),
-    marks: read("marks"),
-  };
-}
-/** Deletion RPCs arrive with their own reviewed migration; before it, say so plainly. */
-function deletionMissing(error: unknown): boolean {
-  const code = (error as { code?: string } | null)?.code;
-  return code === "PGRST202" || code === "42883";
-}
+export type DeleteAccountResult = rules.DeleteAccountResult;
+const { deletionCounts, deletionMissing, deletionFailure } = rules;
 /** Read-only. Also returns the phrase to type for an account (its email address). */
 export async function previewDeletion(
   kind: DeletionKind,
   id: string,
 ): Promise<DeletionPreview> {
-  if (!DELETION_KINDS.includes(kind) || (kind !== "account" && !DELETION_ID.test(id)))
+  if (!rules.isPreviewTarget(kind, id))
     return { ok: false, message: "That item cannot be deleted from here." };
   if (!deletionOn()) return { ok: false, message: DELETION_UNAVAILABLE };
   try {
@@ -450,19 +398,6 @@ export async function previewDeletion(
     };
   }
 }
-function deletionFailure(error: unknown): ActionResult {
-  const code = (error as { code?: string } | null)?.code;
-  return {
-    ok: false,
-    message: deletionMissing(error)
-      ? DELETION_UNAVAILABLE
-      : code === "22023"
-        ? "The name you typed does not match. Nothing was erased."
-        : code === "40P01" || code === "55P03"
-          ? "The garden was busy for a moment. Nothing was erased; please try again."
-          : "Could not delete. Nothing was erased; please retry.",
-  };
-}
 /**
  * Permanently erase an entry, thought, topic or garden with everything derived
  * from it. Each call is one database transaction: it erases everything or nothing.
@@ -473,7 +408,7 @@ export async function deleteItem(
   id: string,
   confirmName = "",
 ): Promise<ActionResult> {
-  if (!DELETION_KINDS.includes(kind) || (kind as string) === "account" || !DELETION_ID.test(id))
+  if (!rules.isDeleteItemTarget(kind, id))
     return { ok: false, message: "That item cannot be deleted from here." };
   if (!deletionOn()) return { ok: false, message: DELETION_UNAVAILABLE };
   try {
@@ -517,20 +452,7 @@ export async function deleteAccount(
     const { db } = await authenticated();
     const { error } = await db.rpc("delete_account", { p_confirm: confirm });
     if (error) {
-      const code = (error as { code?: string }).code;
-      if (code === RECENT_SIGN_IN_REQUIRED)
-        return {
-          ok: false,
-          reauth: true,
-          message:
-            "For your safety, deleting an account needs a sign-in from the last ten minutes. Nothing was erased.",
-        };
-      if (code === "22023")
-        return {
-          ok: false,
-          message: "What you typed does not match. Nothing was erased.",
-        };
-      return deletionFailure(error) as DeleteAccountResult;
+      return rules.accountDeletionFailure(error);
     }
     // An account that is already gone (a replay) still ends this browser's session.
     try {
