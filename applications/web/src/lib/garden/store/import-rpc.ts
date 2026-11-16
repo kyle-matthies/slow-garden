@@ -127,6 +127,11 @@ export async function importThoughtWith(
           : rules.IMPORT_TOPIC_UNAVAILABLE,
       };
     if (code === "22023") return { ok: false, message: rules.IMPORT_CHECK_INPUT };
+    // Only a refusal the database itself reported proves nothing was written.
+    // An error without a code is a failed connection or response, which can
+    // arrive after the transaction committed.
+    if (typeof code !== "string" || code === "")
+      return { ok: false, message: rules.IMPORT_UNCERTAIN };
     return { ok: false, message: rules.IMPORT_NOT_SAVED };
   }
   const receipt = rules.importReceipt(data);
