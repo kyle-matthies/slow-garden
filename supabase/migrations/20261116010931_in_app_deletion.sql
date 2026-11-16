@@ -2,8 +2,12 @@
 -- Scopes: entry, thought (seed), topic (plot), garden, account.
 -- Rules:
 --   * Derived material never outlives its source. A pass that read deleted
---     writing loses its snapshot, blooms and marks; copies of excerpts,
---     titles and labels in other passes' correction/index context are removed.
+--     writing, or was sent a quote of it or a claim derived from it, loses its
+--     snapshot, blooms and marks, and can no longer publish; an in-flight pass
+--     that was sent any copy (including a title or label in its orientation
+--     index) is cancelled and its provider work queued for cleanup. Finished
+--     passes that only listed a thought for orientation keep their returns and
+--     lose the listing (private.derived_passes states the rule).
 --   * Provider file and batch ids are never lost with a deleted pass: a
 --     content-free private.provider_orphans row keeps them for worker cleanup
 --     (runbook known gap 3.9), and the pass's budget reservation is settled.
@@ -121,43 +125,85 @@ language sql stable security definer set search_path='' as $$
 $$;
 revoke all on function private.passes_reading(uuid,uuid[],uuid[]) from public,anon,authenticated;
 
+-- Every pass that deleting the given writing invalidates. A pass is invalidated
+-- when its model was, or is about to be, given that writing or something
+-- derived from it:
+--   1. it froze, quoted or marked the writing (private.passes_reading);
+--   2. its remembered corrections carry a quote of the writing, or an
+--      interpretation, evidence or label of a pass already in this set. Quoted
+--      text sent to the model is text the model read, whatever the pass status;
+--   3. it is queued or processing and its orientation index lists one of
+--      p_index_seed_ids or a label from a pass in this set: the request at the
+--      provider contains it, so the pass must not publish.
+-- A completed pass whose only link is the orientation index is not in the set:
+-- the index is titles and labels for orientation, never evidence, and listing
+-- every thought of a topic would otherwise withdraw every return in the topic
+-- whenever one entry is deleted. Its index is scrubbed instead (erase_derived).
+-- Rule 2 can cascade (a withdrawn pass's blooms may be remembered by another),
+-- so the set is grown until it is stable.
+create function private.derived_passes(p_tenant uuid,p_seed_ids uuid[],p_entry_ids uuid[],p_index_seed_ids uuid[]) returns uuid[]
+language plpgsql stable security definer set search_path='' as $$
+declare found uuid[]; more uuid[]; revs text[]; gone_evidence jsonb[]; gone_text text[]; gone_labels text[];
+begin
+  found:=private.passes_reading(p_tenant,p_seed_ids,p_entry_ids);
+  select coalesce(array_agg(id::text),'{}') into revs from public.seed_revisions
+    where tenant_id=p_tenant and (seed_id=any(p_seed_ids) or entry_id=any(p_entry_ids));
+  loop
+    select coalesce(array_agg(evidence),'{}'),coalesce(array_agg(interpretation),'{}') into gone_evidence,gone_text
+      from public.blooms where pass_id=any(found);
+    select coalesce(array_agg(lower(label)) filter(where label<>''),'{}') into gone_labels
+      from public.tending_marks where pass_id=any(found) or (tenant_id=p_tenant and seed_id=any(p_seed_ids));
+    select coalesce(array_agg(i.pass_id),'{}') into more
+      from private.pass_inputs i join public.garden_passes gp on gp.id=i.pass_id
+      where gp.tenant_id=p_tenant and not (i.pass_id=any(found)) and (
+        exists(select 1 from jsonb_array_elements(i.corrections) c
+          where c->'evidence'=any(gone_evidence) or c->>'interpretation'=any(gone_text) or lower(c->>'label')=any(gone_labels)
+            or exists(select 1 from jsonb_array_elements(case when jsonb_typeof(c->'evidence')='array' then c->'evidence' else '[]'::jsonb end) e
+              where e->>'revision_id'=any(revs)))
+        or (gp.status in('queued','processing') and jsonb_typeof(i.context->'index')='array'
+          and exists(select 1 from jsonb_array_elements(i.context->'index') x
+            where x->>'seed_id'=any(p_index_seed_ids::text[])
+              or exists(select 1 from jsonb_array_elements_text(case when jsonb_typeof(x->'labels')='array' then x->'labels' else '[]'::jsonb end) l
+                where lower(l)=any(gone_labels)))));
+    exit when cardinality(more)=0;
+    found:=found||more;
+  end loop;
+  return found;
+end $$;
+revoke all on function private.derived_passes(uuid,uuid[],uuid[],uuid[]) from public,anon,authenticated;
+
 -- Remove or make unreadable everything derived from the given writing. Call
 -- before the source rows go: evidence is resolved through their revisions.
 -- p_index_seed_ids are thoughts whose title or labels must leave other passes'
 -- orientation index.
 create function private.erase_derived(p_tenant uuid,p_seed_ids uuid[],p_entry_ids uuid[],p_index_seed_ids uuid[]) returns void
 language plpgsql security definer set search_path='' as $$
-declare affected uuid[]; revs text[]; gone_evidence jsonb[]; gone_text text[]; gone_labels text[];
+declare affected uuid[]; gone_labels text[];
 begin
-  affected:=private.passes_reading(p_tenant,p_seed_ids,p_entry_ids);
+  affected:=private.derived_passes(p_tenant,p_seed_ids,p_entry_ids,p_index_seed_ids);
   perform private.lock_pass_inputs(affected);
-  select coalesce(array_agg(id::text),'{}') into revs from public.seed_revisions
-    where tenant_id=p_tenant and (seed_id=any(p_seed_ids) or entry_id=any(p_entry_ids));
-  select coalesce(array_agg(evidence),'{}'),coalesce(array_agg(interpretation),'{}') into gone_evidence,gone_text
-    from public.blooms where pass_id=any(affected);
   select coalesce(array_agg(lower(label)) filter(where label<>''),'{}') into gone_labels
     from public.tending_marks where pass_id=any(affected) or (tenant_id=p_tenant and seed_id=any(p_seed_ids));
-  -- Withdraw first: the existing cleanup trigger then queues provider files for deletion.
+  -- Withdraw first: the existing cleanup trigger then queues the provider batch
+  -- and files for cancellation and deletion, and a cancelled pass can no longer
+  -- publish (check_garden_pass) whatever the provider returns.
   update public.garden_passes set status=case when status='complete' then 'withdrawn' else 'cancelled' end,finished_at=now()
     where id=any(affected) and status in('queued','processing','complete');
   update private.pass_inputs set snapshot='[]',corrections='[]',context='{}' where pass_id=any(affected);
   delete from public.blooms where pass_id=any(affected);
   delete from public.tending_marks where pass_id=any(affected);
-  -- Passes that never read this writing can still carry copies: quoted evidence
-  -- and interpretations inside remembered corrections, and titles and labels in
-  -- the orientation index.
+  -- What remains are finished passes whose orientation index names the
+  -- thoughts or carries labels that are now gone. They keep their returns; the
+  -- index loses those thoughts, and those labels wherever they appear.
   update private.pass_inputs i set
-    corrections=(select coalesce(jsonb_agg(c),'[]') from jsonb_array_elements(i.corrections) c
-      where (c->'evidence'=any(gone_evidence)) is not true
-        and (c->>'interpretation'=any(gone_text)) is not true
-        and (lower(c->>'label')=any(gone_labels)) is not true
-        and not exists(select 1 from jsonb_array_elements(case when jsonb_typeof(c->'evidence')='array' then c->'evidence' else '[]'::jsonb end) e
-          where e->>'revision_id'=any(revs))),
-    context=case when jsonb_typeof(i.context->'index')='array' then jsonb_set(i.context,'{index}',
-      (select coalesce(jsonb_agg(x),'[]') from jsonb_array_elements(i.context->'index') x where (x->>'seed_id'=any(p_index_seed_ids::text[])) is not true)) else i.context end
+    context=jsonb_set(i.context,'{index}',(select coalesce(jsonb_agg(
+        case when jsonb_typeof(x->'labels')='array' then jsonb_set(x,'{labels}',
+          (select coalesce(jsonb_agg(l),'[]') from jsonb_array_elements(x->'labels') l where (lower(l#>>'{}')=any(gone_labels)) is not true))
+        else x end),'[]')
+      from jsonb_array_elements(i.context->'index') x where (x->>'seed_id'=any(p_index_seed_ids::text[])) is not true))
     from public.garden_passes gp
     where gp.id=i.pass_id and gp.tenant_id=p_tenant and not (i.pass_id=any(affected))
-      and (i.corrections<>'[]'::jsonb or jsonb_typeof(i.context->'index')='array');
+      and jsonb_typeof(i.context->'index')='array';
 end $$;
 revoke all on function private.erase_derived(uuid,uuid[],uuid[],uuid[]) from public,anon,authenticated;
 
@@ -172,7 +218,7 @@ begin
     if v_seed is null then return null; end if;
     select title into v_name from public.seeds where id=v_seed;
     v_entries:=array[p_id];
-    v_passes:=private.passes_reading(p_tenant,'{}',v_entries);
+    v_passes:=private.derived_passes(p_tenant,'{}',v_entries,array[v_seed]);
   elsif p_kind='seed' then
     select title into v_name from public.seeds where id=p_id and tenant_id=p_tenant;
     if v_name is null then return null; end if;
@@ -201,7 +247,7 @@ begin
     select coalesce(array_agg(id),'{}') into v_entries from public.entries where tenant_id=p_tenant and seed_id=any(v_seeds);
   end if;
   if p_kind in('seed','plot') then
-    v_passes:=private.passes_reading(p_tenant,v_seeds,v_entries);
+    v_passes:=private.derived_passes(p_tenant,v_seeds,v_entries,v_seeds);
     if p_kind='plot' then
       select coalesce(array_agg(distinct x),'{}') into v_passes from (
         select unnest(v_passes) as x union all

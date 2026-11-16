@@ -59,26 +59,31 @@ insert into public.gardens(id,name) values('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1
 insert into public.plots(id,garden_id,name,ai_enabled) values
 ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1','Mornings',true),
 ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1','Studio',true),
-('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb3','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2','Elsewhere',true);
+('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb3','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2','Elsewhere',true),
+('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb4','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2','Orchard',true);
 insert into public.seeds(id,garden_id,plot_id,title) values
 ('cccccccc-cccc-4ccc-8ccc-ccccccccccc1','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1','bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1','Leaving room'),
 ('cccccccc-cccc-4ccc-8ccc-ccccccccccc2','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1','bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1','CANARY-TITLE-TWO walks'),
 ('cccccccc-cccc-4ccc-8ccc-ccccccccccc3','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1','bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2','Studio light'),
-('cccccccc-cccc-4ccc-8ccc-ccccccccccc4','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2','bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb3','Far field');
+('cccccccc-cccc-4ccc-8ccc-ccccccccccc4','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2','bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb3','Far field'),
+('cccccccc-cccc-4ccc-8ccc-ccccccccccc5','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2','bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb4','Old trees');
 select public.save_entry('cccccccc-cccc-4ccc-8ccc-ccccccccccc1','dddddddd-dddd-4ddd-8ddd-ddddddddddd1','eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1','CANARY-ALPHA first wording about herons.');
 select public.save_entry('cccccccc-cccc-4ccc-8ccc-ccccccccccc1','dddddddd-dddd-4ddd-8ddd-ddddddddddd1','eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeea','CANARY-ALPHA revised wording about herons.','eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1');
 select public.save_entry('cccccccc-cccc-4ccc-8ccc-ccccccccccc1','dddddddd-dddd-4ddd-8ddd-ddddddddddd2','eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee2','CANARY-BETA a second entry that stays.');
 select public.save_entry('cccccccc-cccc-4ccc-8ccc-ccccccccccc2','dddddddd-dddd-4ddd-8ddd-ddddddddddd3','eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee3','CANARY-GAMMA a slow walk by the water.');
 select public.save_entry('cccccccc-cccc-4ccc-8ccc-ccccccccccc3','dddddddd-dddd-4ddd-8ddd-ddddddddddd4','eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee4','CANARY-STUDIO light on unfinished work.');
 select public.save_entry('cccccccc-cccc-4ccc-8ccc-ccccccccccc4','dddddddd-dddd-4ddd-8ddd-ddddddddddd5','eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee5','CANARY-GARDENTWO a field far away.');
+select public.save_entry('cccccccc-cccc-4ccc-8ccc-ccccccccccc5','dddddddd-dddd-4ddd-8ddd-ddddddddddd7','eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee7','CANARY-ORCHARD old trees by the wall.');
 
--- Pass one reads Mornings; pass two reads Studio; pass four reads the second garden.
+-- Pass one reads Mornings; pass two reads Studio; passes four and six read the second garden's two topics.
 insert into public.garden_passes(id,garden_id,plot_ids) values
 ('ffffffff-ffff-4fff-8fff-fffffffffff1','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',array['bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1']::uuid[]);
 insert into public.garden_passes(id,garden_id,plot_ids) values
 ('ffffffff-ffff-4fff-8fff-fffffffffff2','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',array['bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2']::uuid[]);
 insert into public.garden_passes(id,garden_id,plot_ids) values
 ('ffffffff-ffff-4fff-8fff-fffffffffff4','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2',array['bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb3']::uuid[]);
+insert into public.garden_passes(id,garden_id,plot_ids) values
+('ffffffff-ffff-4fff-8fff-fffffffffff6','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2',array['bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb4']::uuid[]);
 reset role;
 update private.pass_inputs set next_attempt_at=now()+interval '1 hour' where pass_id<>'ffffffff-ffff-4fff-8fff-fffffffffff1';
 set local role service_role;
@@ -97,7 +102,7 @@ update private.pass_inputs set next_attempt_at=now()+interval '1 hour';
 update private.pass_inputs set next_attempt_at=now() where pass_id='ffffffff-ffff-4fff-8fff-fffffffffff2';
 set local role service_role;
 select public.claim_garden_pass() as flight \gset
-select lives_ok(format('select public.update_garden_job(%L::uuid,%L::uuid,%L,%L,null,true)',:'flight'::jsonb->>'id',:'flight'::jsonb->>'token','batch-in-flight','file-in-flight'),'pass two records its provider batch and file');
+select lives_ok(format('select public.update_garden_job(%L::uuid,%L::uuid,%L,%L,null,true)',:'flight'::jsonb->>'id',:'flight'::jsonb->>'token','batch-two','file-two'),'pass two records its provider batch and file');
 reset role;
 -- Pass two never read Mornings, but carries copies: a remembered correction with quoted evidence,
 -- a pruned interpretation, a pruned label, and titles in its orientation index.
@@ -120,12 +125,30 @@ reset role;
 insert into public.blooms(id,pass_id,tenant_id,garden_id,ordinal,kind,interpretation,evidence) values
 ('abababab-abab-4bab-8bab-abababababa4','ffffffff-ffff-4fff-8fff-fffffffffff4','11111111-1111-4111-8111-111111111111','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2',0,'question','CANARY-FARBLOOM what is far away?',
   '[{"revision_id":"eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee5","excerpt":"a field far away"}]');
+-- Pass six completes with a bloom of its own.
+update private.pass_inputs set next_attempt_at=now()+interval '1 hour';
+update private.pass_inputs set next_attempt_at=now() where pass_id='ffffffff-ffff-4fff-8fff-fffffffffff6';
+set local role service_role;
+select public.claim_garden_pass() as orchard \gset
+select lives_ok(format('select public.finish_garden_pass(%L::uuid,%L::uuid,%L::jsonb,50,10,false)',:'orchard'::jsonb->>'id',:'orchard'::jsonb->>'token','{"blooms":[],"no_output_reason":null}'),'pass six completes');
+reset role;
+insert into public.blooms(id,pass_id,tenant_id,garden_id,ordinal,kind,interpretation,evidence) values
+('abababab-abab-4bab-8bab-abababababa6','ffffffff-ffff-4fff-8fff-fffffffffff6','11111111-1111-4111-8111-111111111111','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2',0,'question','CANARY-ORCHBLOOM what do the old trees hold?',
+  '[{"revision_id":"eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee7","excerpt":"old trees by the wall"}]');
+-- Completed passes that never read Mornings can carry copies too.
+-- Pass four: only its orientation index (titles and labels; never evidence).
+update private.pass_inputs set context='{"tiers":{"catalog":true},"index":[{"seed_id":"cccccccc-cccc-4ccc-8ccc-ccccccccccc1","title":"Leaving room","labels":["Canary-Label"]},
+    {"seed_id":"cccccccc-cccc-4ccc-8ccc-ccccccccccc2","title":"CANARY-TITLE-TWO walks","labels":["Walks","keepme"]}]}'
+  where pass_id='ffffffff-ffff-4fff-8fff-fffffffffff4';
+-- Pass six: a remembered correction that quotes the second thought's entry, so the model read that text.
+update private.pass_inputs set corrections='[{"correction":"not about walking","evidence":[{"revision_id":"eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee3","excerpt":"a slow walk"}]}]'
+  where pass_id='ffffffff-ffff-4fff-8fff-fffffffffff6';
 update private.pass_inputs set next_attempt_at=now()+interval '1 hour';
 set local role authenticated;
 select set_config('request.jwt.claim.sub','11111111-1111-4111-8111-111111111111',true);
 insert into public.bloom_responses(id,bloom_id,response,correction) values('acacacac-acac-4cac-8cac-acacacacaca1','abababab-abab-4bab-8bab-abababababa1','correct','CANARY-CORRECTION not herons');
 insert into public.tending_mark_responses(id,mark_id,response) select 'adadadad-adad-4dad-8dad-adadadadada1',id,'keep' from public.tending_marks where seed_id='cccccccc-cccc-4ccc-8ccc-ccccccccccc1';
-select is((select count(*) from public.blooms),2::bigint,'the owner sees both blooms before deleting anything');
+select is((select count(*) from public.blooms),3::bigint,'the owner sees all three blooms before deleting anything');
 
 -- Another tenant can delete nothing, and learns nothing.
 select set_config('request.jwt.claim.sub','22222222-2222-4222-8222-222222222222',true);
@@ -139,8 +162,8 @@ select is(public.delete_garden('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1','Keep gard
 select throws_ok($$select public.delete_account('delete-alice@example.test')$$,'22023','confirmation does not match','another tenant cannot confirm with someone else''s address');
 reset role;
 select is((select count(*) from public.gardens where tenant_id='11111111-1111-4111-8111-111111111111'),2::bigint,'the first tenant''s gardens are untouched');
-select is((select count(*) from public.seed_revisions where tenant_id='11111111-1111-4111-8111-111111111111'),6::bigint,'the first tenant''s revisions are untouched');
-select is((select count(*) from public.blooms),2::bigint,'the first tenant''s blooms are untouched');
+select is((select count(*) from public.seed_revisions where tenant_id='11111111-1111-4111-8111-111111111111'),7::bigint,'the first tenant''s revisions are untouched');
+select is((select count(*) from public.blooms),3::bigint,'the first tenant''s blooms are untouched');
 select ok((select snapshot<>'[]'::jsonb from private.pass_inputs where pass_id='ffffffff-ffff-4fff-8fff-fffffffffff1'),'the first tenant''s snapshots are untouched');
 set local role anon;
 select throws_ok($$select public.delete_entry('dddddddd-dddd-4ddd-8ddd-ddddddddddd1')$$,'42501',null,'anonymous deletion is refused');
@@ -162,7 +185,7 @@ select set_config('request.jwt.claim.sub','11111111-1111-4111-8111-111111111111'
 select set_config('request.jwt.claims','{"sub":"11111111-1111-4111-8111-111111111111","email":"delete-alice@example.test","role":"authenticated","session_id":"99999999-9999-4999-8999-999999999999"}',true);
 select is(public.deletion_preview('entry','dddddddd-dddd-4ddd-8ddd-ddddddddddd1'),
   '{"kind":"entry","name":"Leaving room","gardens":0,"topics":0,"thoughts":0,"entries":1,"versions":2,"returns":1,"responses":1,"marks":2}'::jsonb,'the preview counts what an entry deletion erases');
-select is((select count(*) from public.entries),5::bigint,'previewing deletes nothing');
+select is((select count(*) from public.entries),6::bigint,'previewing deletes nothing');
 select is(public.delete_entry('dddddddd-dddd-4ddd-8ddd-ddddddddddd1'),
   '{"kind":"entry","name":"Leaving room","gardens":0,"topics":0,"thoughts":0,"entries":1,"versions":2,"returns":1,"responses":1,"marks":2,"deleted":true}'::jsonb,'the owner deletes an entry and receives the same counts');
 select is(public.delete_entry('dddddddd-dddd-4ddd-8ddd-ddddddddddd1')->>'deleted','false','deleting the same entry again is a no-op');
@@ -181,15 +204,40 @@ select is((select count(*) from public.tending_mark_responses),0::bigint,'respon
 select is((select status from public.garden_passes where id='ffffffff-ffff-4fff-8fff-fffffffffff1'),'withdrawn','the pass that read it is withdrawn');
 select is((select snapshot::text||corrections::text||context::text from private.pass_inputs where pass_id='ffffffff-ffff-4fff-8fff-fffffffffff1'),'[][]{}','its frozen input is emptied');
 select ok((select cleanup_pending from private.pass_inputs where pass_id='ffffffff-ffff-4fff-8fff-fffffffffff1'),'and its provider files are queued for cleanup');
-select is((select corrections from private.pass_inputs where pass_id='ffffffff-ffff-4fff-8fff-fffffffffff2'),
-  '[{"correction":"keep me","evidence":[{"revision_id":"eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee4","excerpt":"light"}]}]'::jsonb,'an unrelated pass keeps only corrections that do not touch the deleted entry');
-select is((select jsonb_array_length(context->'index') from private.pass_inputs where pass_id='ffffffff-ffff-4fff-8fff-fffffffffff2'),2,'the thought leaves other passes'' orientation index');
-select is((select status from public.garden_passes where id='ffffffff-ffff-4fff-8fff-fffffffffff2'),'processing','a pass that never read the entry keeps running');
+-- An in-flight pass that never froze the entry but was sent copies of it (a quoted correction, a
+-- pruned interpretation and label, its thought in the orientation index) is stopped, not merely scrubbed:
+-- the request already at the provider contains them.
+select is((select status from public.garden_passes where id='ffffffff-ffff-4fff-8fff-fffffffffff2'),'cancelled','an in-flight pass that was sent copies of the deleted entry is cancelled');
+select is((select snapshot::text||corrections::text||context::text from private.pass_inputs where pass_id='ffffffff-ffff-4fff-8fff-fffffffffff2'),'[][]{}','its stored input is emptied');
+select is((select cleanup_pending::text||'/'||provider_id||'/'||input_file_id from private.pass_inputs where pass_id='ffffffff-ffff-4fff-8fff-fffffffffff2'),'true/batch-two/file-two','its provider batch and file are queued for cancellation and deletion');
+update private.pass_inputs set next_attempt_at=now()+interval '1 hour';
+update private.pass_inputs set next_attempt_at=now() where pass_id='ffffffff-ffff-4fff-8fff-fffffffffff2';
+set local role service_role;
+select public.claim_garden_pass() as stopped \gset
+select is(:'stopped'::jsonb->>'status','cancelled','the worker claims it for provider cleanup, not for work');
+select is(public.check_garden_pass((:'stopped'::jsonb->>'id')::uuid,(:'stopped'::jsonb->>'token')::uuid),false,'it no longer passes the publication check');
+select lives_ok(format('select public.finish_garden_pass(%L::uuid,%L::uuid,%L::jsonb,100,40,false)',:'stopped'::jsonb->>'id',:'stopped'::jsonb->>'token',
+  '{"blooms":[],"marks":[{"seed_id":"cccccccc-cccc-4ccc-8ccc-ccccccccccc3","kind":"theme","label":"light","evidence":[{"revision_id":"eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee4","excerpt":"CANARY-STUDIO light"}]}],"no_output_reason":null}'),
+  'a provider result that arrives anyway is settled');
+reset role;
+select is((select status from public.garden_passes where id='ffffffff-ffff-4fff-8fff-fffffffffff2'),'cancelled','and the pass stays cancelled');
+select is((select count(*) from public.tending_marks where pass_id='ffffffff-ffff-4fff-8fff-fffffffffff2'),0::bigint,'so nothing from it is published');
+-- The worker then cancels the batch and deletes its files (covered by the runtime tests).
+update private.pass_inputs set cleanup_pending=false,next_attempt_at=now()+interval '1 hour' where pass_id='ffffffff-ffff-4fff-8fff-fffffffffff2';
+-- A completed pass that carried only the orientation index keeps its bloom; the index is scrubbed.
+select is((select status from public.garden_passes where id='ffffffff-ffff-4fff-8fff-fffffffffff4'),'complete','a completed pass that only listed the thought for orientation stays complete');
+select is((select count(*) from public.blooms where pass_id='ffffffff-ffff-4fff-8fff-fffffffffff4'),1::bigint,'and keeps its bloom');
+select is((select context->'index' from private.pass_inputs where pass_id='ffffffff-ffff-4fff-8fff-fffffffffff4'),
+  '[{"seed_id":"cccccccc-cccc-4ccc-8ccc-ccccccccccc2","title":"CANARY-TITLE-TWO walks","labels":["keepme"]}]'::jsonb,
+  'its index loses the entry''s thought, and loses a withdrawn pass''s label from a thought that survives');
+select is((select status from public.garden_passes where id='ffffffff-ffff-4fff-8fff-fffffffffff6'),'complete','a completed pass with no copy of the entry is untouched');
 select is(pg_temp.hits('CANARY-BETA'),1::bigint,'the sibling entry is intact');
 
 -- (b) A thought with its entries.
 set local role authenticated;
-select is(public.deletion_preview('seed','cccccccc-cccc-4ccc-8ccc-ccccccccccc2')->>'entries','1','the preview counts a thought''s entries');
+select is(public.deletion_preview('seed','cccccccc-cccc-4ccc-8ccc-ccccccccccc2'),
+  '{"kind":"seed","name":"CANARY-TITLE-TWO walks","gardens":0,"topics":0,"thoughts":1,"entries":1,"versions":1,"returns":1,"responses":0,"marks":0}'::jsonb,
+  'the preview counts a thought''s entries and the bloom of a completed pass that was sent its text');
 select is(public.delete_seed('cccccccc-cccc-4ccc-8ccc-ccccccccccc2')->>'deleted','true','the owner deletes a thought');
 select is(public.delete_seed('cccccccc-cccc-4ccc-8ccc-ccccccccccc2')->>'deleted','false','deleting the same thought again is a no-op');
 reset role;
@@ -198,10 +246,27 @@ select is(pg_temp.hits('dddddddd-dddd-4ddd-8ddd-ddddddddddd3'),0::bigint,'its en
 select is(pg_temp.hits('CANARY-GAMMA'),0::bigint,'no copy of its text survives');
 select is(pg_temp.hits('CANARY-TITLE-TWO'),0::bigint,'no copy of its title survives, including in orientation indexes');
 select is((select count(*) from public.seeds where id='cccccccc-cccc-4ccc-8ccc-ccccccccccc1'),1::bigint,'its sibling thought is intact');
+-- A completed pass whose model was sent a quote of the deleted text read that text: same rule as a pass that froze it.
+select is((select status from public.garden_passes where id='ffffffff-ffff-4fff-8fff-fffffffffff6'),'withdrawn','a completed pass that was sent a quote of the deleted thought is withdrawn');
+select is(pg_temp.hits('CANARY-ORCHBLOOM'),0::bigint,'and loses its bloom');
+select is((select corrections::text from private.pass_inputs where pass_id='ffffffff-ffff-4fff-8fff-fffffffffff6'),'[]','and the quote');
+select is((select count(*) from public.blooms where pass_id='ffffffff-ffff-4fff-8fff-fffffffffff4'),1::bigint,'the index-only pass still keeps its bloom');
+select is((select context->'index' from private.pass_inputs where pass_id='ffffffff-ffff-4fff-8fff-fffffffffff4'),'[]'::jsonb,'with the deleted thought gone from its index');
+
+-- A new pass over Studio is dispatched and in flight when its topic is deleted.
+set local role authenticated;
+insert into public.garden_passes(id,garden_id,plot_ids) values
+('ffffffff-ffff-4fff-8fff-fffffffffff5','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',array['bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2']::uuid[]);
+reset role;
+update private.pass_inputs set next_attempt_at=now()+interval '1 hour' where pass_id<>'ffffffff-ffff-4fff-8fff-fffffffffff5';
+set local role service_role;
+select public.claim_garden_pass() as flight \gset
+select lives_ok(format('select public.update_garden_job(%L::uuid,%L::uuid,%L,%L,null,true)',:'flight'::jsonb->>'id',:'flight'::jsonb->>'token','batch-in-flight','file-in-flight'),'the new pass records its provider batch and file');
+reset role;
 
 -- (c) A topic with its thoughts; the in-flight pass leaves a provider orphan.
 select reserved_cents as reserved_before,spent_cents as spent_before from private.ai_months \gset
-select reserved_cents as flight_cost from private.pass_inputs where pass_id='ffffffff-ffff-4fff-8fff-fffffffffff2' \gset
+select reserved_cents as flight_cost from private.pass_inputs where pass_id='ffffffff-ffff-4fff-8fff-fffffffffff5' \gset
 set local role authenticated;
 select throws_ok($$select public.delete_plot('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2','Mornings')$$,'22023','confirmation does not match','a topic is not deleted without its own name');
 select is((select count(*) from public.plots where id='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2'),1::bigint,'a refused deletion erases nothing');
@@ -212,9 +277,9 @@ reset role;
 select is(pg_temp.hits('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2'),0::bigint,'no row anywhere still names the deleted topic');
 select is(pg_temp.hits('cccccccc-cccc-4ccc-8ccc-ccccccccccc3'),0::bigint,'its thought is gone');
 select is(pg_temp.hits('CANARY-STUDIO'),0::bigint,'no copy of its text survives, including the in-flight snapshot');
-select is((select count(*) from public.garden_passes where id='ffffffff-ffff-4fff-8fff-fffffffffff2'),0::bigint,'the pass scoped to the topic is gone');
+select is((select count(*) from public.garden_passes where scope_key='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2'),0::bigint,'both passes scoped to the topic are gone');
 select is((select provider_id||'/'||input_file_id from private.provider_orphans),'batch-in-flight/file-in-flight','its provider batch and file ids are kept for cleanup');
-select is(pg_temp.hits('ffffffff-ffff-4fff-8fff-fffffffffff2'),0::bigint,'the orphan does not name the pass, tenant or garden');
+select is(pg_temp.hits('ffffffff-ffff-4fff-8fff-fffffffffff5'),0::bigint,'the orphan does not name the pass, tenant or garden');
 select is((select reserved_cents from private.ai_months),(:reserved_before-:flight_cost)::numeric,'the deleted pass''s reservation is released');
 select is((select spent_cents from private.ai_months),(:spent_before+:flight_cost)::numeric,'and counted as spend because the work reached the provider');
 
@@ -248,7 +313,7 @@ delete from private.provider_orphans;
 set local role authenticated;
 select throws_ok($$select public.delete_garden('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2','second garden')$$,'22023','confirmation does not match','a garden is not deleted without its exact name');
 select is(public.delete_garden('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2','Second garden'),
-  '{"kind":"garden","name":"Second garden","gardens":1,"topics":1,"thoughts":1,"entries":1,"versions":1,"returns":1,"responses":0,"marks":0,"deleted":true}'::jsonb,'the owner deletes a garden by name');
+  '{"kind":"garden","name":"Second garden","gardens":1,"topics":2,"thoughts":2,"entries":2,"versions":2,"returns":1,"responses":0,"marks":0,"deleted":true}'::jsonb,'the owner deletes a garden by name');
 select is(public.delete_garden('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2','Second garden')->>'deleted','false','deleting the same garden again is a no-op');
 select is((select count(*) from public.gardens),1::bigint,'the other garden is intact');
 reset role;
