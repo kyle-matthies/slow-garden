@@ -178,7 +178,8 @@ try {
     await expect(page.locator(".first-run-model li").last()).not.toHaveAttribute("data-saved");
     await expect(gardenName).toBeDisabled();
     await page.screenshot({ path: path.join(receipt, `recovery-${width}x${height}-${colorScheme}.png`), fullPage: true });
-    expect(writes).toBe(1);
+    // Opening the page and recovering the draft wrote nothing more.
+    expect(writes).toBe(browserStore ? 0 : 1);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     // The morning reveal: announced once, and a dismissal outlives a reload.
     // Setup recovery above left a first-run draft; a tended garden ignores it only
