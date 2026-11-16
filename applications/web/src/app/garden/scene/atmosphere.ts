@@ -305,15 +305,24 @@ export class GardenAtmosphere {
         this.quality = Math.max(0.35, this.quality * 0.7);
       else if (this.resolution > 0.5) {
         this.resolution = Math.max(0.5, this.resolution * 0.75);
-        this.size();
+        this.resized();
       }
     } else if (cost90 < 3.5 && pace90 < 18) {
       if (this.resolution < 1) {
         this.resolution = Math.min(1, this.resolution / 0.75);
-        this.size();
+        this.resized();
       } else if (this.quality < 1)
         this.quality = Math.min(1, this.quality * 1.15);
     }
+  }
+
+  /**
+   * Resizing a canvas clears it, and at rest no further frame is coming, so
+   * a resolution change paints again at once.
+   */
+  private resized() {
+    this.size();
+    this.draw();
   }
 
   private generate() {

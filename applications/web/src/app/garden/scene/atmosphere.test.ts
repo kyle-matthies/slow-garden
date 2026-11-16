@@ -48,7 +48,7 @@ function build() {
     getTheta: () => theta,
   });
   atmosphere.resize(390, 844);
-  return { atmosphere, turn: (to: number) => (theta = to) };
+  return { atmosphere, far, turn: (to: number) => (theta = to) };
 }
 
 beforeEach(() => {
@@ -104,5 +104,25 @@ describe("the resting atmosphere", () => {
     clears.mockClear();
     frames[0](16);
     expect(clears).not.toHaveBeenCalled();
+  });
+
+  it("paints again when a slow camera move lowers the canvas resolution on its last frame", () => {
+    const { atmosphere, far, turn } = build();
+    let now = 1000;
+    let resizedAt = -1;
+    for (let step = 1; step <= 900 && resizedAt < 0; step++) {
+      const width = far.width;
+      turn(step);
+      atmosphere.redraw();
+      const paintsBefore = clears.mock.calls.length;
+      frames[frames.length - 1]((now += 40));
+      if (far.width !== width) {
+        resizedAt = step;
+        // draw() ran once before the resize; a second must follow it.
+        expect(clears.mock.calls.length - paintsBefore).toBeGreaterThan(3);
+      }
+    }
+    expect(resizedAt).toBeGreaterThan(0);
+    expect(frames.filter((f) => f !== noop).length).toBe(resizedAt);
   });
 });
