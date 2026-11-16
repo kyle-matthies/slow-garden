@@ -433,3 +433,24 @@ while the camera turns.
   90.2 % to 5.8 % (hundred thoughts). Drag budgets not re-measured on a production
   build.
 - Revisit when: Kyle finds the meadow too still on his phone.
+
+## D-031: Static export behind a build switch (ADR-009 stage 3)
+
+- Date: 2026-11-16
+- Status: Decided under the owner working agreement; reversible by Kyle. ADR-009
+  itself remains proposed until Kyle accepts it.
+- Decision: `GARDEN_STATIC_EXPORT=1` builds a static export with no Next server.
+  Only files named `*.static.tsx` are routes in that build, and the hosted build
+  never sees them. The export always uses the browser data store, keeps the session
+  in browser storage, and carries its content security policy in the document.
+  Unset, the hosted build is unchanged.
+- Departures from ADR-009 as written: the landing page is included in the export;
+  the in-document policy cannot carry `frame-ancestors`, so framing must be refused
+  by the host or the shell.
+- Known limits: D-029's gap (a copied access token works against the data API until
+  it expires) applies to the whole static target. Headers a document cannot carry
+  (HSTS, nosniff, permissions, cross-origin policies) depend on the host or shell.
+  File download by blob will not work in an iOS web view and needs a native share
+  path. Not run in WebKit, on iOS, or inside any shell.
+- Revisit when: the Capacitor shell is started (needs Apple Developer enrolment and
+  a bundle id), or before the static target is given to anyone but Kyle.
