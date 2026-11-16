@@ -276,3 +276,26 @@ while the camera turns.
 - Not decided here: model activation, pricing, external pilot, or any hosted change.
 - Revisit when: comprehension testing shows people still cannot name their level from
   a screenshot, or the morning reveal reads as a nudge.
+
+## D-024: Owner direction after wave 1
+
+- Date: 2026-11-16
+- Status: Accepted by Kyle in session (answers to the four open decisions from the
+  wave 1 delivery record). PR #31 was merged by Kyle, which accepts D-023.
+- Headline: "Write by day. Wake to a bloom." stays unchanged, with no softening line.
+  Conditions (plan, tending switched on, nothing new to notice) belong in plain terms
+  lower on the page or in terms of service, not in the headline.
+- Privacy is the largest open concern. Research how comparable journaling and document
+  products protect private writing while still running AI inference, what Supabase can
+  offer (dedicated or private deployment), and the options for Slow Garden. Research
+  only; no vendor or architecture is chosen by this entry.
+- Deletion: build in-app deletion next.
+- First run: two paths with no required onboarding, "seed packs" (suggested starting
+  topics) and "plant your own" (a blank page). Optional background the person offers
+  may later inform suggested topics; that later step is not decided here.
+- Activation: run the AI activation runbook for Kyle's own garden under supervision,
+  in parallel with continued product work. Each hosted step keeps its go/no-go.
+- Platform: the product must be mobile-first, with a fast track to the App Store, even
+  if that needs a refactor toward a codebase better aligned between phone and desktop.
+  The approach requires its own architecture decision record before any framework is
+  installed.
