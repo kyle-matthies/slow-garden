@@ -8,6 +8,10 @@
 //   GARDEN_TEST_BASE      the web server under test (loopback only)
 //   GARDEN_TEST_STORE     "server" (default) or "browser": which store the server
 //                         under test was BUILT with (NEXT_PUBLIC_GARDEN_STORE)
+//   GARDEN_TEST_SESSION   "cookies" (default) or "storage": where the build under
+//                         test keeps the session. "storage" is the static export
+//                         (GARDEN_STATIC_EXPORT=1), served by any static file
+//                         server; it requires GARDEN_TEST_STORE=browser
 //   GARDEN_TEST_DEVICE    "desktop" (1440x900, default) or "phone" (iPhone 14)
 //   GARDEN_DELETION_ENABLED  "true" when the server under test was started with
 //                         it and the stack's deletion switch is on; off expects
@@ -58,6 +62,11 @@ assert.ok(
   "Only a dedicated local test stack is permitted.",
 );
 const storeMode = process.env.GARDEN_TEST_STORE === "browser" ? "browser" : "server";
+const sessionIn = process.env.GARDEN_TEST_SESSION === "storage" ? "storage" : "cookies";
+assert.ok(
+  sessionIn === "cookies" || storeMode === "browser",
+  "A build that keeps the session in browser storage has no server store.",
+);
 const deviceName = process.env.GARDEN_TEST_DEVICE === "phone" ? "phone" : "desktop";
 const phone = deviceName === "phone";
 const deletionOn = process.env.GARDEN_DELETION_ENABLED === "true";
@@ -317,6 +326,32 @@ function sessionFromCookies(cookies) {
     return null;
   }
 }
+/** The session JSON a static export keeps in this origin's localStorage. */
+function sessionFromStorage(state) {
+  const item = state.origins
+    .flatMap((o) => o.localStorage)
+    .find((i) => /^sb-.*-auth-token$/.test(i.name) && i.value);
+  if (!item) return null;
+  try {
+    return JSON.parse(item.value);
+  } catch {
+    return null;
+  }
+}
+/** The session this browser holds, wherever the build under test keeps it. */
+async function heldSession(ctx = context) {
+  return sessionIn === "storage"
+    ? sessionFromStorage(await ctx.storageState())
+    : sessionFromCookies(await ctx.cookies());
+}
+/** How many session entries this browser holds (cookies, or localStorage items). */
+async function heldSessionEntries(ctx = context) {
+  if (sessionIn === "storage")
+    return (await ctx.storageState()).origins
+      .flatMap((o) => o.localStorage)
+      .filter((i) => /auth-token/.test(i.name) && i.value).length;
+  return (await ctx.cookies()).filter((c) => /auth-token/.test(c.name) && c.value).length;
+}
 /**
  * Make this identity's sessions eleven minutes old, to reach the ten-minute
  * rule on account deletion. Only with GARDEN_TEST_DB_CONTAINER naming the
@@ -379,14 +414,22 @@ journey("sign-in", async () => {
     await expect(page).toHaveURL(/\/garden/);
   }
   pass("/ and /login send a signed-in person to the garden");
-  assert.ok(
-    (await context.cookies()).some(
-      (c) =>
-        c.name.includes("auth-token") && c.expires > Date.now() / 1000 + 86400,
-    ),
-    "persistent auth cookies",
-  );
-  // A browser restart keeps the session: same cookies in a new context.
+  if (sessionIn === "storage") {
+    assert.ok((await heldSession())?.refresh_token, "the session is kept in browser storage");
+    assert.equal(
+      (await context.cookies()).filter((c) => /auth-token/.test(c.name)).length,
+      0,
+      "a static export keeps no session cookie",
+    );
+  } else
+    assert.ok(
+      (await context.cookies()).some(
+        (c) =>
+          c.name.includes("auth-token") && c.expires > Date.now() / 1000 + 86400,
+      ),
+      "persistent auth cookies",
+    );
+  // A browser restart keeps the session: same cookies and storage in a new context.
   const state = await context.storageState();
   await context.close();
   context = await browser.newContext({ ...contextOptions, storageState: state });
@@ -921,11 +964,7 @@ journey("sign-out", async () => {
   await page.goto(pagesUrl(ids));
   await fromMore("Sign out");
   await expect(page).toHaveURL(/\/login/);
-  assert.equal(
-    (await context.cookies()).filter((c) => /auth-token/.test(c.name) && c.value).length,
-    0,
-    "no session cookie is left after sign-out",
-  );
+  assert.equal(await heldSessionEntries(), 0, "no session is left in this browser after sign-out");
   await signedOutAt("/garden");
   await signedOutAt(`/garden/import?garden=${ids.garden}`);
   if (storeMode === "server") {
@@ -939,8 +978,9 @@ journey("sign-out", async () => {
   // Sign out everywhere revokes every session of the account.
   await signIn(email);
   const kept = await context.cookies();
-  const session = sessionFromCookies(kept);
-  assert.ok(session?.refresh_token, "the session cookie holds a refresh token");
+  const keptState = await context.storageState();
+  const session = await heldSession();
+  assert.ok(session?.refresh_token, "the stored session holds a refresh token");
   const archivedAt = async () =>
     (await admin.from("entries").select("archived_at").eq("id", ids.entries[0]).single()).data
       .archived_at;
@@ -1004,8 +1044,10 @@ journey("sign-out", async () => {
   assert.ok(who.status === 401 || who.status === 403, "the auth service refuses the old access token");
   pass("sign out on all devices: the copied refresh token and access token are refused by the auth service");
   // The cookies copied beforehand, replayed in another browser.
-  const replay = await browser.newContext({ ...contextOptions });
-  await replay.addCookies(kept);
+  const replay = await browser.newContext(
+    sessionIn === "storage" ? { ...contextOptions, storageState: keptState } : { ...contextOptions },
+  );
+  if (sessionIn === "cookies") await replay.addCookies(kept);
   const other = await replay.newPage();
   if (storeMode === "server") {
     // The server confirms the session with the auth service on every request
@@ -1036,7 +1078,7 @@ journey("sign-out", async () => {
     await other.waitForTimeout(2500);
     const shown = await other.locator(".bed-card").count();
     console.log(
-      `  note browser store, copied cookies replayed after sign out everywhere: ${shown ? "the garden was still shown (this store never asks the app's server; the token is honoured until it expires, D-029)" : "the sign-in screen was shown"}`,
+      `  note browser store, copied ${sessionIn === "storage" ? "storage" : "cookies"} replayed after sign out everywhere: ${shown ? "the garden was still shown (this store never asks the app's server; the token is honoured until it expires, D-029)" : "the sign-in screen was shown"}`,
     );
   }
   await replay.close();
@@ -1194,11 +1236,7 @@ journey(
     const gone = await admin.auth.admin.getUserById(userId);
     assert.ok(gone.error || !gone.data?.user, "the sign-in identity is gone");
     created.delete(userId);
-    assert.equal(
-      (await context.cookies()).filter((c) => /auth-token/.test(c.name) && c.value).length,
-      0,
-      "no session cookie is left",
-    );
+    assert.equal(await heldSessionEntries(), 0, "no session is left in this browser");
     await signedOutAt("/garden");
     pass(
       `account: erased${aged ? " after re-sign-in" : " (session not aged: GARDEN_TEST_DB_CONTAINER unset, re-sign-in step not exercised)"}; 0 gardens, no account row, no identity, no cookie`,
@@ -1481,7 +1519,7 @@ journey("two-accounts", async () => {
   }
   // In the page, with B's own session and client: the same reads by A's ids.
   if (storeMode === "browser") {
-    const token = sessionFromCookies(await context.cookies())?.access_token;
+    const token = (await heldSession())?.access_token;
     assert.ok(token);
     const rows = await page.evaluate(
       async ({ api, key, token, ids }) => {
@@ -1568,7 +1606,7 @@ journey("two-accounts", async () => {
 
 // ---- run -------------------------------------------------------------------
 console.log(
-  `# web journeys · store=${storeMode} · device=${deviceName} (${contextOptions.viewport.width}x${viewportHeight}) · deletion=${deletionOn ? "on" : "off"} · ${base}`,
+  `# web journeys · store=${storeMode} · device=${deviceName} (${contextOptions.viewport.width}x${viewportHeight}) · session=${sessionIn} · deletion=${deletionOn ? "on" : "off"} · ${base}`,
 );
 browser = await chromium.launch(launchOptions);
 console.log(`# chromium ${browser.version()} · node ${process.version}`);

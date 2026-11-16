@@ -17,3 +17,4 @@ Current plan: [Private-alpha implementation backlog](ALPHA_IMPLEMENTATION_BACKLO
 Runbooks: [AI activation runbook](AI_ACTIVATION_RUNBOOK.md) (go/no-go checks; the runtime stays disabled until every check has a receipt).
 
 Delivery records: [Market readiness wave 1, 2026-11-15](MARKET_READINESS_DELIVERY_2026-11-15.md) (local checks only; not merged or deployed to production).
+[Static export build target, 2026-11-16](STATIC_EXPORT_2026-11-16.md) (ADR-009 stage 3; built and checked locally only; no native shell exists).

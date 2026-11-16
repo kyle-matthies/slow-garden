@@ -66,6 +66,18 @@ collects `src/**/*.test.{ts,tsx}`; plain `node:test` suites (`src/**/*.test.mjs`
 `tests/**/*.test.mjs`) run with `npm run test:node`, and CI runs both.
 Tests are colocated under `src/**/*.test.ts(x)`. Use `npm run test:watch` for
 watch mode; CI runs the single-run test suite.
+## Static export (ADR-009 stage 3)
+
+`GARDEN_STATIC_EXPORT=1 npx next build` (with both `NEXT_PUBLIC_SUPABASE_*` values)
+writes a static export to `out/`: only the `*.static.tsx` route files, the browser
+store, the session in browser storage, the content policy in a `<meta>` tag, and no
+Next server. Unset, the build is the hosted app and never sees those files. What it
+removes, what remains, how it was checked and what a native shell still needs are in
+[`documents/operations/STATIC_EXPORT_2026-11-16.md`](../../documents/operations/STATIC_EXPORT_2026-11-16.md).
+`scripts/check-static-export.mjs` (repository root) checks a served export signed out;
+`scripts/test-web-journeys.mjs` with `GARDEN_TEST_STORE=browser GARDEN_TEST_SESSION=storage`
+runs the signed-in journeys against it.
+
 ## Response headers and dependency audit
 
 `next.config.ts` sends an enforced Content Security Policy, HSTS, frame, referrer,
