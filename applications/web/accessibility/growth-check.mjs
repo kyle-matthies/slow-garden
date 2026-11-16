@@ -10,6 +10,7 @@ const env = { ...process.env, GARDEN_AXE_FIXTURES: "1" };
 for (const key of Object.keys(env)) if (/SUPABASE|GARDEN_AI|OPENAI/i.test(key)) delete env[key];
 // GROWTH_BASE runs the journeys against a fixture server that is already up
 // (GARDEN_AXE_FIXTURES=1) instead of starting the production build on :3214.
+const browserStore = process.env.NEXT_PUBLIC_GARDEN_STORE === "browser";
 const external = process.env.GROWTH_BASE?.replace(/\/$/, "");
 const base = external || "http://127.0.0.1:3214";
 const server = external ? null : spawn("npx", ["next", "start", "-p", "3214"], { cwd: path.resolve(here, ".."), env, detached: true, stdio: "ignore" });
@@ -88,16 +89,27 @@ try {
     await expect(page.getByRole("region", { name: "Tending activity" })).toContainText("Completed");
     await expect(page.getByRole("region", { name: "Tending activity" })).toContainText("does not confirm an overnight schedule");
     await page.goto(`${base}/dev/axe-fixtures?state=import`, { waitUntil: "networkidle" });
-    let writes = 0;
-    page.on("request", (request) => { if (request.method() === "POST" && request.headers()["next-action"]) writes++; });
+    // A write is a server action (server store) or the import RPC sent from the
+    // page (a build made with NEXT_PUBLIC_GARDEN_STORE=browser; name it to this
+    // script with the same variable). The fixture server has no Supabase, so the
+    // browser store fails before any request leaves the page.
+    let writes = 0, rpcs = 0;
+    page.on("request", (request) => {
+      if (request.method() !== "POST") return;
+      if (request.headers()["next-action"]) writes++;
+      if (/\/rest\/v1\/rpc\/import_thought/.test(request.url())) rpcs++;
+    });
     await page.getByLabel("Files", { exact: true }).setInputFiles({ name: "Synthetic.md", mimeType: "text/markdown", buffer: Buffer.from("# Synthetic thought\n\n## 2026-10-01\nA synthetic import check.") });
     const confirm = page.getByRole("button", { name: /^Import 1 thought into/ });
     await expect(confirm).toBeEnabled();
-    expect(writes).toBe(0);
+    expect(writes + rpcs).toBe(0);
     await confirm.click();
     await expect(page.locator(".import-summary")).toContainText("0 thoughts imported.");
     await expect(page.getByRole("button", { name: /^Retry 1 thought into/ })).toBeEnabled();
-    expect(writes).toBe(1);
+    if (browserStore) {
+      expect(writes).toBe(0);
+      expect(rpcs).toBeLessThanOrEqual(1);
+    } else expect(writes).toBe(1);
     await expect(page.getByLabel("Title for Synthetic.md")).toBeDisabled();
     await page.goto(`${base}/dev/axe-fixtures?state=first-run`, { waitUntil: "networkidle" });
     const gardenName = page.getByLabel("Name your garden", { exact: true });
@@ -166,7 +178,8 @@ try {
     await expect(page.locator(".first-run-model li").last()).not.toHaveAttribute("data-saved");
     await expect(gardenName).toBeDisabled();
     await page.screenshot({ path: path.join(receipt, `recovery-${width}x${height}-${colorScheme}.png`), fullPage: true });
-    expect(writes).toBe(1);
+    // Opening the page and recovering the draft wrote nothing more.
+    expect(writes).toBe(browserStore ? 0 : 1);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     // The morning reveal: announced once, and a dismissal outlives a reload.
     // Setup recovery above left a first-run draft; a tended garden ignores it only

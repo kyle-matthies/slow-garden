@@ -5,9 +5,9 @@ import type { Palette } from "@/lib/garden/scene/palette";
 import { GardenAtmosphere } from "./atmosphere";
 
 /**
- * Drives the canvas atmosphere. The far and back canvases sit behind the plants
- * and the front canvas in front of them. DOM plants sway with a compositor-only
- * CSS gust (scene.css), so the loop never writes styles per frame.
+ * Paints the canvas atmosphere. The far and back canvases sit behind the plants
+ * and the front canvas in front of them. It draws once and then only while the
+ * camera moves; everything that moves at rest is compositor-only CSS (scene.css).
  */
 export function useAtmosphere({
   far,
@@ -17,12 +17,12 @@ export function useAtmosphere({
   seed,
   horizon,
   fov,
-  still,
   theta,
   width,
   height,
   zoom,
   thetaScale = 1,
+  settle = false,
 }: {
   far: React.RefObject<HTMLCanvasElement | null>;
   back: React.RefObject<HTMLCanvasElement | null>;
@@ -31,7 +31,6 @@ export function useAtmosphere({
   seed: number;
   horizon: number;
   fov: number;
-  still: boolean;
   theta: MotionValue<number>;
   width: number;
   height: number;
@@ -39,6 +38,8 @@ export function useAtmosphere({
   zoom?: MotionValue<number>;
   /** Grass degrees per camera degree, so grass and beds travel together. */
   thetaScale?: number;
+  /** The person can turn this scene, so it settles its quality after first paint. */
+  settle?: boolean;
 }) {
   const engine = useRef<GardenAtmosphere | null>(null);
   const scale = useRef(thetaScale);
@@ -55,9 +56,9 @@ export function useAtmosphere({
       seed,
       horizon,
       fov,
-      still,
       getTheta: () => theta.get() * scale.current,
       getZoom: () => zoom?.get() ?? 1,
+      settle,
     });
     engine.current = atmosphere;
     atmosphere.resize(width, height);
@@ -74,8 +75,8 @@ export function useAtmosphere({
   }, [ready]);
 
   useEffect(() => {
-    engine.current?.update({ palette, seed, horizon, fov, still });
-  }, [palette, seed, horizon, fov, still]);
+    engine.current?.update({ palette, seed, horizon, fov });
+  }, [palette, seed, horizon, fov]);
 
   useEffect(() => {
     engine.current?.resize(width, height);

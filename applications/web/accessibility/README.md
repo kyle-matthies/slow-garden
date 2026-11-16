@@ -50,6 +50,10 @@ state cannot hide the morning reveal in another.
 `AXE_STATES=garden-ring,morning-reveal` reruns only the named states and
 `AXE_VIEWPORTS=360,844x390` only the named viewports (a partial run does not
 rewrite `contrast.json`).
+Against a production build (`next start` with `GARDEN_AXE_FIXTURES=1`, named with
+`AXE_BASE`) the development-only `cabinet` state (`/garden/returns-preview`) is not
+served; the run says `SKIP cabinet`, checks every other state, and leaves
+`contrast.json` as it was.
 `AXE_CHROMIUM` points at a preinstalled Chromium when Playwright's own is absent, and
 `AXE_RECEIPTS` writes the receipt set elsewhere (the living garden's receipts live in
 `documents/initiatives/receipts/living-garden/`).

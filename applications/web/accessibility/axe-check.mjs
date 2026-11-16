@@ -163,7 +163,12 @@ const STATES = [
 // AXE_STATES=garden-ring,morning-reveal reruns only those states while fixing
 // them. A partial run never replaces the contrast receipt.
 const ONLY = process.env.AXE_STATES?.split(",").map((s) => s.trim()).filter(Boolean);
-const wanted = (state) => !ONLY || ONLY.includes(state);
+// States whose route exists only in development (it answers the not-found page
+// in a production build). Against a production build they are skipped, and
+// said to be, instead of checking the not-found page under their name.
+const DEV_ONLY = new Map([["cabinet", "/garden/returns-preview?scene=three-blooms"]]);
+const skipped = new Set();
+const wanted = (state) => (!ONLY || ONLY.includes(state)) && !skipped.has(state);
 // Findings reported as warnings instead of failures. Keep empty unless a finding is
 // tracked in an initiative record with an owner.
 const KNOWN_ISSUES = new Set();
@@ -511,6 +516,14 @@ try {
     }
   };
 
+  for (const [state, url] of DEV_ONLY) {
+    if (!wanted(state)) continue;
+    const res = await fetch(`${BASE}${url}`);
+    if (res.status === 404 || !(await res.text()).includes("cabinet")) {
+      skipped.add(state);
+      console.log(`SKIP ${state}: ${url.split("?")[0]} is development-only and is not served by this build`);
+    }
+  }
   for (const [state, url, open] of STATES.filter(([state]) => wanted(state))) {
     for (const scheme of SCHEMES) {
       for (const vp of VIEWPORTS) {
@@ -753,7 +766,7 @@ try {
     }
 }
 
-if (!ONLY && !ONLY_VIEWPORTS) writeFileSync(
+if (!ONLY && !ONLY_VIEWPORTS && !skipped.size) writeFileSync(
   path.join(receipts, "contrast.json"),
   JSON.stringify(
     contrastRows.map(({ state, scheme, selector, fg, bg, ratio, passesAA }) => ({

@@ -35,6 +35,10 @@ export function ReturnsPage({
   children: ReactNode;
 }) {
   const blooms = liveBlooms(tending).slice(0, 3);
+  // A pass finished here once and tending cannot run now: both are true, so
+  // the page says them together and never that nothing was ever read.
+  const tendedBefore = Boolean(tending.lastTendedAt);
+  const restingNow = tendedBefore && !tendingActive;
   // Remember what was new on arrival, so "New" stays put while it is read.
   const [arrivedNew] = useState(
     () => new Set(blooms.filter((b) => b.isNew).map((b) => b.id)),
@@ -61,12 +65,20 @@ export function ReturnsPage({
             Last tended <EntryTime value={tending.lastTendedAt} />
           </p>
         )}
+        {restingNow && (
+          <p className="returns-standing">
+            Tending is not active now. What was returned before stays here to
+            read, and nothing new will arrive until tending is active.
+          </p>
+        )}
       </header>
       {blooms.length === 0 ? (
         <p className="returns-empty">
           {tendingActive
             ? "Nothing has been returned yet. A tending pass can also finish with no bloom when there is nothing worth saying."
-            : "Nothing has been returned. Tending is not active for this account yet, so no AI has read your writing."}
+            : restingNow
+              ? "No bloom is showing. Earlier tending passes are in the full record below."
+              : "Nothing has been returned. Tending is not active for this account yet, so no AI has read your writing."}
         </p>
       ) : (
         <ol className="returns-blooms" aria-label="Latest blooms">

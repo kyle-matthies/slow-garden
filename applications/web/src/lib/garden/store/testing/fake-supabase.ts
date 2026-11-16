@@ -142,6 +142,14 @@ export function createFakeDb(world: World): { db: Db; calls: Call[] } {
           data: world.claims ? { claims: world.claims } : null,
           error: null,
         })),
+      // What the auth server says: the server path asks it on every request.
+      getUser: () =>
+        auth("getUser", [], () => ({
+          data: {
+            user: world.claims ? { id: world.claims.sub, email: world.claims.email } : null,
+          },
+          error: null,
+        })),
       signOut: (options: unknown) =>
         auth("signOut", [options], () => {
           world.claims = null;

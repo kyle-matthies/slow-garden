@@ -151,18 +151,19 @@ cloud resource is created in this phase beyond the two secrets.
 
 ## Phase 2 — Migrations and worker deployment with the runtime still disabled
 
-Apply the six committed migrations through
+Apply the seven committed migrations through
 [SUPABASE_CHANGE_WORKFLOW](../../infrastructure/SUPABASE_CHANGE_WORKFLOW.md) steps 6–8
 and the [hosted apply checklist](HOSTED_APPLY_CHECKLIST.md), in order, **as one
 sequence on one go, without pausing part-way** (after the first four without the
 fifth, the deletion RPCs exist with no database switch in front of them):
 `20261116010931_in_app_deletion`, `20261116023935_ai_tenant_allowlist`,
 `20261116023937_provider_transport`, `20261116023939_garden_scheduling`,
-`20261116041903_browser_path_rules`, `20261116061751_tending_followups`.
+`20261116041903_browser_path_rules`, `20261116061751_tending_followups`,
+`20261116080454_tending_lock_and_cycle_fixes`.
 
 | # | Check | Go | No-go |
 |---|---|---|---|
-| 2.0 | The six migrations are in the hosted ledger; `supabase db push --linked --dry-run` reports up to date; `scripts/hosted-canary.sql` returns `hosted synthetic canary passed` | all three observed | any difference |
+| 2.0 | The seven migrations are in the hosted ledger; `supabase db push --linked --dry-run` reports up to date; `scripts/hosted-canary.sql` returns `hosted synthetic canary passed` | all three observed | any difference |
 | 2.0a | After migration: `select count(*) from private.ai_tenants` is 0; `select transport, reasoning_effort, nightly_enabled, enabled from private.ai_runtime` is `batch, null, false, false`; `select jobname, schedule, command from cron.job` lists `slow-garden-worker`, `slow-garden-nightly` (command `call private.run_nightly_enqueue()`), `slow-garden-cron-prune`; `select deletion_enabled from private.deployment_switches` is false; `select private.garden_worker_url() is null` is true (so the tick can send nothing) | observed | anything else |
 | 2.1 | `supabase/functions/garden-worker` deployed with JWT verification disabled **only for this function** | deploy receipt names the function and the flag | flag applied project-wide |
 | 2.2 | Unauthenticated POST returns 401; wrong secret returns 401 | both observed | any 200/503 without the secret |
@@ -287,11 +288,19 @@ residual risk in the decision log.
    have a receipt first, so that this is not the first time it commits.
 4. Observe one night. Expect one pass per permission scope with changed writing, and
    none for unchanged scopes. **Each garden gets at most three blooms for the night,
-   across all its passes**: the three are shared out when the night's passes are
-   created (one topic 3; two topics 2 and 1; three or more 1 each), a share that is
-   not used is not handed on, and `private.bloom_cycles` shows `published` (never
-   above 3) and `withheld` per garden and night. A reflection the person invites is
-   separate: up to three of its own. Catalogue marks are not blooms. Check
+   across all its passes.** A night is a cycle that belongs to the garden: a row in
+   `private.bloom_cycles` with the moment it started. A garden cannot start another
+   within twenty hours, so a time-zone change, a deleted pass or an allowlist round
+   trip cannot reopen it, and the counter (`published`, never above 3; `withheld`) is
+   found by the cycle's id. The three are shared out when the night's passes are
+   created (one topic 3; two topics 2 and 1; three or more 1 each), and a share that
+   is not used is not handed on. **With four or more tended scopes in one garden the
+   fourth and later scopes get a share of zero.** They are still prepared, budgeted and
+   sent to the provider, their catalogue marks still publish, they show "No new
+   reflection this time", and they can never publish a bloom that night: provider cost
+   is spent on a pass whose blooms are discarded. This is a known trade recorded for
+   D-028's "revisit when" (see TENDING_FOLLOWUPS §9). A reflection the person invites
+   is separate: up to three of its own. Catalogue marks are not blooms. Check
    `select count(*) from private.nightly_skips where noted_at > now() - interval '1 day'`
    is 0 (a row means a scope or account was passed over; its reason is a code). No body text
    appears in logs. With `sync`, passes finish within minutes of 02:07 local time,
@@ -396,6 +405,29 @@ and effort they were frozen with.
   gets one retry. A ledger write that fails after the provider answered is retried
   from memory and then settled as failed at its real cost; it does not cause another
   provider call unless the worker process itself dies mid-call.
+- **A garden with four or more separately tended topics pays for passes that cannot
+  bloom.** The night's three are shared 1, 1, 1 among the first three scopes (most new
+  writing first); every further scope is still sent to the provider for its marks and
+  has its blooms withheld. Not redesigned here; noted for D-028.
+- **Archiving or restoring a thought or an entry, and changing a topic's tending,
+  cross-connection or archive state, wait for the whole time another holder has that
+  account's row**: a pass being prepared, a nightly enqueue for the account, a
+  deletion, or another such change. Not a fixed few milliseconds: measured, an archive
+  behind a 4 s holder took 3.4 s (the reviewer measured 5.4 s behind 6 s). The longest
+  holders measured in normal operation on production-shaped synthetic data were a
+  nightly enqueue for one account (105 ms) and deleting a whole garden (113 ms);
+  inviting a reflection held it 21 ms, deleting an entry or a thought 8 ms, a topic
+  34 ms. A topic change also waits for that account's ingestion in progress, and
+  holds the account's row while it does. Creating a garden waits behind pass
+  preparation and deletion too (as it did before this work), though not behind an
+  archive. Saving, renaming, moving and importing take none of these locks: a save
+  behind a held ingestion with a topic change queued took 3 ms.
+- **A failed night closes the garden for twenty hours.** The cycle opens when the
+  night's passes are created; if they then fail or are cancelled, that garden is not
+  tended again until twenty hours later.
+- **Moving east can bring nights closer together.** After a time-zone change a garden
+  can be tended again as soon as twenty hours after its last night (a new cycle each
+  time; still at most three blooms per cycle), not only after twenty-four.
 - **The three-bloom cap is per garden per night for nightly passes only.** An invited
   reflection is its own cycle of up to three; a person who invites one for each of
   several topics in a day can see more than three new blooms in that garden that day.

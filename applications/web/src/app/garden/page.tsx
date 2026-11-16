@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import Loading from "@/app/loading";
 import { createClient, isSupabaseConfigured } from "@/lib/supabase/server";
+import { confirmedSession } from "@/lib/supabase/session";
 import { loadGarden } from "@/lib/garden/data";
 import { storeKind } from "@/lib/garden/store/select";
 import { BrowserGarden } from "./browser-entry";
@@ -30,12 +31,13 @@ export default async function GardenPage({
     );
   if (!isSupabaseConfigured()) redirect("/login");
   const db = await createClient();
-  const { data, error } = await db.auth.getClaims();
-  if (error || !data?.claims?.sub) redirect("/login");
+  // Confirmed with the auth server, so a session ended elsewhere is refused.
+  const session = await confirmedSession(db);
+  if (!session) redirect("/login");
   const params = await searchParams;
   return (
     <StoreBoundary>
-      <GardenWorkspace data={await loadGarden(data.claims.sub, params.garden)} />
+      <GardenWorkspace data={await loadGarden(session.tenantId, params.garden)} />
     </StoreBoundary>
   );
 }

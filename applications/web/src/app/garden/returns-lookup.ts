@@ -1,5 +1,6 @@
 "use server";
 import { createClient } from "@/lib/supabase/server";
+import { confirmedSession } from "@/lib/supabase/session";
 
 export type RevisionLocation = {
   entry_id: string;
@@ -20,8 +21,7 @@ export async function locateRevisions(
   );
   if (ids.length === 0) return {};
   const db = await createClient();
-  const { data, error } = await db.auth.getClaims();
-  if (error || !data?.claims?.sub) return {};
+  if (!(await confirmedSession(db))) return {};
   const { data: rows } = await db
     .from("seed_revisions")
     .select("id,entry_id,seed_id,revision_number,created_at")

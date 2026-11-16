@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { GUST_SECONDS, GUST_WAVELENGTH, swayStyle } from "./sway";
+import { GUST_SECONDS, GUST_STEPS, GUST_WAVELENGTH, swayStyle } from "./sway";
 
 const delay = (deg: number) => parseFloat(swayStyle(deg, 1)["--sway-delay"]);
 
@@ -15,6 +15,22 @@ describe("swayStyle", () => {
     // One wavelength along is in step again, including negative angles.
     expect(delay(GUST_WAVELENGTH)).toBeCloseTo(delay(0));
     expect(delay(-GUST_WAVELENGTH / 4)).toBeCloseTo(delay((3 * GUST_WAVELENGTH) / 4));
+  });
+
+  it("keeps the whole meadow to a few shared phases, so its animations turn over together", () => {
+    // Each distinct phase is another moment the browser's main thread wakes
+    // for an animation turning over; a meadow of plants must not add one each.
+    const delays = new Set<string>();
+    for (let i = 0; i < 400; i++)
+      delays.add(swayStyle(i * 7.31 - 900, 1, -(i % 13) * 0.04)["--sway-delay"]);
+    expect(delays.size).toBeLessThanOrEqual(GUST_STEPS);
+    expect(delays.size).toBeGreaterThan(GUST_STEPS / 2);
+    for (const value of delays) {
+      const steps = (parseFloat(value) / GUST_SECONDS) * GUST_STEPS;
+      expect(steps).toBeCloseTo(Math.round(steps), 1);
+      expect(parseFloat(value)).toBeLessThanOrEqual(0);
+      expect(parseFloat(value)).toBeGreaterThan(-GUST_SECONDS);
+    }
   });
 
   it("chooses an amplitude from flex", () => {

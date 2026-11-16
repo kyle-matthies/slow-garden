@@ -392,5 +392,44 @@ while the camera turns.
   person asked for it.
 - Known limit: a scope of more than twenty cross-connected topics is skipped by
   nightly tending, with a note.
+- Known limit: with four or more tended scopes in one garden, the fourth and later
+  scopes get a share of zero. Each is still budgeted and sent to the provider, shows
+  "No new reflection", and publishes its marks. Provider cost is spent on a pass that
+  cannot publish a bloom.
 - Revisit when: dogfooding shows the fixed sharing starves a topic that deserved a
-  bloom, or invited and nightly returns on the same day feel like too much.
+  bloom, invited and nightly returns on the same day feel like too much, or a garden
+  has four or more tended scopes (skip or rotate the zero-share passes rather than
+  paying for them).
+
+## D-029: The server confirms every session with the auth service
+
+- Date: 2026-11-16
+- Status: Decided under the owner working agreement; reversible by Kyle.
+- Context: verification found that after "Sign out on all devices" a copied cookie
+  still opened the garden until its access token expired (up to an hour), because
+  the server trusted the token locally.
+- Decision: server pages, actions and routes confirm the session with the auth
+  service once per request. A globally signed-out session is refused on its next
+  server request. Cost: one auth round trip per request.
+- Known limit: the data API still honours a copied access token until it expires.
+  Browser-store mode and direct API use are therefore not covered. Closing that
+  needs a database rule that checks the session, or a shorter token lifetime; both
+  are hosted changes. Settings copy states the limit per mode.
+- Revisit when: the browser data path becomes the default (ADR-009 stage 3), or
+  before any external person has an account.
+
+## D-030: The resting meadow is painted once and animated only by the compositor
+
+- Date: 2026-11-16
+- Status: Decided under the owner working agreement; reversible by Kyle.
+- Context: verification measured the still meadow keeping the main thread 85 to 96 %
+  busy on a 4x-throttled phone profile. The app is mobile-first and headed for an
+  App Store shell, where idle battery cost matters.
+- Decision: the atmosphere layer draws once and on camera moves only. Ambient motion
+  is transform and opacity in CSS, pauses when the scene is hidden or offscreen, and
+  stops under reduced motion. This narrows ADR-007's "canvas atmosphere layer for
+  grass, wind, pollen": mid-distance grass no longer ripples.
+- Evidence: dev-server, 4x throttle, 390 wide: 82.9 % to 5.1 % (tended scene),
+  90.2 % to 5.8 % (hundred thoughts). Drag budgets not re-measured on a production
+  build.
+- Revisit when: Kyle finds the meadow too still on his phone.

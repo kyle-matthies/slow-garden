@@ -221,7 +221,7 @@ schemas and the corpus were not changed by this work (the values in the status r
   rates. If the owner chooses `sync`, both want a line.
 - `documents/operations/README.md` index: add this record.
 
-## 9. Reversal of the six November 16 migrations
+## 9. Reversal of the seven November 16 migrations
 
 None is applied anywhere, so today reversal is "do not apply". After a hosted apply,
 reverse **the latest first**: each later migration replaces functions and depends on
@@ -231,7 +231,38 @@ later one is in place. Run as the operator, with `private.ai_runtime.enabled=fal
 Rollback), and ship each reversal as a new reviewed migration, not ad hoc. No step
 touches a person's writing, and none restores anything a person deleted.
 
-Order: 6, 5, 4, 3, 2, 1.
+Order: 7, 6, 5, 4, 3, 2, 1.
+
+**7. `20261116080454_tending_lock_and_cycle_fixes`** (only with `private.bloom_cycles`
+empty or expendable: its key changes back, and passes lose their link to a cycle)
+
+```sql
+drop trigger seeds_account_first on public.seeds;
+drop trigger entries_account_first on public.entries;
+drop trigger plots_account_first on public.plots;
+drop function private.lock_account_first(), private.lock_account_and_inputs_first();
+-- re-create private.erase_derived from 20261116010931_in_app_deletion.sql
+drop trigger passes_lock_inputs_first on public.garden_passes;
+create trigger passes_lock_inputs_first before update on public.garden_passes
+  for each statement execute function private.lock_own_pass_inputs();
+-- re-create, from the files named:
+--   public.save_entry, public.import_thought          20261116041903_browser_path_rules.sql
+--   public.finish_garden_pass, private.enqueue_nightly_for,
+--   private.run_nightly_enqueue                        20261116061751_tending_followups.sql
+drop function private.pass_cycle(uuid), private.garden_cycle_near(uuid,timestamptz,uuid[]);
+alter table private.nightly_skips drop constraint nightly_skips_garden_fkey;
+drop index private.nightly_skips_garden_idx;
+drop index private.bloom_cycles_garden_idx;
+alter table private.pass_inputs drop column cycle_id;   -- its index pass_inputs_cycle_idx goes with it
+delete from private.bloom_cycles a using private.bloom_cycles b
+  where a.garden_id=b.garden_id and a.cycle_date=b.cycle_date and a.id<b.id;   -- the old key allows one row per garden and date
+alter table private.bloom_cycles drop constraint bloom_cycles_pkey, drop column id, drop column started_at,
+  add primary key(garden_id,cycle_date);
+```
+
+Effect: a time-zone change across the date line can again reopen a garden's night;
+a save can again wait behind the worker or behind a queued topic change; the archive,
+topic-change and deletion-against-cancel deadlocks return. Do not run nightly tending without it.
 
 **6. `20261116061751_tending_followups`**
 

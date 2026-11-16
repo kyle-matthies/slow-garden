@@ -52,4 +52,5 @@ Database tests live in `supabase/tests`. `scripts/test-upgrade.sh` only accepts 
 isolated synthetic `.local-runtime` stack named `slow-garden-web-thinking`; it resets
 that test database and verifies all legacy source IDs, timestamps and text survive.
 `scripts/test-local-http.mjs` verifies synthetic OTP, exports, history and sign-out
-against that stack and a web dev server on port 3147. It never targets production.
+against that stack and a web server on port 3148 (set `GARDEN_TEST_BASE` to use another
+loopback port). It never targets production.

@@ -7,10 +7,27 @@ const require = createRequire(
 );
 const { createClient } = require("@supabase/supabase-js");
 const { createServerClient, createChunks } = require("@supabase/ssr");
+// Defaults: the `.local-runtime` stack and a web server on :3148. Another local
+// stack is named with GARDEN_TEST_STATUS (the JSON from `supabase status -o json`)
+// together with GARDEN_TEST_API_URL (must equal that file's API_URL), and another
+// server with GARDEN_TEST_BASE. Only loopback addresses are accepted, and never the
+// default development stack on :54321.
 const settings = JSON.parse(
-  await readFile(".local-runtime/status.json", "utf8"),
+  await readFile(
+    process.env.GARDEN_TEST_STATUS ?? ".local-runtime/status.json",
+    "utf8",
+  ),
 );
-if (settings.API_URL !== "http://127.0.0.1:55321")
+const expectedApi =
+  process.env.GARDEN_TEST_API_URL ?? "http://127.0.0.1:55321";
+const loopback = /^http:\/\/(127\.0\.0\.1|localhost):\d+$/;
+const base = process.env.GARDEN_TEST_BASE ?? "http://localhost:3148";
+if (
+  settings.API_URL !== expectedApi ||
+  !loopback.test(expectedApi) ||
+  expectedApi.endsWith(":54321") ||
+  !loopback.test(base)
+)
   throw Error("Only the dedicated local test stack is permitted.");
 const admin = createClient(settings.API_URL, settings.SERVICE_ROLE_KEY, {
   auth: { persistSession: false, autoRefreshToken: false },
@@ -75,20 +92,26 @@ try {
   const headers = {
     cookie: cookies.map((c) => `${c.name}=${c.value}`).join("; "),
   };
-  const exported = await fetch("http://localhost:3148/garden/export", {
+  const exported = await fetch(`${base}/garden/export`, {
     headers,
   });
   assert.equal(exported.status, 200);
   assert.match(exported.headers.get("cache-control"), /no-store/);
   const value = await exported.json();
-  assert.equal(value.revisions.find((r) => r.id === revisionId).body, body);
+  // Export document v2: the author's source and the derived material are separate.
+  assert.equal(value.schema, "slow-garden-export-v2");
+  assert.equal(value.source.authorship, "user");
   assert.equal(
-    value.gardens.length,
+    value.source.revisions.find((r) => r.id === revisionId).body,
+    body,
+  );
+  assert.equal(
+    value.source.gardens.length,
     1,
     "tenant export must not include other accounts",
   );
   const markdown = await fetch(
-    "http://localhost:3148/garden/export?format=md",
+    `${base}/garden/export?format=md`,
     {
       headers,
     },
@@ -96,13 +119,13 @@ try {
   assert.equal(markdown.status, 200);
   assert.ok((await markdown.text()).includes(body));
   const history = await fetch(
-    `http://localhost:3148/garden/history?entry=${entryId}`,
+    `${base}/garden/history?entry=${entryId}`,
     { headers },
   );
   assert.equal(history.status, 200);
   assert.equal((await history.json())[0].body, body);
   assert.equal(
-    (await fetch("http://localhost:3148/garden/export")).status,
+    (await fetch(`${base}/garden/export`)).status,
     401,
   );
   // Expired access token with a valid local refresh token must refresh through Proxy,
@@ -129,7 +152,7 @@ try {
     cookieName,
     "base64-" + Buffer.from(JSON.stringify(staleSession)).toString("base64url"),
   );
-  const refreshedPage = await fetch("http://localhost:3148/login", {
+  const refreshedPage = await fetch(`${base}/login`, {
     redirect: "manual",
     headers: {
       cookie: staleCookies.map((c) => `${c.name}=${c.value}`).join("; "),

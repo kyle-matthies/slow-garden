@@ -1,6 +1,7 @@
 "use server";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { confirmedSession } from "@/lib/supabase/session";
 import type { ActionResult } from "@/lib/garden/types";
 import {
   runImport,
@@ -11,10 +12,9 @@ import { importThoughtWith } from "@/lib/garden/store/import-rpc";
 
 async function authenticated() {
   const db = await createClient();
-  const { data, error } = await db.auth.getClaims();
-  if (error || !data?.claims?.sub)
-    throw new Error("Please sign in again. Your files are still here.");
-  return { db, tenantId: data.claims.sub };
+  const session = await confirmedSession(db);
+  if (!session) throw new Error("Please sign in again. Your files are still here.");
+  return { db, tenantId: session.tenantId };
 }
 
 export async function importThought(

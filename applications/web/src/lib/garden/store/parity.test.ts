@@ -4,6 +4,11 @@
  * own copy of the same recording fake database. Results must be identical and
  * so must every database and auth call, in order.
  *
+ * One difference is deliberate and is normalised below: to learn who is signed
+ * in, the server asks the auth server (`getUser`), so a session ended on
+ * another device is refused on its next request, while the browser can only
+ * verify its own token (`getClaims`). See src/lib/supabase/session.ts.
+ *
  * The fake checks nothing a real database checks. This proves the two paths
  * ask for the same things; it does not prove RLS or any RPC. The rules these
  * scenarios stand in for (blank text, archived topics, the deletion switch,
@@ -168,6 +173,14 @@ async function runOn(
   return { outcomes, calls, world };
 }
 
+/** The two ways of asking who is signed in, made comparable. */
+const sessionChecksAlike = (calls: Call[]): Call[] =>
+  calls.map((call) =>
+    call.target === "auth:getUser" || call.target === "auth:getClaims"
+      ? { target: "auth:session-check", steps: [] }
+      : call,
+  );
+
 /** Run on both stores, require identical outcomes, calls and final tables. */
 async function both(
   steps: Steps,
@@ -178,7 +191,10 @@ async function both(
   const server = await runOn("server", flags, arrange, steps);
   const browser = await runOn("browser", flags, arrange, steps);
   expect(browser.outcomes).toEqual(server.outcomes);
-  expect(browser.calls).toEqual(server.calls);
+  expect(sessionChecksAlike(browser.calls)).toEqual(sessionChecksAlike(server.calls));
+  // The server never trusts the token alone, and the browser never needs the server's check.
+  expect(server.calls.map((c) => c.target)).not.toContain("auth:getClaims");
+  expect(browser.calls.map((c) => c.target)).not.toContain("auth:getUser");
   expect(browser.world.tables).toEqual(server.world.tables);
   return browser;
 }
@@ -199,6 +215,34 @@ afterEach(() => {
 });
 
 describe("session", () => {
+  it("the server confirms the session with the auth server before every read and write", async () => {
+    const world = seededWorld();
+    const { db, calls } = createFakeDb(world);
+    current.db = db;
+    const store = createDefaultServerStore();
+    await store.getSession();
+    await store.loadGarden();
+    await store.saveEntry({ seedId: S1, entryId: E1, revisionId: NEW(1), body: "synthetic", expectedRevisionId: R1 });
+    await routeFetch("/garden/export");
+    await routeFetch(`/garden/history?entry=${E1}`);
+    const auth = calls.map((c) => c.target).filter((t) => t.startsWith("auth:"));
+    expect(auth).toEqual(Array(5).fill("auth:getUser"));
+  });
+
+  it("a session the auth server no longer knows is signed out on the server, whatever the token says", async () => {
+    const world = seededWorld();
+    // The token would still verify; the auth server answers that the session is gone.
+    world.fail["auth.getUser"] = { code: "session_not_found" };
+    const { db, calls } = createFakeDb(world);
+    current.db = db;
+    const store = createDefaultServerStore();
+    expect(await store.getSession()).toEqual({ signedIn: false });
+    expect(await store.loadGarden()).toEqual({ signedIn: false });
+    expect((await routeFetch("/garden/export")).status).toBe(401);
+    expect((await routeFetch(`/garden/history?entry=${E1}`)).status).toBe(401);
+    expect(calls.every((c) => c.target === "auth:getUser")).toBe(true);
+  });
+
   it("reports the signed-in person and requests and verifies an email code", async () => {
     const run = await both((s) => [
       () => s.getSession(),

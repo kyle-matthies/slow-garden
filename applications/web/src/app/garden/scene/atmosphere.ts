@@ -1,19 +1,37 @@
 import { grassParallax, grassY, mod360, wrap } from "@/lib/garden/scene/camera";
 import { lerp, seededRandom } from "@/lib/garden/scene/hash";
 import type { Palette } from "@/lib/garden/scene/palette";
+import {
+  FULL,
+  SETTLE_FRAMES,
+  SETTLE_WINDOWS,
+  judge,
+  recall,
+  remember,
+  settle,
+  stepDown,
+  stepUp,
+  type Level,
+} from "@/lib/garden/scene/quality";
 
 /**
- * The living backdrop: hills, ground, a dense meadow, wind in the near grass,
- * small wildflowers, and pollen by day or fireflies by night. It uses three
- * canvases and no library: the far layer (hills and meadow strips) and the
- * live grass behind the plants, and the near grass in front of them.
+ * The painted backdrop: hills, ground, a dense meadow, the nearer grass caught
+ * mid-gust, and small wildflowers. It uses three canvases and no library: the
+ * far layer (hills and meadow strips) and the nearer grass behind the plants,
+ * and the near grass in front of them.
  *
- * The far meadow is pre-rendered once into wrapping strips and only slides
- * with parallax; its canvas is redrawn only when the camera turns, and the
- * ground beneath it is a CSS gradient. Only the nearer grass is redrawn with
- * wind each frame. The loop pauses whenever the page is hidden, the scene is
- * off screen, the person is writing, or reduced motion is requested; it then
- * draws one still frame.
+ * Nothing here runs at rest. The canvases are drawn once and wait; a frame is
+ * requested only while the camera turns or steps, one per display frame, and
+ * the grass keeps one pose so it never jumps between frames. What moves in a
+ * resting meadow (plants, near grass, clouds, pollen or fireflies) is
+ * compositor-only CSS in scene.css, which the browser stops for a hidden tab
+ * and the scene pauses when it is off screen.
+ *
+ * Because it does not draw at rest, it cannot learn at rest what the device
+ * can afford. A scene that can be turned therefore settles its quality once,
+ * in a burst of at most a few dozen frames shortly after its first paint, or
+ * starts from what this device settled on last time (quality.ts). After that
+ * it adjusts only while the camera moves.
  */
 export type AtmosphereOptions = {
   palette: Palette;
@@ -22,10 +40,11 @@ export type AtmosphereOptions = {
   /** Horizon as a fraction of the scene height. */
   horizon: number;
   fov: number;
-  still: boolean;
   getTheta: () => number;
   /** How close the camera stands: the ground scales about the horizon. */
   getZoom?: () => number;
+  /** Settle quality after the first paint: for scenes the person can turn. */
+  settle?: boolean;
 };
 
 type Blade = {
@@ -62,15 +81,6 @@ export function mix(a: string, b: string, t: number, alpha = 1) {
     ? `rgba(${c[0]}, ${c[1]}, ${c[2]}, ${alpha})`
     : `rgb(${c[0]}, ${c[1]}, ${c[2]})`;
 }
-
-type Mote = {
-  x: number;
-  y: number;
-  r: number;
-  vx: number;
-  vy: number;
-  phase: number;
-};
 
 type Strip = {
   canvas: HTMLCanvasElement;
@@ -125,6 +135,21 @@ function hillHeight(h: Hill, deg: number) {
   return y / norm;
 }
 
+/** The moment the grass is posed at, and how hard the wind blows in it. */
+const POSE_TIME = 12.5;
+const POSE_GUST = 0.4;
+
+/** Wait for the page to finish arriving before judging frames, in ms. */
+const SETTLE_DELAY = 300;
+
+function deviceStorage() {
+  try {
+    return window.localStorage;
+  } catch {
+    return undefined;
+  }
+}
+
 /** A smooth travelling wind field in -1..1. */
 function windAt(x: number, t: number) {
   return (
@@ -132,10 +157,6 @@ function windAt(x: number, t: number) {
     0.3 * Math.sin(0.0057 * x - 1.7 * t + 1.3) +
     0.15 * Math.sin(0.013 * x - 2.9 * t + 0.4)
   );
-}
-
-function gust(t: number) {
-  return 0.55 + 0.45 * Math.sin(0.21 * t) * Math.sin(0.13 * t + 1);
 }
 
 const parallax = grassParallax;
@@ -204,15 +225,16 @@ export class GardenAtmosphere {
   private hills: Hill[] = [];
   private trees: Tree[] = [];
   private farZoom = NaN;
-  private motes: Mote[] = [];
   private strips: Strip[] = [];
   private stripKey = "";
+  /** A frame requested for a camera move; 0 when the scene is at rest. */
   private frame = 0;
-  private running = false;
-  private visible = true;
-  private quality = 1;
-  /** Backing-store resolution multiplier, lowered only after quality bottoms out. */
-  private resolution = 1;
+  /** Grass density and canvas resolution in use (quality.ts). */
+  private level: Level = FULL;
+  /** Windows left in the settling burst; 0 once settled or when none is wanted. */
+  private settling = 0;
+  private settleTimer: ReturnType<typeof setTimeout> | undefined;
+  private started = false;
   private frameTimes: number[] = [];
   private intervals: number[] = [];
   private lastFrame = 0;
@@ -220,8 +242,6 @@ export class GardenAtmosphere {
   /** Camera angle the far layer was last drawn at; NaN forces a redraw. */
   private farTheta = NaN;
   private groundCss = "";
-  private start = performance.now();
-  private observer: IntersectionObserver | null = null;
 
   constructor(
     far: HTMLCanvasElement,
@@ -237,14 +257,6 @@ export class GardenAtmosphere {
     this.fctx = front.getContext("2d", { alpha: true })!;
     this.opts = opts;
     this.generate();
-    document.addEventListener("visibilitychange", this.onVisibility);
-    if (typeof IntersectionObserver !== "undefined") {
-      this.observer = new IntersectionObserver(([entry]) => {
-        this.visible = entry.isIntersecting;
-        this.sync();
-      });
-      this.observer.observe(back);
-    }
   }
 
   update(next: Partial<AtmosphereOptions>) {
@@ -252,17 +264,43 @@ export class GardenAtmosphere {
     this.opts = { ...this.opts, ...next };
     this.farTheta = NaN;
     if (reseed) this.generate();
-    this.sync();
-    if (!this.running) this.draw(this.time());
+    this.draw();
   }
 
   resize(width: number, height: number) {
     if (width === this.width && height === this.height) return;
     this.width = width;
     this.height = height;
+    if (!this.started && width > 0 && height > 0) this.start();
     this.size();
-    this.sync();
-    this.draw(this.time());
+    this.draw();
+  }
+
+  /** Canvas pixels at full resolution: what a remembered level was found for. */
+  private area() {
+    const ideal = Math.min(window.devicePixelRatio || 1, 2);
+    return this.width * this.height * ideal * ideal;
+  }
+
+  /**
+   * First size: begin where this device settled before, or arrange to settle
+   * once the page has arrived. Nothing is scheduled for a scene nobody turns.
+   */
+  private start() {
+    this.started = true;
+    if (!this.opts.settle) return;
+    const remembered = recall(deviceStorage(), this.area());
+    if (remembered) {
+      this.level = remembered;
+      return;
+    }
+    this.settleTimer = setTimeout(() => {
+      this.settling = SETTLE_WINDOWS;
+      this.frameTimes = [];
+      this.intervals = [];
+      this.lastFrame = 0;
+      this.redraw();
+    }, SETTLE_DELAY);
   }
 
   private size() {
@@ -271,7 +309,7 @@ export class GardenAtmosphere {
     // Keep the backing store near 4.5 megapixels on very large screens.
     this.dpr =
       Math.min(ideal, Math.sqrt(4_500_000 / Math.max(1, width * height))) *
-      this.resolution;
+      this.level.resolution;
     for (const canvas of [this.far, this.back, this.front]) {
       canvas.width = Math.round(width * this.dpr);
       canvas.height = Math.round(height * this.dpr);
@@ -279,87 +317,96 @@ export class GardenAtmosphere {
     this.farTheta = NaN;
   }
 
-  /** Redraw now, e.g. while the camera moves during a still or paused state. */
+  /**
+   * The camera moved: draw on the next display frame. Several moves within a
+   * frame share one drawing, and nothing is requested once the camera rests.
+   */
   redraw() {
-    if (!this.running) this.draw(this.time());
+    if (this.frame) return;
+    this.frame = requestAnimationFrame(this.onFrame);
   }
 
   destroy() {
-    this.running = false;
+    clearTimeout(this.settleTimer);
+    this.settling = 0;
     cancelAnimationFrame(this.frame);
-    document.removeEventListener("visibilitychange", this.onVisibility);
-    this.observer?.disconnect();
+    this.frame = 0;
   }
 
-  private onVisibility = () => this.sync();
-
-  private time() {
-    return this.opts.still ? 12.5 : (performance.now() - this.start) / 1000;
-  }
-
-  private sync() {
-    const shouldRun =
-      !this.opts.still &&
-      this.visible &&
-      this.width > 0 &&
-      document.visibilityState === "visible";
-    if (shouldRun && !this.running) {
-      this.running = true;
-      this.lastFrame = 0;
-      this.frame = requestAnimationFrame(this.loop);
-    } else if (!shouldRun && this.running) {
-      this.running = false;
-      cancelAnimationFrame(this.frame);
-      this.draw(this.time());
-    }
-  }
-
-  private loop = (now: number) => {
-    if (!this.running) return;
+  private onFrame = (now: number) => {
+    this.frame = 0;
     const interval = this.lastFrame ? now - this.lastFrame : 0;
     this.lastFrame = now;
     const before = performance.now();
-    this.draw((now - this.start) / 1000);
+    this.draw();
     this.adapt(performance.now() - before, interval);
-    this.frame = requestAnimationFrame(this.loop);
+    // The settling burst keeps itself going; a camera move never does.
+    if (this.settling) this.redraw();
   };
 
   /**
    * Thin the live grass, then soften the canvas resolution, while drawing or
    * frame pacing stays slow (rasterising happens after draw(), so the frame
-   * interval is the honest signal); restore both with headroom.
+   * interval is the honest signal); restore both with headroom. While settling
+   * the windows are short and quality only goes down.
    */
   private adapt(cost: number, interval: number) {
     const now = performance.now();
     if (!this.frameTimes.length) this.windowStart = now;
     this.frameTimes.push(cost);
-    // Ignore pauses such as a backgrounded tab or a long route change.
+    // Ignore the rests between camera moves, a backgrounded tab or a route change.
     if (interval > 0 && interval < 250) this.intervals.push(interval);
     // Decide every 60 frames, or every second on a device too slow to reach 60.
-    const enough =
-      this.frameTimes.length >= 60 ||
-      (this.frameTimes.length >= 10 && now - this.windowStart >= 1000);
+    const enough = this.settling
+      ? this.intervals.length >= SETTLE_FRAMES
+      : this.frameTimes.length >= 60 ||
+        (this.frameTimes.length >= 10 && now - this.windowStart >= 1000);
     if (!enough) return;
     const p90 = (list: number[]) =>
       [...list].sort((a, b) => a - b)[Math.floor(list.length * 0.9)] ?? 0;
-    const cost90 = p90(this.frameTimes);
-    const pace90 = p90(this.intervals);
+    const verdict = judge(p90(this.frameTimes), p90(this.intervals));
     this.frameTimes = [];
     this.intervals = [];
-    if (cost90 > 8 || pace90 > 24) {
-      if (this.quality > 0.35)
-        this.quality = Math.max(0.35, this.quality * 0.7);
-      else if (this.resolution > 0.5) {
-        this.resolution = Math.max(0.5, this.resolution * 0.75);
-        this.size();
+    if (this.settling) {
+      const next = settle(this.level, verdict, this.settling);
+      this.settling = next.windowsLeft;
+      const changed = this.use(next.level);
+      // The last window's choice must reach the screen: no frame follows it.
+      if (!this.settling) {
+        if (changed === "quality") this.draw();
+        remember(deviceStorage(), this.level, this.area());
       }
-    } else if (cost90 < 3.5 && pace90 < 18) {
-      if (this.resolution < 1) {
-        this.resolution = Math.min(1, this.resolution / 0.75);
-        this.size();
-      } else if (this.quality < 1)
-        this.quality = Math.min(1, this.quality * 1.15);
+      return;
     }
+    const next =
+      verdict === "far-over"
+        ? stepDown(stepDown(this.level))
+        : verdict === "slow"
+          ? stepDown(this.level)
+          : verdict === "fast"
+            ? stepUp(this.level)
+            : this.level;
+    if (this.use(next)) remember(deviceStorage(), this.level, this.area());
+  }
+
+  /** Adopt a level; says what changed. A new resolution repaints at once. */
+  private use(next: Level): "resolution" | "quality" | null {
+    const before = this.level;
+    this.level = next;
+    if (next.resolution !== before.resolution) {
+      this.resized();
+      return "resolution";
+    }
+    return next.quality !== before.quality ? "quality" : null;
+  }
+
+  /**
+   * Resizing a canvas clears it, and at rest no further frame is coming, so
+   * a resolution change paints again at once.
+   */
+  private resized() {
+    this.size();
+    this.draw();
   }
 
   private generate() {
@@ -408,15 +455,6 @@ export class GardenAtmosphere {
     this.near = near;
     this.stripKey = "";
     this.farTheta = NaN;
-    const motes = seededRandom(this.opts.seed ^ 0x51ed);
-    this.motes = Array.from({ length: 36 }, () => ({
-      x: motes(),
-      y: motes(),
-      r: lerp(0.8, 2.2, motes()),
-      vx: lerp(-0.004, 0.012, motes()),
-      vy: lerp(-0.006, 0.004, motes()),
-      phase: motes() * TAU,
-    }));
   }
 
   private geometry() {
@@ -680,16 +718,17 @@ export class GardenAtmosphere {
     a.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
   }
 
-  private draw(t: number) {
+  private draw() {
+    const t = POSE_TIME;
     const { width: W, height: H } = this;
     if (!W || !H) return;
     this.ensureStrips();
     const { palette, fov } = this.opts;
     const g = this.geometry();
-    const { hy, groundH, ppd, scale } = g;
+    const { hy, ppd, scale } = g;
     const theta = this.opts.getTheta();
     const zoom = this.opts.getZoom?.() ?? 1;
-    const gu = this.opts.still ? 0.4 : gust(t);
+    const gu = POSE_GUST;
     if (theta !== this.farTheta || zoom !== this.farZoom) {
       this.drawFar(theta, zoom);
       this.farTheta = theta;
@@ -715,7 +754,7 @@ export class GardenAtmosphere {
 
     // Live grass with wind, batched by tone.
     const tones = palette.grass;
-    const quality = this.quality * Math.min(1, (W * H) / (1280 * 760) + 0.4);
+    const quality = this.level.quality * Math.min(1, (W * H) / (1280 * 760) + 0.4);
     const stride = Math.max(1, Math.round(1 / quality));
     const paths = tones.map(() => new Path2D());
     const tips = new Path2D();
@@ -776,7 +815,7 @@ export class GardenAtmosphere {
     // Foreground grass in front of the plants.
     const nearPath = new Path2D();
     const nearDark = new Path2D();
-    const nearStride = this.quality < 0.5 ? 2 : 1;
+    const nearStride = this.level.quality < 0.5 ? 2 : 1;
     for (let i = 0; i < this.near.length; i += nearStride) {
       const blade = this.near[i];
       const rel = wrap(blade.angle - theta * (1.25 + (blade.depth - 1) * 0.8));
@@ -795,36 +834,5 @@ export class GardenAtmosphere {
     f.fillStyle = tones[tones.length - 1];
     f.fill(nearDark);
 
-    // Pollen by day, fireflies at night.
-    const night = palette.night;
-    f.fillStyle = palette.particle;
-    for (const m of this.motes) {
-      const mx = (((m.x + (this.opts.still ? 0 : m.vx * t)) % 1) + 1) % 1;
-      const my =
-        (((m.y +
-          (this.opts.still
-            ? 0
-            : m.vy * t + 0.01 * Math.sin(t * 0.7 + m.phase))) %
-          1) +
-          1) %
-        1;
-      const x = mx * W + windAt(mx * W, t) * 6 * gu;
-      const y = hy - groundH * 0.1 + my * groundH * 0.95;
-      const twinkle = night
-        ? Math.max(0, Math.sin(t * 0.9 + m.phase)) ** 3
-        : 0.45 + 0.35 * Math.sin(t * 1.4 + m.phase);
-      if (twinkle < 0.02) continue;
-      f.globalAlpha = twinkle;
-      f.beginPath();
-      f.arc(x, y, m.r * scale * (night ? 1.1 : 0.8), 0, TAU);
-      f.fill();
-      if (night) {
-        f.globalAlpha = twinkle * 0.22;
-        f.beginPath();
-        f.arc(x, y, m.r * scale * 4, 0, TAU);
-        f.fill();
-      }
-    }
-    f.globalAlpha = 1;
   }
 }

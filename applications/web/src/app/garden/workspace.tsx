@@ -194,6 +194,7 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
     setArchived,
     setTopicTending: setPlotPermissions,
     signOut,
+    kind: storeKind,
   } = useGardenStore();
   // Browser mode: the garden is client state and is re-read through the store.
   // Server mode (null): the server re-renders it, exactly as before.
@@ -230,6 +231,18 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
     return () => { cancelled = true; };
   }, [data.tenantId]);
   const garden = data.gardens.find((g) => g.id === data.gardenId);
+  // "Last tended" is dated from blooms and marks, but a pass may finish with
+  // nothing to say. The pass record still shows the writing was read, so
+  // Returns takes the later of the two and never says nothing was read.
+  const lastQuietPass = data.tendingHistory?.passes.find(
+    (p) => p.status === "complete" && p.finishedAt,
+  )?.finishedAt;
+  const returnsTending =
+    lastQuietPass &&
+    (!tending.lastTendedAt ||
+      Date.parse(lastQuietPass) > Date.parse(tending.lastTendedAt))
+      ? { ...tending, lastTendedAt: lastQuietPass }
+      : tending;
   const requestedTopic = params.get("topic") ?? "";
   const requestedThought = params.get("thought") ?? "";
   const plotId = data.plots.find((p) => p.id === requestedTopic)?.id ?? "";
@@ -318,19 +331,21 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
     view === "" || view === "list" ? view : readViewPreference();
   // Return to Pages on later visits if that was the last choice.
   useEffect(() => {
-    if (!params.get("view") && readViewPreference() === "list")
+    if (!params.get("view") && readViewPreference() === "list") {
+      // Only the view is added. The address keeps the garden, topic and
+      // thought it asked for, found or not: rebuilding it from what was found
+      // dropped a location that no longer exists, and with it the notice
+      // that says so.
+      const query = new URLSearchParams(params.toString());
+      if (!query.get("garden") && data.gardenId)
+        query.set("garden", data.gardenId);
+      query.set("view", "list");
       window.history.replaceState(
         null,
         "",
-        gardenUrl(
-          plotId,
-          seedId,
-          "list",
-          window.location.hash.startsWith("#entry-")
-            ? window.location.hash.slice(7)
-            : "",
-        ),
+        `/garden?${query}${window.location.hash.startsWith("#entry-") ? window.location.hash : ""}`,
       );
+    }
     // Only on arrival; later navigation carries the view in the URL.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -796,6 +811,16 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
             out or the session expires. Sign out of this device from the More
             menu.
           </p>
+          {/* What is true, per store: the server confirms each request with the
+              auth server (lib/supabase/session.ts); the browser store cannot.
+              Either way the data service honours an issued token until it
+              expires (one hour unless the project sets otherwise). */}
+          <p>
+            Sign out on all devices ends every sign-in for this account.{" "}
+            {storeKind === "server"
+              ? "Other browsers are asked to sign in again the next time they load or save. A copy of a sign-in taken before then stops working when it expires, within about an hour."
+              : "Other browsers can keep working until the access they already hold runs out, within about an hour, and are then asked to sign in again."}
+          </p>
           <div className="action-row">
             <button className="plain-button" onClick={() => leave("global")}>
               Sign out on all devices
@@ -982,7 +1007,7 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
           ) : returnsMode ? (
             /* Returns: the AI's output has its own page, in its own material. */
             <ReturnsPage
-              tending={tending}
+              tending={returnsTending}
               seeds={data.seeds}
               tendingActive={data.aiAvailable}
               onOpenThought={openThought}

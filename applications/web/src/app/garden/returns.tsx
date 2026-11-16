@@ -158,6 +158,11 @@ export function GardenReturns({
     requestAnimationFrame(() => openButton.current?.focus());
   }
 
+  // With a pass on record, "not active yet" would read as if none had run.
+  const hasPastPass =
+    (returns?.passes.length ?? 0) > 0 ||
+    (data.tendingHistory?.passes.length ?? 0) > 0;
+
   if (!open)
     return (
       <button
@@ -239,7 +244,9 @@ export function GardenReturns({
         ) : (
           <p className="cabinet-note">
             {!data.aiAvailable
-              ? "Tending is not active for this account yet. Your tending choices are saved. You can keep writing and review existing returns."
+              ? hasPastPass
+                ? "Tending is not active now, so nothing new will arrive until it is. Your tending choices are saved, and past returns stay here to read."
+                : "Tending is not active for this account yet. Your tending choices are saved. You can keep writing and review existing returns."
               : current?.archived_at || garden?.status === "archived"
                 ? "Restore this garden and topic before requesting a reflection."
                 : "Tending is off for this topic. Choose Tending on in Topic settings to request a reflection."}
