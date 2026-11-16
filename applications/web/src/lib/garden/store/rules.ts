@@ -7,6 +7,7 @@
  * rules only refuse early and phrase refusals the same way on both paths.
  */
 import type { ActionResult } from "../types";
+import { saveErrorMessage } from "../validation";
 
 export type AreaKind = "garden" | "plot" | "seed";
 export type ArchivableKind = AreaKind | "entry";
@@ -22,6 +23,123 @@ export function isUuid(value: unknown): value is string {
 }
 export function isLooseUuid(value: unknown): value is string {
   return typeof value === "string" && UUID_LOOSE.test(value);
+}
+
+/* ---------- blank text and length ---------- */
+
+/**
+ * Exactly the characters `String.prototype.trim()` removes (ECMAScript
+ * WhiteSpace and LineTerminator). The database holds the same list in
+ * `private.trim_text` (migration 20261116041903); rules.test.ts compares the
+ * two, and compares this list with `trim()` for every code point. Zero-width
+ * space (U+200B), the joiners, U+2060, U+180E and U+0085 are not in it: a
+ * name made only of those is not blank on the server path or in the database.
+ */
+export const BLANK_CHARACTERS =
+  "\u0009\u000A\u000B\u000C\u000D\u0020\u00A0\u1680" +
+  "\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A" +
+  "\u2028\u2029\u202F\u205F\u3000\uFEFF";
+
+/** What the validation rules mean by blank: nothing left after `trim()`. */
+export function isBlank(value: string): boolean {
+  return value.trim() === "";
+}
+
+/**
+ * Length limits, in UTF-16 code units (`String.length`). The database counts
+ * the same way (`private.utf16_length`), so an emoji costs two on both sides.
+ */
+export const TEXT_LIMITS = {
+  gardenName: 120,
+  topicName: 120,
+  thoughtTitle: 160,
+  entryBody: 20000,
+  timezone: 64,
+} as const;
+
+/* ---------- capabilities ---------- */
+
+/** What `public.garden_capabilities()` answers for the signed-in account. */
+export type Capabilities = { tending: boolean; deletion: boolean };
+/** Deployment switches supplied by whoever builds the store (the server's environment flags). */
+export type AvailabilityFlags = {
+  aiAvailable: boolean;
+  deletionAvailable: boolean;
+};
+export const NOTHING_AVAILABLE: AvailabilityFlags = {
+  aiAvailable: false,
+  deletionAvailable: false,
+};
+
+/** Only literal `true` enables anything; a malformed answer enables nothing. */
+export function gardenCapabilities(value: unknown): Capabilities {
+  const row =
+    value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+  return { tending: row.tending === true, deletion: row.deletion === true };
+}
+
+/**
+ * How the two switches combine: both must allow.
+ *
+ * - `capabilities` present (the database has `garden_capabilities()`): a
+ *   feature is available when the database allows it AND the supplied flag
+ *   does. With no flags supplied (a build with no server to read an
+ *   environment), the database decides alone.
+ * - `capabilities` null (a database that predates the RPC): only explicitly
+ *   supplied flags count, exactly as before the RPC existed; with none,
+ *   nothing is available.
+ */
+export function availability(
+  flags: AvailabilityFlags | undefined,
+  capabilities: Capabilities | null,
+): AvailabilityFlags {
+  if (!capabilities) return flags ?? NOTHING_AVAILABLE;
+  return {
+    aiAvailable: (flags?.aiAvailable ?? true) && capabilities.tending,
+    deletionAvailable: (flags?.deletionAvailable ?? true) && capabilities.deletion,
+  };
+}
+
+/** PostgREST and Postgres codes for "no such function": the migration is not applied. */
+export function rpcMissing(error: unknown): boolean {
+  const code = (error as { code?: string } | null)?.code;
+  return code === "PGRST202" || code === "42883";
+}
+
+/* ---------- archived places ---------- */
+
+/**
+ * SQLSTATE the database raises when writing is aimed at something archived
+ * (a garden, topic, thought or entry), with a message that names which.
+ */
+export const ARCHIVED_PLACE = "SGA02";
+
+/**
+ * What to tell the person, built from the database's own wording but never
+ * passing it through: only the four known subjects are recognised.
+ */
+export function archivedMessage(error: unknown): string {
+  const text = (error as { message?: unknown } | null)?.message;
+  const what =
+    typeof text === "string"
+      ? /^this (garden|topic|thought|entry) is archived\b/.exec(text)?.[1]
+      : undefined;
+  return `This ${what ?? "place"} is archived. Restore it to keep writing here; your draft is still here.`;
+}
+
+/** The error the stores raise themselves when they read a topic and find it archived. */
+export function archivedTopicError(): { code: string; message: string } {
+  return {
+    code: ARCHIVED_PLACE,
+    message: "this topic is archived; restore it to write here",
+  };
+}
+
+/** A failed save, create or archive: say what is archived when that is why. */
+export function saveFailureMessage(error: unknown): string {
+  return (error as { code?: string } | null)?.code === ARCHIVED_PLACE
+    ? archivedMessage(error)
+    : saveErrorMessage(error);
 }
 
 /* ---------- areas and archiving ---------- */
@@ -113,6 +231,52 @@ export function revisionLookupIds(revisionIds: readonly string[]): string[] {
 
 export const IMPORT_FAILED =
   "Could not import. Your files are unchanged; please retry.";
+export const IMPORT_CHECK_INPUT = "Check the topic and entries, then retry.";
+export const IMPORT_TOPIC_UNAVAILABLE = "Choose an active topic.";
+/** An atomic import the database refused: it wrote nothing. */
+export const IMPORT_NOT_SAVED = "Could not import. Nothing was saved; please retry.";
+/** No answer came back, so whether the import was saved is unknown. */
+export const IMPORT_UNCERTAIN =
+  "Could not confirm the import. It may have been saved; run the same import again to check. Nothing will be saved twice.";
+/** The call-by-call import failed after it may have written. */
+export const IMPORT_INTERRUPTED =
+  "The import stopped partway. Some entries may have been saved; run the same import again to finish. Nothing will be saved twice.";
+/** The import function could not be reached and the older path is not safe to use. */
+export const IMPORT_UNAVAILABLE =
+  "Import is not available right now. Nothing was imported; please try again in a minute.";
+/** An id no row has: the probe that asks whether the owner may still write entry dates. */
+export const NO_ROW = "00000000-0000-0000-0000-000000000000";
+/** One import: at most this many entries (also enforced by `import_thought`). */
+export const IMPORT_MAX_ENTRIES = 500;
+/**
+ * One import: title plus bodies, in UTF-8 bytes. A server action request is
+ * capped at 1 MB by Next; `import_thought` holds the same figure for callers
+ * that have no such ceiling.
+ */
+export const IMPORT_MAX_BYTES = 1_048_576;
+
+export function importBytes(input: {
+  title: string;
+  entries: readonly { body: string }[];
+}): number {
+  const encoder = new TextEncoder();
+  let total = encoder.encode(input.title).length;
+  for (const entry of input.entries) total += encoder.encode(entry.body).length;
+  return total;
+}
+
+/** What `import_thought` returns, or null when it is not that shape. */
+export function importReceipt(
+  value: unknown,
+): { id: string; created: number; skipped: number } | null {
+  if (!value || typeof value !== "object") return null;
+  const row = value as Record<string, unknown>;
+  return typeof row.id === "string" &&
+    typeof row.created === "number" &&
+    typeof row.skipped === "number"
+    ? { id: row.id, created: row.created, skipped: row.skipped }
+    : null;
+}
 
 /* ---------- permanent deletion ---------- */
 
@@ -189,10 +353,16 @@ export function deletionCounts(value: unknown): DeletionCounts | null {
   };
 }
 
-/** Deletion RPCs arrive with their own reviewed migration; before it, say so plainly. */
+/** SQLSTATE raised by every deletion RPC while the database's deletion switch is off. */
+export const DELETION_SWITCHED_OFF = "SGA03";
+
+/**
+ * Deletion is unavailable: its RPCs are not installed yet, or the database's
+ * deployment switch is off. Either way, say so plainly.
+ */
 export function deletionMissing(error: unknown): boolean {
   const code = (error as { code?: string } | null)?.code;
-  return code === "PGRST202" || code === "42883";
+  return rpcMissing(error) || code === DELETION_SWITCHED_OFF;
 }
 
 export function deletionPreviewFailure(error: unknown): DeletionPreview {

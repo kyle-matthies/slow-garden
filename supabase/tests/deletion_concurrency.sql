@@ -22,6 +22,7 @@ create function pg_temp.cleanup() returns text language sql as $$
     delete from auth.users where id='77777777-7777-4777-8777-777777777777';
     delete from private.ai_months where reserved_cents=0 and spent_cents=0 and not exists(select 1 from private.pass_inputs i where i.budget_month=month);
     update private.ai_runtime set enabled=false,model=null,approved_at=null,workflow_version='connect-v2-unapproved';
+    update private.deployment_switches set deletion_enabled=false;
   $q$);
 $$;
 
@@ -34,6 +35,7 @@ select dblink_exec('setup',$q$
     values('77777777-7777-4777-8777-777777777777','delete-race@example.test','{}','{}',now(),now());
   update private.ai_runtime set enabled=true,approved_at=now(),model='synthetic-test-model',workflow_version='connect-v2-unapproved';
   insert into private.ai_tenants(tenant_id) values('77777777-7777-4777-8777-777777777777');
+  update private.deployment_switches set deletion_enabled=true;
   insert into public.gardens(id,tenant_id,name) values('7aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1','77777777-7777-4777-8777-777777777777','Race garden');
   insert into public.plots(id,tenant_id,garden_id,name,ai_enabled) values('7bbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1','77777777-7777-4777-8777-777777777777','7aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1','Race topic',true);
   insert into public.seeds(id,tenant_id,garden_id,plot_id,title) values('7ccccccc-cccc-4ccc-8ccc-ccccccccccc1','77777777-7777-4777-8777-777777777777','7aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1','7bbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1','Race thought');

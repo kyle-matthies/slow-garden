@@ -3,7 +3,6 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import type { ActionResult } from "@/lib/garden/types";
 import {
-  saveErrorMessage,
   validateAreaName,
   validateBloomResponse,
   validateEntryBody,
@@ -19,7 +18,8 @@ async function authenticated() {
   return { db, tenantId: data.claims.sub };
 }
 function message(error: unknown): ActionResult {
-  return { ok: false, message: saveErrorMessage(error) };
+  // Says what is archived when the database refuses for that reason.
+  return { ok: false, message: rules.saveFailureMessage(error) };
 }
 export async function createArea(
   kind: "garden" | "plot" | "seed",
@@ -60,7 +60,7 @@ export async function createArea(
           .select("garden_id,archived_at")
           .eq("id", parentId)
           .single();
-        if (pe || plot.archived_at) throw pe ?? new Error("Archived");
+        if (pe || plot.archived_at) throw pe ?? rules.archivedTopicError();
         const { error } = await db.from("seeds").insert({
           id,
           tenant_id: tenantId,

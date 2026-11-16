@@ -10,7 +10,7 @@ select no_plan();
 select is((select schedule from cron.job where jobname='slow-garden-worker'),'*/5 * * * *','the worker tick is scheduled every five minutes');
 select is((select command from cron.job where jobname='slow-garden-worker'),'select private.tick_garden_worker()','and calls the tick function');
 select is((select schedule from cron.job where jobname='slow-garden-nightly'),'7 * * * *','the nightly enqueue is scheduled hourly');
-select is((select command from cron.job where jobname='slow-garden-nightly'),'select private.tick_nightly_enqueue()','and calls the gated wrapper, not the enqueue function');
+select is((select command from cron.job where jobname='slow-garden-nightly'),'call private.run_nightly_enqueue()','and calls the gated procedure that commits per account, not the enqueue function');
 select is((select count(*) from cron.job where command like '%enqueue_nightly_passes%'),0::bigint,'no job calls the ungated enqueue function');
 select is((select nightly_enabled from private.ai_runtime),false,'nightly tending is off by default');
 select ok(not has_function_privilege(r,'private.tick_garden_worker()','execute')

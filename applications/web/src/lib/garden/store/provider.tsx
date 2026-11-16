@@ -22,16 +22,18 @@ const StoreContext = createContext<GardenStore | null>(null);
 
 export function GardenStoreProvider({
   store,
-  aiAvailable = false,
-  deletionAvailable = false,
+  aiAvailable,
+  deletionAvailable,
   children,
 }: {
   /** Supply a store directly (tests, fixtures); otherwise the environment decides. */
   store?: GardenStore;
   /**
    * Deployment switches for the browser store. On the hosted app the server
-   * page passes what it read from its environment; a static build has no
-   * server to ask and leaves both off until the database can answer.
+   * page passes what it read from its environment, and the database's own
+   * switches must allow as well. A static build has no server to ask: leave
+   * both unset and the database decides alone (`garden_capabilities()`).
+   * Setting only one leaves the other off.
    */
   aiAvailable?: boolean;
   deletionAvailable?: boolean;
@@ -39,7 +41,12 @@ export function GardenStoreProvider({
 }) {
   const value = useMemo(() => {
     if (store) return store;
-    const flags: GardenFlags = { aiAvailable, deletionAvailable };
+    if (aiAvailable === undefined && deletionAvailable === undefined)
+      return createGardenStore();
+    const flags: GardenFlags = {
+      aiAvailable: aiAvailable ?? false,
+      deletionAvailable: deletionAvailable ?? false,
+    };
     return createGardenStore({ flags: () => flags });
   }, [store, aiAvailable, deletionAvailable]);
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;

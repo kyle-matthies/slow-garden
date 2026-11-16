@@ -18,12 +18,36 @@ import {
   formatExportMarkdown,
   type ExportSnapshot,
 } from "../export";
-import { exportMimeType, isAbsentRelation, type ExportFormat } from "./rules";
+import {
+  availability,
+  exportMimeType,
+  gardenCapabilities,
+  isAbsentRelation,
+  rpcMissing,
+  type AvailabilityFlags,
+  type Capabilities,
+  type ExportFormat,
+} from "./rules";
 
 export type Db = SupabaseClient<Database>;
 
 /** Deployment switches the client cannot decide for itself. */
-export type GardenFlags = { aiAvailable: boolean; deletionAvailable: boolean };
+export type GardenFlags = AvailabilityFlags;
+
+/**
+ * What the database says this account may use. `null` means the database
+ * predates `garden_capabilities()`; any other failure reads as nothing
+ * available, never as available.
+ */
+export async function readCapabilities(db: Db): Promise<Capabilities | null> {
+  try {
+    const { data, error } = await db.rpc("garden_capabilities");
+    if (error) return rpcMissing(error) ? null : gardenCapabilities(null);
+    return gardenCapabilities(data);
+  } catch {
+    return gardenCapabilities(null);
+  }
+}
 
 // Read every page explicitly: PostgREST's server row cap is not an export limit.
 export async function allRows<T>(
@@ -57,7 +81,8 @@ export async function loadGardenWith(
   db: Db,
   tenantId: string,
   requested: string | undefined,
-  flags: GardenFlags,
+  /** Supplied deployment flags; with none, the database decides (see `availability`). */
+  flags: GardenFlags | undefined,
 ): Promise<GardenData> {
   const gardens = await allRows((a, b) =>
     db
@@ -103,7 +128,7 @@ export async function loadGardenWith(
         ),
       ])
     : [[], [], []];
-  const [tending, account, tendingHistory] = await Promise.all([
+  const [tending, account, tendingHistory, capabilities] = await Promise.all([
     gardenId
       ? loadTending(db, gardenId, entries as GardenData["entries"])
       : undefined,
@@ -120,7 +145,10 @@ export async function loadGardenWith(
         () => undefined,
       ),
     gardenId ? loadTendingHistory(db, gardenId) : undefined,
+    readCapabilities(db),
   ]);
+  // Both must allow: the supplied flags and the database's own switches.
+  const available = availability(flags, capabilities);
   return {
     tenantId,
     gardens,
@@ -128,8 +156,8 @@ export async function loadGardenWith(
     plots,
     seeds,
     entries: entries as GardenData["entries"],
-    aiAvailable: flags.aiAvailable,
-    deletionAvailable: flags.deletionAvailable,
+    aiAvailable: available.aiAvailable,
+    deletionAvailable: available.deletionAvailable,
     tending,
     tendingHistory,
     account,

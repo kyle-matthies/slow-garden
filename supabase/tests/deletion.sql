@@ -25,6 +25,8 @@ insert into auth.sessions(id,user_id,created_at,updated_at) values
 update private.ai_runtime set enabled=true,approved_at=now(),model='synthetic-test-model',workflow_version='tend-connect-v3-test';
 -- Tending runs only for allowlisted accounts (private.ai_tenants).
 insert into private.ai_tenants(tenant_id) select id from public.accounts;
+-- Deletion runs only while its deployment switch is on (private.deployment_switches).
+update private.deployment_switches set deletion_enabled=true;
 
 -- Privileges and function hygiene.
 select ok(not has_function_privilege('anon','public.delete_entry(uuid)','execute')

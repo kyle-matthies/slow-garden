@@ -10,7 +10,6 @@
  * action: boundaries.test.ts enforces that for every `browser*` module.
  */
 import {
-  saveErrorMessage,
   validateAreaName,
   validateBloomResponse,
   validateEntryBody,
@@ -21,6 +20,7 @@ import { runImport, type ImportDb } from "@/app/garden/import/import-core";
 import * as rules from "./rules";
 import {
   loadGardenWith,
+  readCapabilities,
   readEntryHistory,
   readExportSnapshot,
   shapeExport,
@@ -28,16 +28,18 @@ import {
   type GardenFlags,
 } from "./queries";
 import { requestEmailCode, verifyEmailCode } from "./auth";
+import { importThoughtWith } from "./import-rpc";
 import type { GardenStore, RevisionLocation } from "./types";
 
 export type BrowserStoreOptions = {
   /** The browser Supabase client (publishable key, the person's session). */
   client: () => Db;
   /**
-   * Deployment switches (`GARDEN_AI_ENABLED`, `GARDEN_DELETION_ENABLED`) are
-   * server-only today and the browser cannot read them. Until the database can
-   * answer, whoever builds the store must supply them; the default is off, so
-   * the browser path never permits what the server path would refuse.
+   * Deployment switches (`GARDEN_AI_ENABLED`, `GARDEN_DELETION_ENABLED`) as the
+   * server read them, when there is a server to read them. They combine with
+   * the database's own switches (`garden_capabilities()`): both must allow.
+   * With none supplied the database decides alone; against a database that
+   * predates the RPC, nothing is available. See `rules.availability`.
    */
   flags?: () => GardenFlags;
   /** False when the Supabase URL or publishable key is missing. */
@@ -45,10 +47,19 @@ export type BrowserStoreOptions = {
   now?: () => Date;
 };
 
-const OFF: GardenFlags = { aiAvailable: false, deletionAvailable: false };
-
 export function createBrowserStore(options: BrowserStoreOptions): GardenStore {
-  const flags = () => options.flags?.() ?? OFF;
+  const flags = () => options.flags?.();
+  /**
+   * The early refusal. With supplied flags this is the server action's
+   * environment check, with no database call. With none, ask the database, so
+   * a deletion RPC that predates the switch is never reached by accident. The
+   * database refuses for itself either way.
+   */
+  async function allowed(key: keyof GardenFlags): Promise<boolean> {
+    const supplied = flags();
+    if (supplied) return supplied[key];
+    return rules.availability(undefined, await readCapabilities(options.client()))[key];
+  }
   const configured = () => options.configured?.() ?? true;
   const now = () => options.now?.() ?? new Date();
 
@@ -63,7 +74,7 @@ export function createBrowserStore(options: BrowserStoreOptions): GardenStore {
     return { db, tenantId: found.sub };
   }
   function failure(error: unknown): ActionResult {
-    return { ok: false, message: saveErrorMessage(error) };
+    return { ok: false, message: rules.saveFailureMessage(error) };
   }
 
   return {
@@ -194,7 +205,7 @@ export function createBrowserStore(options: BrowserStoreOptions): GardenStore {
               .select("garden_id,archived_at")
               .eq("id", parentId)
               .single();
-            if (pe || plot.archived_at) throw pe ?? new Error("Archived");
+            if (pe || plot.archived_at) throw pe ?? rules.archivedTopicError();
             const { error } = await db.from("seeds").insert({
               id,
               tenant_id: tenantId,
@@ -277,7 +288,7 @@ export function createBrowserStore(options: BrowserStoreOptions): GardenStore {
     },
 
     async requestPass(gardenId, topicIds, id) {
-      if (!flags().aiAvailable)
+      if (!(await allowed("aiAvailable")))
         return { ok: false, message: rules.AI_UNAVAILABLE };
       try {
         const { db, tenantId } = await authenticated();
@@ -419,7 +430,11 @@ export function createBrowserStore(options: BrowserStoreOptions): GardenStore {
             if (error) throw error;
           },
         };
-        return await runImport(adapter, tenantId, input);
+        // One transaction through import_thought; the call-by-call path
+        // runs only against a database that does not have the RPC yet.
+        return await importThoughtWith(db, tenantId, input, () =>
+          runImport(adapter, tenantId, input),
+        );
       } catch {
         return { ok: false, message: rules.IMPORT_FAILED };
       }
@@ -444,7 +459,7 @@ export function createBrowserStore(options: BrowserStoreOptions): GardenStore {
     async previewDeletion(kind, id) {
       if (!rules.isPreviewTarget(kind, id))
         return { ok: false, message: rules.DELETION_NOT_HERE };
-      if (!flags().deletionAvailable)
+      if (!(await allowed("deletionAvailable")))
         return { ok: false, message: rules.DELETION_UNAVAILABLE };
       try {
         const db = options.client();
@@ -471,7 +486,7 @@ export function createBrowserStore(options: BrowserStoreOptions): GardenStore {
     async deleteItem(kind, id, confirmName = "") {
       if (!rules.isDeleteItemTarget(kind, id))
         return { ok: false, message: rules.DELETION_NOT_HERE };
-      if (!flags().deletionAvailable)
+      if (!(await allowed("deletionAvailable")))
         return { ok: false, message: rules.DELETION_UNAVAILABLE };
       try {
         const { db } = await authenticated();
@@ -497,7 +512,7 @@ export function createBrowserStore(options: BrowserStoreOptions): GardenStore {
       }
     },
     async deleteAccount(confirm) {
-      if (!flags().deletionAvailable)
+      if (!(await allowed("deletionAvailable")))
         return { ok: false, message: rules.DELETION_UNAVAILABLE };
       try {
         const { db } = await authenticated();

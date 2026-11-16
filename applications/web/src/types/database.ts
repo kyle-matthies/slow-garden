@@ -559,6 +559,16 @@ export type Database = {
         }
         Returns: undefined
       }
+      garden_capabilities: { Args: never; Returns: Json }
+      import_thought: {
+        Args: {
+          p_entries: Json
+          p_plot_id: string
+          p_seed_id: string
+          p_title: string
+        }
+        Returns: Json
+      }
       mark_garden_dispatch: {
         Args: {
           p_calls?: number

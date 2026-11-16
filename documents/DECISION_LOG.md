@@ -323,3 +323,36 @@ while the camera turns.
   evaluation receipt with a pinned model, an owner-only guard on pass creation, and a
   decision on moving the worker off the batch route, which the privacy research
   reports is not eligible for zero data retention.
+
+## D-026: Database is the authority for rules and switches
+
+- Date: 2026-11-16
+- Status: Decided under the owner working agreement; reversible by Kyle. Implemented in
+  migrations `20261116010931` through `20261116041903`, none yet applied to the hosted
+  project.
+- Rules live in the database. Input rules that were enforced only in server code
+  (non-blank names, titles and bodies using the same definition as the client; bloom
+  corrections require text; no new writing into archived topics or gardens; import
+  caps of 500 entries and 1 MiB of text; `created_at` writable only through import)
+  are enforced by constraints, triggers and RPCs, so the server path and the browser
+  path of the client data layer cannot diverge. Writing into an archived garden,
+  which the server used to allow, is now refused.
+- Deletion needs two switches. `GARDEN_DELETION_ENABLED` in the web app and a
+  database deployment switch (default off) must both allow it. The database switch is
+  the authority; the web flag only hides controls. This supersedes D-025's description
+  of deletion as gated by the environment flag alone.
+- Tending needs three things: `private.ai_runtime.enabled`, the caller's tenant on
+  `private.ai_tenants`, and `GARDEN_AI_ENABLED` for the web controls. An empty
+  allowlist means nothing runs.
+- Capabilities are read through `garden_capabilities()`, which reports only the
+  caller's own availability.
+- The worker secret never enters the database. Scheduled ticks carry single-use,
+  two-minute tokens. Residual: the scheduling extension's own grants cannot be revoked
+  from a migration, so a role with SQL access could read an unused tick token or a
+  content-free response.
+- Provider transport is selectable (`batch` default, `sync` available). The runbook
+  recommends `sync` for retention reasons; that recommendation rests on
+  search-summary evidence and should be re-read first-party before it is chosen.
+- Deploy order: the web app is deployed before `20261116041903` is applied.
+- Revisit when: any external account exists, the browser path becomes the default, or
+  a hosted advisor flags the SECURITY DEFINER functions.

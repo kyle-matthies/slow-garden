@@ -1,5 +1,18 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import {
+  validateAreaName,
+  validateBloomResponse,
+  validateEntryBody,
+} from "../validation";
+import { validateImportInput } from "@/app/garden/import/import-core";
 import * as rules from "./rules";
+
+const MIGRATION = readFileSync(
+  resolve(process.cwd(), "../../supabase/migrations/20261116041903_browser_path_rules.sql"),
+  "utf8",
+);
 
 const ID = "dddddddd-dddd-4ddd-8ddd-ddddddddddd1";
 
@@ -128,5 +141,155 @@ describe("export", () => {
   it("names the content type per format", () => {
     expect(rules.exportMimeType("md")).toBe("text/markdown; charset=utf-8");
     expect(rules.exportMimeType("json")).toBe("application/json");
+  });
+});
+
+describe("blank text and length: the same definition on the server path and in the database", () => {
+  const blank = new Set(Array.from(rules.BLANK_CHARACTERS, (c) => c.codePointAt(0)!));
+
+  it("lists exactly the characters trim() removes, for every code point", () => {
+    expect(blank.size).toBe(25);
+    const disagree: string[] = [];
+    for (let cp = 0; cp <= 0x10ffff; cp++) {
+      if (cp >= 0xd800 && cp <= 0xdfff) continue;
+      const trimmed = String.fromCodePoint(cp).trim() === "";
+      if (trimmed !== blank.has(cp)) disagree.push(cp.toString(16));
+    }
+    expect(disagree).toEqual([]);
+  });
+
+  it("matches the literal in private.trim_text", () => {
+    const literal = /select btrim\(v, E'([^']+)'\);/.exec(MIGRATION)?.[1] ?? "";
+    const sql = Array.from(literal.matchAll(/\\u([0-9A-Fa-f]{4})/g), (m) => parseInt(m[1], 16));
+    expect(literal.replace(/\\u[0-9A-Fa-f]{4}/g, "")).toBe("");
+    expect(sql.sort((a, b) => a - b)).toEqual(Array.from(blank).sort((a, b) => a - b));
+  });
+
+  it("treats the edge characters the way the validation rules do", () => {
+    for (const ws of ["", " ", "\t\n", "\u00A0", "\u202F", "\uFEFF", "\u3000\u2028", rules.BLANK_CHARACTERS]) {
+      expect(rules.isBlank(ws), JSON.stringify(ws)).toBe(true);
+      expect(validateAreaName("garden", ws)).not.toBeNull();
+      expect(validateEntryBody(ws)).not.toBeNull();
+      expect(validateBloomResponse("correct", ws)).not.toBeNull();
+    }
+    for (const kept of ["\u200B", "\u200C", "\u200D", "\u2060", "\u180E", "\u0085", "\u001C"]) {
+      expect(rules.isBlank(kept), JSON.stringify(kept)).toBe(false);
+      expect(validateAreaName("garden", kept)).toBeNull();
+      expect(validateEntryBody(kept)).toBeNull();
+      expect(validateBloomResponse("correct", kept)).toBeNull();
+    }
+  });
+
+  it("holds the limits the validation rules enforce, in UTF-16 units", () => {
+    const at = (n: number) => "a".repeat(n);
+    expect(validateAreaName("garden", at(rules.TEXT_LIMITS.gardenName))).toBeNull();
+    expect(validateAreaName("garden", at(rules.TEXT_LIMITS.gardenName + 1))).not.toBeNull();
+    expect(validateAreaName("plot", at(rules.TEXT_LIMITS.topicName))).toBeNull();
+    expect(validateAreaName("plot", at(rules.TEXT_LIMITS.topicName + 1))).not.toBeNull();
+    expect(validateAreaName("seed", at(rules.TEXT_LIMITS.thoughtTitle))).toBeNull();
+    expect(validateAreaName("seed", at(rules.TEXT_LIMITS.thoughtTitle + 1))).not.toBeNull();
+    expect(validateEntryBody(at(rules.TEXT_LIMITS.entryBody))).toBeNull();
+    expect(validateEntryBody(at(rules.TEXT_LIMITS.entryBody + 1))).not.toBeNull();
+    // An emoji is two units: 60 fit in a 120-unit name, 61 do not.
+    expect(validateAreaName("garden", "\u{1F331}".repeat(60))).toBeNull();
+    expect(validateAreaName("garden", "\u{1F331}".repeat(61))).not.toBeNull();
+  });
+
+  it("states the same numbers as the migration", () => {
+    expect(MIGRATION).toContain(`private.utf16_length(new.name)>${rules.TEXT_LIMITS.gardenName} then`);
+    expect(MIGRATION).toContain(`private.utf16_length(new.title)>${rules.TEXT_LIMITS.thoughtTitle} then`);
+    expect(MIGRATION).toContain(`private.utf16_length(body)<=${rules.TEXT_LIMITS.entryBody}) not valid`);
+    expect(MIGRATION).toContain(`char_length(new.timezone)>${rules.TEXT_LIMITS.timezone}`);
+    expect(MIGRATION).not.toMatch(/validate constraint/i);
+    expect(MIGRATION).toContain(`jsonb_array_length(p_entries) not between 1 and ${rules.IMPORT_MAX_ENTRIES}`);
+    expect(MIGRATION).toContain(`octet_length(p_title)>${rules.IMPORT_MAX_BYTES}`);
+    expect(MIGRATION).toContain(`errcode='${rules.ARCHIVED_PLACE}'`);
+    expect(MIGRATION).toContain(`errcode='${rules.DELETION_SWITCHED_OFF}'`);
+  });
+});
+
+describe("capabilities", () => {
+  it("enables only on a literal true", () => {
+    expect(rules.gardenCapabilities({ tending: true, deletion: true })).toEqual({ tending: true, deletion: true });
+    expect(rules.gardenCapabilities({ tending: "true", deletion: 1 })).toEqual({ tending: false, deletion: false });
+    for (const odd of [null, undefined, "x", 7, [], {}])
+      expect(rules.gardenCapabilities(odd)).toEqual({ tending: false, deletion: false });
+  });
+
+  it("combines flags and database switches: both must allow", () => {
+    const on = { aiAvailable: true, deletionAvailable: true };
+    const off = rules.NOTHING_AVAILABLE;
+    const yes = { tending: true, deletion: true };
+    const no = { tending: false, deletion: false };
+    expect(rules.availability(on, yes)).toEqual(on);
+    expect(rules.availability(on, no)).toEqual(off);
+    expect(rules.availability(off, yes)).toEqual(off);
+    expect(rules.availability(on, { tending: true, deletion: false })).toEqual({ aiAvailable: true, deletionAvailable: false });
+    expect(rules.availability({ aiAvailable: false, deletionAvailable: true }, yes)).toEqual({ aiAvailable: false, deletionAvailable: true });
+    // No flags supplied: the database decides alone.
+    expect(rules.availability(undefined, yes)).toEqual(on);
+    expect(rules.availability(undefined, no)).toEqual(off);
+    // A database without the RPC: flags as before; with none, nothing.
+    expect(rules.availability(on, null)).toEqual(on);
+    expect(rules.availability(off, null)).toEqual(off);
+    expect(rules.availability(undefined, null)).toEqual(off);
+  });
+
+  it("recognises a missing function and the deletion switch", () => {
+    expect(rules.rpcMissing({ code: "PGRST202" })).toBe(true);
+    expect(rules.rpcMissing({ code: "42883" })).toBe(true);
+    expect(rules.rpcMissing({ code: "SGA03" })).toBe(false);
+    expect(rules.deletionMissing({ code: "SGA03" })).toBe(true);
+    expect(rules.deletionMissing({ code: "PGRST202" })).toBe(true);
+    expect(rules.deletionMissing({ code: "22023" })).toBe(false);
+    expect(rules.deletionFailure({ code: "SGA03" })).toEqual({ ok: false, message: rules.DELETION_UNAVAILABLE });
+    expect(rules.deletionPreviewFailure({ code: "SGA03" })).toEqual({ ok: false, message: rules.DELETION_UNAVAILABLE });
+    expect(rules.accountDeletionFailure({ code: "SGA03" })).toEqual({ ok: false, message: rules.DELETION_UNAVAILABLE });
+  });
+});
+
+describe("import limits", () => {
+  it("counts title and bodies in UTF-8 bytes", () => {
+    expect(rules.importBytes({ title: "T", entries: [] })).toBe(1);
+    expect(rules.importBytes({ title: "", entries: [{ body: "abc" }, { body: "\u4e2d" }, { body: "\u{1F331}" }] })).toBe(10);
+  });
+
+  it("keeps the entry cap the import rules enforce", () => {
+    const entries = (n: number) => Array.from({ length: n }, () => ({ body: "x", date: null }));
+    const input = { plotId: ID, title: "T" };
+    expect(validateImportInput({ ...input, entries: entries(rules.IMPORT_MAX_ENTRIES) })).toBeNull();
+    expect(validateImportInput({ ...input, entries: entries(rules.IMPORT_MAX_ENTRIES + 1) })).not.toBeNull();
+  });
+
+  it("reads an import receipt strictly", () => {
+    expect(rules.importReceipt({ id: ID, created: 2, skipped: 1, extra: true })).toEqual({ id: ID, created: 2, skipped: 1 });
+    for (const odd of [null, "x", {}, { id: ID }, { id: 7, created: 1, skipped: 0 }, { id: ID, created: "1", skipped: 0 }])
+      expect(rules.importReceipt(odd)).toBeNull();
+  });
+});
+
+describe("archived places", () => {
+  it("names what is archived, from the database's four known messages only", () => {
+    for (const what of ["garden", "topic", "thought", "entry"]) {
+      const error = { code: "SGA02", message: `this ${what} is archived; restore it to write here` };
+      expect(MIGRATION).toContain(`raise exception '${error.message}' using errcode='SGA02'`);
+      expect(rules.saveFailureMessage(error)).toBe(
+        `This ${what} is archived. Restore it to keep writing here; your draft is still here.`,
+      );
+    }
+    expect(rules.saveFailureMessage({ code: "SGA02", message: "this <script> is archived" })).toBe(
+      "This place is archived. Restore it to keep writing here; your draft is still here.",
+    );
+    expect(rules.saveFailureMessage({ code: "SGA02" })).toContain("This place is archived.");
+    expect(rules.saveFailureMessage(rules.archivedTopicError())).toContain("This topic is archived.");
+  });
+  it("leaves every other failure as it was", () => {
+    expect(rules.saveFailureMessage({ code: "40001" })).toBe(
+      "This entry changed elsewhere. Reload to review it; your draft is still here.",
+    );
+    expect(rules.saveFailureMessage({ code: "23514", message: "this garden is archived" })).toBe(
+      "Could not save. Your writing is still here; please retry.",
+    );
+    expect(rules.saveFailureMessage(null)).toBe("Could not save. Your writing is still here; please retry.");
   });
 });
