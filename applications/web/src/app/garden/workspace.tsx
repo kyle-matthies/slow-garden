@@ -318,19 +318,21 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
     view === "" || view === "list" ? view : readViewPreference();
   // Return to Pages on later visits if that was the last choice.
   useEffect(() => {
-    if (!params.get("view") && readViewPreference() === "list")
+    if (!params.get("view") && readViewPreference() === "list") {
+      // Only the view is added. The address keeps the garden, topic and
+      // thought it asked for, found or not: rebuilding it from what was found
+      // dropped a location that no longer exists, and with it the notice
+      // that says so.
+      const query = new URLSearchParams(params.toString());
+      if (!query.get("garden") && data.gardenId)
+        query.set("garden", data.gardenId);
+      query.set("view", "list");
       window.history.replaceState(
         null,
         "",
-        gardenUrl(
-          plotId,
-          seedId,
-          "list",
-          window.location.hash.startsWith("#entry-")
-            ? window.location.hash.slice(7)
-            : "",
-        ),
+        `/garden?${query}${window.location.hash.startsWith("#entry-") ? window.location.hash : ""}`,
       );
+    }
     // Only on arrival; later navigation carries the view in the URL.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

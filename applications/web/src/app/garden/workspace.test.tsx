@@ -102,3 +102,22 @@ it("announces nothing in server HTML, where this browser's receipts are unknown"
   expect(html).not.toContain("morning-return");
   expect(html).not.toContain("returns-dot");
 });
+
+it("arriving with Pages remembered keeps a topic or thought that no longer exists in the address, so the notice stays", () => {
+  localStorage.setItem("slow-garden:garden-view", "list");
+  open("?topic=gone&thought=gone#entry-e1");
+  const address = new URL(window.location.href);
+  expect(address.searchParams.get("view")).toBe("list");
+  expect(address.searchParams.get("topic")).toBe("gone");
+  expect(address.searchParams.get("thought")).toBe("gone");
+  expect(address.searchParams.get("garden")).toBe(FIXTURE.gardenId);
+  expect(address.hash).toBe("#entry-e1");
+  cleanup();
+  // Re-rendered from the rewritten address, as the router does: still said.
+  render(<GardenWorkspace data={tended} />);
+  expect(screen.getByText(/That location is no longer available/)).toBeInTheDocument();
+  cleanup();
+  // A found location is rewritten as before.
+  open(`?topic=${FIXTURE.plots[0].id}`);
+  expect(window.location.search).toBe(`?topic=${FIXTURE.plots[0].id}&garden=${FIXTURE.gardenId}&view=list`);
+});
