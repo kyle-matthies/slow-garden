@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { confirmedSession } from "@/lib/supabase/session";
 import { allRows } from "@/lib/garden/data";
 import {
   buildExportDocument,
@@ -29,8 +30,7 @@ async function optionalTendingRows<T>(
 }
 export async function GET(request: Request) {
   const db = await createClient();
-  const { data, error } = await db.auth.getClaims();
-  if (error || !data?.claims?.sub)
+  if (!(await confirmedSession(db)))
     return new Response("Unauthorized", { status: 401 });
   try {
     const { data: snapshot, error: exportError } = await db.rpc(

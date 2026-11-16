@@ -194,6 +194,7 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
     setArchived,
     setTopicTending: setPlotPermissions,
     signOut,
+    kind: storeKind,
   } = useGardenStore();
   // Browser mode: the garden is client state and is re-read through the store.
   // Server mode (null): the server re-renders it, exactly as before.
@@ -797,6 +798,16 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
             You stay signed in on this browser between visits, until you sign
             out or the session expires. Sign out of this device from the More
             menu.
+          </p>
+          {/* What is true, per store: the server confirms each request with the
+              auth server (lib/supabase/session.ts); the browser store cannot.
+              Either way the data service honours an issued token until it
+              expires (one hour unless the project sets otherwise). */}
+          <p>
+            Sign out on all devices ends every sign-in for this account.{" "}
+            {storeKind === "server"
+              ? "Other browsers are asked to sign in again the next time they load or save. A copy of a sign-in taken before then stops working when it expires, within about an hour."
+              : "Other browsers can keep working until the access they already hold runs out, within about an hour, and are then asked to sign in again."}
           </p>
           <div className="action-row">
             <button className="plain-button" onClick={() => leave("global")}>

@@ -11,7 +11,7 @@ const source = {
 
 function database(errors: Record<string, string> = {}) {
   return {
-    auth: { getClaims: async () => ({ data: { claims: { sub: "synthetic" } } }) },
+    auth: { getUser: async () => ({ data: { user: { id: "synthetic" } }, error: null }) },
     rpc: async () => ({ data: source, error: null }),
     from(table: string) {
       const query = {

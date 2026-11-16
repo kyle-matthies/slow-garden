@@ -36,7 +36,9 @@ import { bedHues, paletteFor, type Palette } from "@/lib/garden/scene/palette";
 import { EMPTY_TENDING, type Tending } from "@/lib/garden/scene/tending";
 import { PlantFocus } from "./plant-focus";
 import { BedSign, SceneBed, type SceneMetrics } from "./scene-bed";
+import { moteField } from "@/lib/garden/scene/motes";
 import { useAtmosphere } from "./use-atmosphere";
+import { useSceneAwake } from "./use-scene-awake";
 import "./scene.css";
 
 const subscribeDark = (callback: () => void) => {
@@ -107,7 +109,9 @@ export function GardenScene({
   const [dockHeight, setDockHeight] = useState(72);
   const night = useSyncExternalStore(subscribeDark, getDark, () => false);
   const reduced = useReducedMotion() ?? false;
+  // Nothing moves behind the writing page or when reduced motion is asked for.
   const still = reduced || !interactive;
+  useSceneAwake(root);
   const palette = useMemo(
     () => paletteFor(garden.id, night),
     [garden.id, night],
@@ -217,7 +221,6 @@ export function GardenScene({
     seed: hashString(`garden:${garden.id}`),
     horizon: metrics ? metrics.horizonY / metrics.height : 0.42,
     fov: metrics?.fov ?? 88,
-    still,
     theta,
     width: size.width,
     height: size.height,
@@ -435,7 +438,7 @@ export function GardenScene({
     <LazyMotion features={domAnimation} strict>
       <section
         ref={root}
-        className={`garden-scene palette-${palette.name}${interactive ? "" : " is-backdrop"}${focusId ? " has-focus" : ""}${turning ? " is-turning" : ""}`}
+        className={`garden-scene palette-${palette.name}${interactive ? "" : " is-backdrop"}${still ? " is-still" : ""}${focusId ? " has-focus" : ""}${turning ? " is-turning" : ""}`}
         aria-label={interactive ? `${garden.name}, a living garden` : undefined}
         aria-hidden={interactive ? undefined : true}
         inert={!interactive}
@@ -521,6 +524,11 @@ export function GardenScene({
             ref={front}
             className="scene-canvas scene-canvas-front"
             aria-hidden="true"
+          />
+          <SceneMotes
+            seed={hashString(`garden:${garden.id}`)}
+            count={narrow ? 18 : 36}
+            palette={palette}
           />
           {metrics &&
             visible.map((i) => (
@@ -688,6 +696,54 @@ function hueCss(
   night: boolean,
 ) {
   return `hsl(${h} ${night ? sat * 0.6 : sat}% ${night ? l * 0.7 : l}%)`;
+}
+
+/**
+ * Pollen by day, fireflies at night, drifting in front of the plants. Each is
+ * a dot moved and faded by CSS alone (scene.css): decoration, not content.
+ */
+function SceneMotes({
+  seed,
+  count,
+  palette,
+}: {
+  seed: number;
+  count: number;
+  palette: Palette;
+}) {
+  const motes = useMemo(
+    () => moteField(seed, count, palette.night),
+    [seed, count, palette.night],
+  );
+  return (
+    <div
+      className="scene-motes"
+      aria-hidden="true"
+      style={{ "--particle": palette.particle } as React.CSSProperties}
+    >
+      {motes.map((m, i) => (
+        <span
+          key={i}
+          className="scene-mote"
+          style={
+            {
+              left: `${m.x}%`,
+              top: `${m.y}%`,
+              width: m.size,
+              height: m.size,
+              "--dx": `${m.dx}px`,
+              "--dy": `${m.dy}px`,
+              "--drift": `${m.driftSeconds}s`,
+              "--twinkle": `${m.twinkleSeconds}s`,
+              "--drift-delay": `${m.driftDelay}s`,
+              "--twinkle-delay": `${m.twinkleDelay}s`,
+              "--rest": m.rest,
+            } as React.CSSProperties
+          }
+        />
+      ))}
+    </div>
+  );
 }
 
 /**

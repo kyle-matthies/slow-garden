@@ -622,6 +622,11 @@
   font-size: var(--text-sm);
   font-weight: 650;
 }
+.returns-header .returns-standing {
+  margin-top: 6px;
+  color: var(--garden-muted);
+  font-size: var(--text-sm);
+}
 .returns-empty {
   margin: 28px 0;
   padding: 22px 26px;

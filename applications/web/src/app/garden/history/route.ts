@@ -1,10 +1,10 @@
 import { createClient } from "@/lib/supabase/server";
+import { confirmedSession } from "@/lib/supabase/session";
 import { allRows } from "@/lib/garden/data";
 import { applyPrivateCacheHeaders } from "@/lib/garden/cache-headers";
 export async function GET(request: Request) {
   const db = await createClient();
-  const { data, error } = await db.auth.getClaims();
-  if (error || !data?.claims?.sub)
+  if (!(await confirmedSession(db)))
     return new Response("Unauthorized", { status: 401 });
   const id = new URL(request.url).searchParams.get("entry");
   if (!id || !/^[0-9a-f-]{36}$/i.test(id))

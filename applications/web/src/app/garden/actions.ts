@@ -1,6 +1,7 @@
 "use server";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { confirmedSession } from "@/lib/supabase/session";
 import type { ActionResult } from "@/lib/garden/types";
 import {
   validateAreaName,
@@ -12,10 +13,10 @@ import * as rules from "@/lib/garden/store/rules";
 
 async function authenticated() {
   const db = await createClient();
-  const { data, error } = await db.auth.getClaims();
-  if (error || !data?.claims?.sub)
-    throw new Error("Please sign in again. Your draft is still here.");
-  return { db, tenantId: data.claims.sub };
+  // Confirmed with the auth server: a session ended elsewhere stops here.
+  const session = await confirmedSession(db);
+  if (!session) throw new Error("Please sign in again. Your draft is still here.");
+  return { db, tenantId: session.tenantId };
 }
 function message(error: unknown): ActionResult {
   // Says what is archived when the database refuses for that reason.
@@ -363,8 +364,8 @@ export async function previewDeletion(
   if (!deletionOn()) return { ok: false, message: DELETION_UNAVAILABLE };
   try {
     const db = await createClient();
-    const { data: auth, error: authError } = await db.auth.getClaims();
-    if (authError || !auth?.claims?.sub)
+    const session = await confirmedSession(db);
+    if (!session)
       return { ok: false, message: "Please sign in again. Nothing was erased." };
     const { data, error } = await db.rpc(
       "deletion_preview",
@@ -383,8 +384,7 @@ export async function previewDeletion(
         ok: false,
         message: "This is no longer here. It may already have been deleted.",
       };
-    const email =
-      typeof auth.claims.email === "string" ? auth.claims.email.trim() : "";
+    const email = session.email?.trim() ?? "";
     return {
       ok: true,
       counts,

@@ -2,7 +2,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
 const db = vi.hoisted(() => ({
   rpc: vi.fn(),
-  auth: { getClaims: vi.fn(), signOut: vi.fn() },
+  auth: { getUser: vi.fn(), signOut: vi.fn() },
 }));
 const revalidatePath = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/supabase/server", () => ({ createClient: async () => db }));
@@ -12,7 +12,7 @@ import { deleteAccount, deleteItem, previewDeletion } from "./actions";
 const ID = "dddddddd-dddd-4ddd-8ddd-ddddddddddd1";
 beforeEach(() => {
   vi.stubEnv("GARDEN_DELETION_ENABLED", "true");
-  db.auth.getClaims.mockResolvedValue({ data: { claims: { sub: "t1", email: "ada@example.test" } }, error: null });
+  db.auth.getUser.mockResolvedValue({ data: { user: { id: "t1", email: "ada@example.test" } }, error: null });
   db.auth.signOut.mockResolvedValue({ error: null });
 });
 afterEach(() => { vi.resetAllMocks(); vi.unstubAllEnvs(); });
@@ -32,7 +32,7 @@ it("an account preview returns the email to type, or the fallback phrase", async
   db.rpc.mockResolvedValue({ data: { gardens: 2 }, error: null });
   expect(await previewDeletion("account", "")).toMatchObject({ ok: true, confirmPhrase: "ada@example.test" });
   expect(db.rpc).toHaveBeenCalledWith("deletion_preview", { p_kind: "account" });
-  db.auth.getClaims.mockResolvedValue({ data: { claims: { sub: "t1" } }, error: null });
+  db.auth.getUser.mockResolvedValue({ data: { user: { id: "t1" } }, error: null });
   expect(await previewDeletion("account", "")).toMatchObject({ ok: true, confirmPhrase: "delete my account" });
 });
 
@@ -79,7 +79,7 @@ it("a name mismatch refused by the database erases nothing and says so", async (
 });
 
 it("a signed-out caller deletes nothing", async () => {
-  db.auth.getClaims.mockResolvedValue({ data: null, error: new Error("no session") });
+  db.auth.getUser.mockResolvedValue({ data: { user: null }, error: new Error("no session") });
   expect((await deleteItem("entry", ID)).ok).toBe(false);
   expect((await deleteAccount("ada@example.test")).ok).toBe(false);
   expect((await previewDeletion("entry", ID)).ok).toBe(false);

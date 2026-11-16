@@ -346,8 +346,93 @@
     var(--sway-delay, 0s) infinite;
 }
 /* Sway holds while the camera turns: the motion hides it, and it frees the frame. */
-.is-turning .plant-art > svg {
+.is-turning .plant-art > svg,
+.is-turning .scene-canvas-front {
   animation-play-state: paused;
+}
+/*
+ * The near grass is painted once, mid-gust (atmosphere.ts). At rest the whole
+ * layer leans a little about the ground with the same gust as the plants:
+ * a transform on one canvas, so no blade is redrawn.
+ */
+.scene-canvas-front {
+  transform-origin: 50% 100%;
+  animation: grass-sway 7s ease-in-out -2.4s infinite;
+}
+@keyframes grass-sway {
+  0%,
+  100% {
+    transform: skewX(0.7deg);
+  }
+  38% {
+    transform: skewX(-2.4deg);
+  }
+  62% {
+    transform: skewX(-0.5deg);
+  }
+  80% {
+    transform: skewX(-1.5deg);
+  }
+}
+/* Pollen by day, fireflies at night: dots moved and faded by the compositor. */
+.scene-motes {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(var(--horizon) - (100% - var(--horizon)) * 0.1);
+  height: calc((100% - var(--horizon)) * 0.95);
+  pointer-events: none;
+}
+.scene-mote {
+  position: absolute;
+  border-radius: 50%;
+  background: var(--particle);
+  opacity: var(--rest);
+  animation:
+    mote-drift var(--drift) ease-in-out var(--drift-delay) infinite alternate,
+    mote-pollen var(--twinkle) ease-in-out var(--twinkle-delay) infinite alternate;
+}
+.palette-night .scene-mote {
+  box-shadow: 0 0 9px 3px color-mix(in srgb, var(--particle) 30%, transparent);
+  animation-name: mote-drift, mote-firefly;
+  animation-direction: alternate, normal;
+}
+@keyframes mote-drift {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(var(--dx), var(--dy), 0);
+  }
+}
+@keyframes mote-pollen {
+  from {
+    opacity: 0.1;
+  }
+  to {
+    opacity: 0.8;
+  }
+}
+@keyframes mote-firefly {
+  0%,
+  52%,
+  100% {
+    opacity: 0;
+  }
+  74% {
+    opacity: 1;
+  }
+}
+/*
+ * Asleep (tab hidden or scene off screen, see use-scene-awake.ts) or still
+ * (behind the writing page): every ambient animation holds where it is.
+ */
+.garden-scene[data-asleep] :is(.plant-art > svg, .scene-canvas-front, .scene-clouds, .scene-mote, .bloom-light),
+.garden-scene.is-still :is(.plant-art > svg, .scene-canvas-front, .scene-clouds, .scene-mote, .bloom-light) {
+  animation-play-state: paused;
+}
+.garden-scene.is-still :is(.scene-canvas-front, .scene-mote) {
+  animation: none;
 }
 @keyframes plant-sway {
   0%,
@@ -1198,6 +1283,8 @@
 @media (prefers-reduced-motion: reduce) {
   .scene-clouds,
   .plant-art > svg,
+  .scene-canvas-front,
+  .scene-mote,
   .has-new-bloom .bloom-light {
     animation: none;
   }

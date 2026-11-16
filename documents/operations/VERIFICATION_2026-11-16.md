@@ -511,3 +511,135 @@ the unreproduced axe finding in section 6.
 
 `applications/web/tsconfig.tsbuildinfo` was rewritten by `tsc --noEmit`. Nothing under
 `supabase/` was edited.
+
+## Follow-ups fixed
+
+Later the same day, a second pass took the three owner observations and the README
+note above. Nothing here ran against a Supabase stack, a production build, a hosted
+project or a real device; each item says what was and was not checked. Not committed
+by this pass (no git).
+
+### 1. Sign out on all devices (observation 1): fixed for this app's server, not for the data API
+
+- **Cause confirmed.** Every server-side check was `auth.getClaims()`, which verifies
+  the token's signature and expiry locally and never asks whether the session exists.
+- **Change.** `applications/web/src/lib/supabase/session.ts` adds `confirmedSession()`,
+  one `auth.getUser()` call. It replaces `getClaims()` in the garden page, the import
+  page, `/` and `/login` (so a refused session is not bounced between pages), all
+  server actions (`garden/actions.ts`, `import/actions.ts`, `returns-lookup.ts`,
+  `store/server-loader.ts`) and the export and history routes. The proxy is unchanged:
+  it still refreshes and verifies locally.
+- **Why `getUser` is the right call, from source and from this record, not assumed.**
+  The installed `@supabase/auth-js` 2.113.0 sends `GET /auth/v1/user` with the session's
+  token and maps the server's `session_not_found` to `AuthSessionMissingError`
+  (`lib/fetch.js`, `GoTrueClient._getUser`). Section 3's `auth` journey already asserted,
+  against the real local auth service, that this endpoint answers 401 or 403 for the
+  old access token after a global sign-out. The helper treats any error as signed out,
+  so it does not depend on the exact code.
+- **Cost.** One auth round trip per request to a garden page, action or route. A token
+  refresh in the proxy (about once per token lifetime) is a second call on that request.
+  A project that signs tokens with a shared secret (HS256) would also pay a call in the
+  proxy, because `getClaims` falls back to `getUser` there; the local stack in this
+  record verified locally, so it is asymmetric. If the auth server cannot be reached,
+  the request is treated as signed out.
+- **What still holds for up to the token lifetime (3600 s in `supabase/config.toml`;
+  the hosted value was not read).** The data API accepts the signed token itself. So:
+  a copied access token used directly against the data API still reads that account's
+  rows under RLS until it expires, in both store modes; and in browser-store mode
+  (`NEXT_PUBLIC_GARDEN_STORE=browser`) another browser keeps working until its token
+  expires, because that mode never passes through this app's server and the client can
+  only verify its own token. Neither can be closed in web code: it needs a session
+  check in the database policies (a migration) or a shorter token lifetime (hosted
+  configuration). Both were out of bounds here and are left for a decision.
+- **Copy.** Settings now says, per store mode, what ends at once and what ends
+  "within about an hour" (`workspace.tsx`).
+- **Tests.** `src/lib/supabase/session.test.ts` (including the real auth client against
+  a stubbed auth server: exactly one request, to `/auth/v1/user`; a 401 or 403 signs the
+  request out), two new cases in `store/parity.test.ts` (the server store asks
+  `getUser` before every read and write; a session the auth server no longer knows is
+  signed out on the page loader and both routes), and a journey for the settings copy
+  in both modes. The parity suite now treats the server's `getUser` and the browser's
+  `getClaims` as the one deliberate difference between the two paths.
+- **Not verified.** The replay itself: copied cookies against a running app and stack
+  after a global sign-out. `scripts/test-web-journeys.mjs` still only records that
+  replay as a note; in server mode it should now show the sign-in screen and could
+  become an assertion. Not run, because no stack was this pass's to start.
+
+### 2. The resting meadow (observation 2): the main thread now rests
+
+- **Cause, measured.** Almost all of it was the atmosphere's `requestAnimationFrame`
+  loop redrawing about 3,000 blades of grass and the pollen on two canvases every
+  frame. With that loop stopped and everything else left running, the same page
+  measured 3.3 % (390, 4x).
+- **Change.** `scene/atmosphere.ts` no longer has a loop: it paints the grass once, in
+  one fixed mid-gust pose, and requests a frame only while the camera turns or steps
+  (one per display frame, however many camera changes arrive). At rest, motion is CSS
+  transform and opacity only (`scene.css`): plants sway as before, the near-grass
+  canvas leans with the same gust, clouds drift, and pollen or fireflies are small
+  elements (`lib/garden/scene/motes.ts`) instead of canvas drawing. Plants and motes
+  share a few phases (`GUST_STEPS` in `sway.ts`), because the main thread still wakes
+  each time an animation turns over, and one phase per plant kept it awake on most
+  frames (a trace showed main frames throughout, down to about a fifth after sharing). `use-scene-awake.ts` pauses every ambient animation while the tab is
+  hidden or the scene is off screen; behind the writing page and under reduced motion
+  nothing animates.
+- **What changed to the eye.** The mid-distance grass no longer ripples; it holds its
+  pose. Plants, near grass, clouds and pollen move. Pollen drifts back and forth
+  instead of crossing the meadow. Compared by eye from screenshots and computed
+  transforms sampled 1.2 s apart at 390x844 and 1440x900 on `?scene=tended` and
+  `?scene=hundred`; not watched as video, and not judged by the owner.
+- **Measured, dev server (`next dev` on :3147, fixtures), headless Chromium without a
+  GPU.** `Performance.getMetrics` `TaskDuration` over a 10 s idle window after
+  `Emulation.setCPUThrottlingRate`; 390x844 at scale 2 with touch and 4x throttle, and
+  1440x900 unthrottled. These are development-build numbers on this container, not
+  the production-build figures of section 5 and not a phone.
+
+  | Scene | Profile | Before | After | Reduced motion (before / after) |
+  |---|---|---|---|---|
+  | tended | 390, 4x CPU | 82.9 % | 5.1 % | 0 % / 0 % |
+  | hundred | 390, 4x CPU | 90.2 % | 5.8 % | 0 % / 0 % |
+  | tended | 1440, 1x | 10.4 % | 1.1 % | 0 % / 0 % |
+  | hundred | 1440, 1x | 9.9 % | 1.6 % | 0 % / 0 % |
+
+  Script time at rest fell from 6 to 8 % to 0.1 % (390, 4x), and an instrumented
+  `requestAnimationFrame` recorded no caller over 5 s at rest. What remains is style
+  recalculation when an animation turns over.
+- **Checked in a browser.** At rest the three canvases do not change; they redraw
+  during a touch drag and settle; plant sway pauses while turning as before; hiding
+  the tab pauses all 80 animations and showing it resumes them; no console errors.
+- **Not verified.** `accessibility/perf-check.mjs` was not run: it serves a production
+  build on :3212, which would have meant building over the tree the shared dev server
+  was using. So the ADR-007 drag budgets (section 5) are **not re-measured** after this
+  change; the per-frame drawing while dragging is the same code, now scheduled by the
+  camera instead of a standing loop, which is a reason to expect no change and not a
+  measurement. Also unverified: a real phone, Safari, a GPU, battery or heat, and the
+  off-screen pause in a real layout (unit-tested only).
+
+### 3. Returns no longer contradicts itself (observation 3)
+
+- With a finished pass on record and tending inactive, the page now says "Last tended
+  <date>" and "Tending is not active now. What was returned before stays here to read,
+  and nothing new will arrive until tending is active." When no bloom is showing it
+  adds "No bloom is showing. Earlier tending passes are in the full record below." and
+  never "no AI has read your writing". The full record's note says the same thing in
+  that state. An account that was never tended keeps its existing wording, which is
+  true there and is what `test-web-journeys.mjs` asserts.
+- Files: `garden/level-returns.tsx`, `garden/returns.tsx`, `garden/level-pages.css`.
+  Tests: `garden/level-returns.test.tsx` (four states) and a journey in both store
+  modes. Not looked at in a browser: the fixture pages only have the never-tended state.
+
+### 4. README port (script fault 5)
+
+- `README.md` now says `scripts/test-local-http.mjs` uses a web server on port 3148,
+  and that `GARDEN_TEST_BASE` changes it, as the script does.
+
+### Checks after these changes
+
+From `applications/web`: `npx tsc --noEmit` clean, `npx eslint .` clean,
+`npx vitest run` 50 files, 386 tests, pass. No test was skipped or removed.
+
+### For the decision log (not written by this pass)
+
+Two durable choices were made here and belong in `documents/DECISION_LOG.md`: the
+server confirms the session with the auth server on every garden request; and the
+resting scene is painted once and animated only by the compositor, which narrows
+ADR-007's "canvas atmosphere layer for grass, wind, pollen" to grass and hills.

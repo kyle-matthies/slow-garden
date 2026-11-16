@@ -33,6 +33,9 @@ export async function updateSession(request: NextRequest) {
     },
   );
 
+  // Refreshes an expired token and verifies it locally; it does not ask whether
+  // the session still exists. Routes that read or write the garden confirm that
+  // themselves, once per request (src/lib/supabase/session.ts).
   await supabase.auth.getClaims();
   // Auth refresh responses and personalized routes must never be shared by a cache.
   return applyPrivateCacheHeaders(response);

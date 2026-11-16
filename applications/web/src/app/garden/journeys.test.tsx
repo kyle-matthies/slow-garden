@@ -377,6 +377,23 @@ describe.each<Mode>(["server", "browser"])("the main journeys in %s mode", (mode
     await waitFor(() => expect(screen.getAllByText(/Kept/).length).toBeGreaterThan(0));
   });
 
+  it("with a pass on record and tending inactive, Returns says one true thing", async () => {
+    start(mode, world(true), `/garden?garden=${G1}&topic=${P1}&view=returns`);
+    expect(
+      await screen.findByText(
+        "Tending is not active now. What was returned before stays here to read, and nothing new will arrive until tending is active.",
+      ),
+    ).toBeVisible();
+    expect(screen.getByText(/^Last tended/)).toBeVisible();
+    fireEvent.click(await screen.findByRole("button", { name: "Open the full record" }));
+    expect(
+      await screen.findByText(
+        "Tending is not active now, so nothing new will arrive until it is. Your tending choices are saved, and past returns stay here to read.",
+      ),
+    ).toBeVisible();
+    expect(document.body.textContent).not.toMatch(/no AI has read|not active for this account yet/);
+  });
+
   it("saves a topic's tending choice and the overnight preference", async () => {
     const w = world(true);
     start(mode, w, `/garden?garden=${G1}&topic=${P1}&view=list`);
@@ -521,6 +538,25 @@ describe("browser mode only: loading, signed out and error", () => {
     start("browser", world(false), "/garden");
     expect(await screen.findByLabelText("Write a first entry")).toBeVisible();
   });
+
+  it.each(["server", "browser"] as const)(
+    "settings say what signing out everywhere does and does not end at once (%s)",
+    async (mode) => {
+      start(mode, world(true), thoughtPath);
+      await screen.findByText("synthetic first page", { selector: "p.entry-body" });
+      openMenu("Settings & export");
+      const said = (await screen.findByText(/^Sign out on all devices ends every sign-in/)).textContent!.replace(/\s+/g, " ");
+      // True in both modes: access already issued runs out within the hour.
+      expect(said).toContain("within about an hour");
+      if (mode === "server")
+        expect(said).toContain("Other browsers are asked to sign in again the next time they load or save");
+      else {
+        // The browser reads the database directly; nothing asks the auth server per request.
+        expect(said).toContain("Other browsers can keep working until the access they already hold runs out");
+        expect(said).not.toContain("the next time they load or save");
+      }
+    },
+  );
 
   it("sign out everywhere asks the auth service for a global sign-out", async () => {
     const w = world(true);

@@ -4,7 +4,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 const state = vi.hoisted(() => ({ configured: false, signedIn: false }));
 vi.mock("@/lib/supabase/server", () => ({
   isSupabaseConfigured: () => state.configured,
-  createClient: async () => ({ auth: { getClaims: async () => ({ data: { claims: state.signedIn ? { sub: "synthetic-account" } : {} }, error: null }) } }),
+  createClient: async () => ({ auth: { getUser: async () => ({ data: { user: state.signedIn ? { id: "synthetic-account" } : null }, error: null }) } }),
 }));
 vi.mock("next/navigation", () => ({ redirect: (path: string) => { throw new Error(`redirect:${path}`); } }));
 
