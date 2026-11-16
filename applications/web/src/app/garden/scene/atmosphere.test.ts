@@ -142,6 +142,10 @@ describe("settling quality before the first touch", () => {
   }
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    // The scene times its own drawing with the real clock. On a busy machine
+    // that made a device "that keeps pace" look slow, so these tests hold the
+    // clock still and drive pacing only through the frame times they pass in.
+    vi.spyOn(performance, "now").mockReturnValue(5000);
   });
 
   it("a scene nobody turns schedules nothing at all", () => {
