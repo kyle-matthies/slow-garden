@@ -7,6 +7,7 @@ import {
   type ImportDb,
   type ImportInput,
 } from "./import-core";
+import { importThoughtWith } from "@/lib/garden/store/import-rpc";
 
 async function authenticated() {
   const db = await createClient();
@@ -70,7 +71,12 @@ export async function importThought(
         if (error) throw error;
       },
     };
-    const result = await runImport(adapter, tenantId, input);
+    // One transaction through import_thought, which holds the limits and the
+    // entry dates; the call-by-call path above runs only against a database
+    // that does not have the RPC yet.
+    const result = await importThoughtWith(db, tenantId, input, () =>
+      runImport(adapter, tenantId, input),
+    );
     if (result.ok) revalidatePath("/garden");
     return result;
   } catch {

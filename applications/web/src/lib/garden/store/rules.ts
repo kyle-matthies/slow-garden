@@ -24,6 +24,87 @@ export function isLooseUuid(value: unknown): value is string {
   return typeof value === "string" && UUID_LOOSE.test(value);
 }
 
+/* ---------- blank text and length ---------- */
+
+/**
+ * Exactly the characters `String.prototype.trim()` removes (ECMAScript
+ * WhiteSpace and LineTerminator). The database holds the same list in
+ * `private.trim_text` (migration 20261116041903); rules.test.ts compares the
+ * two, and compares this list with `trim()` for every code point. Zero-width
+ * space (U+200B), the joiners, U+2060, U+180E and U+0085 are not in it: a
+ * name made only of those is not blank on the server path or in the database.
+ */
+export const BLANK_CHARACTERS =
+  "\u0009\u000A\u000B\u000C\u000D\u0020\u00A0\u1680" +
+  "\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A" +
+  "\u2028\u2029\u202F\u205F\u3000\uFEFF";
+
+/** What the validation rules mean by blank: nothing left after `trim()`. */
+export function isBlank(value: string): boolean {
+  return value.trim() === "";
+}
+
+/**
+ * Length limits, in UTF-16 code units (`String.length`). The database counts
+ * the same way (`private.utf16_length`), so an emoji costs two on both sides.
+ */
+export const TEXT_LIMITS = {
+  gardenName: 120,
+  topicName: 120,
+  thoughtTitle: 160,
+  entryBody: 20000,
+  timezone: 64,
+} as const;
+
+/* ---------- capabilities ---------- */
+
+/** What `public.garden_capabilities()` answers for the signed-in account. */
+export type Capabilities = { tending: boolean; deletion: boolean };
+/** Deployment switches supplied by whoever builds the store (the server's environment flags). */
+export type AvailabilityFlags = {
+  aiAvailable: boolean;
+  deletionAvailable: boolean;
+};
+export const NOTHING_AVAILABLE: AvailabilityFlags = {
+  aiAvailable: false,
+  deletionAvailable: false,
+};
+
+/** Only literal `true` enables anything; a malformed answer enables nothing. */
+export function gardenCapabilities(value: unknown): Capabilities {
+  const row =
+    value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+  return { tending: row.tending === true, deletion: row.deletion === true };
+}
+
+/**
+ * How the two switches combine: both must allow.
+ *
+ * - `capabilities` present (the database has `garden_capabilities()`): a
+ *   feature is available when the database allows it AND the supplied flag
+ *   does. With no flags supplied (a build with no server to read an
+ *   environment), the database decides alone.
+ * - `capabilities` null (a database that predates the RPC): only explicitly
+ *   supplied flags count, exactly as before the RPC existed; with none,
+ *   nothing is available.
+ */
+export function availability(
+  flags: AvailabilityFlags | undefined,
+  capabilities: Capabilities | null,
+): AvailabilityFlags {
+  if (!capabilities) return flags ?? NOTHING_AVAILABLE;
+  return {
+    aiAvailable: (flags?.aiAvailable ?? true) && capabilities.tending,
+    deletionAvailable: (flags?.deletionAvailable ?? true) && capabilities.deletion,
+  };
+}
+
+/** PostgREST and Postgres codes for "no such function": the migration is not applied. */
+export function rpcMissing(error: unknown): boolean {
+  const code = (error as { code?: string } | null)?.code;
+  return code === "PGRST202" || code === "42883";
+}
+
 /* ---------- areas and archiving ---------- */
 
 export function areaTable(kind: AreaKind): "gardens" | "plots" | "seeds" {
@@ -113,6 +194,41 @@ export function revisionLookupIds(revisionIds: readonly string[]): string[] {
 
 export const IMPORT_FAILED =
   "Could not import. Your files are unchanged; please retry.";
+export const IMPORT_CHECK_INPUT = "Check the topic and entries, then retry.";
+export const IMPORT_TOPIC_UNAVAILABLE = "Choose an active topic.";
+/** SQLSTATE raised when a thought or import targets a missing or archived topic or garden. */
+export const TOPIC_UNAVAILABLE = "SGA02";
+/** One import: at most this many entries (also enforced by `import_thought`). */
+export const IMPORT_MAX_ENTRIES = 500;
+/**
+ * One import: title plus bodies, in UTF-8 bytes. A server action request is
+ * capped at 1 MB by Next; `import_thought` holds the same figure for callers
+ * that have no such ceiling.
+ */
+export const IMPORT_MAX_BYTES = 1_048_576;
+
+export function importBytes(input: {
+  title: string;
+  entries: readonly { body: string }[];
+}): number {
+  const encoder = new TextEncoder();
+  let total = encoder.encode(input.title).length;
+  for (const entry of input.entries) total += encoder.encode(entry.body).length;
+  return total;
+}
+
+/** What `import_thought` returns, or null when it is not that shape. */
+export function importReceipt(
+  value: unknown,
+): { id: string; created: number; skipped: number } | null {
+  if (!value || typeof value !== "object") return null;
+  const row = value as Record<string, unknown>;
+  return typeof row.id === "string" &&
+    typeof row.created === "number" &&
+    typeof row.skipped === "number"
+    ? { id: row.id, created: row.created, skipped: row.skipped }
+    : null;
+}
 
 /* ---------- permanent deletion ---------- */
 
@@ -189,10 +305,16 @@ export function deletionCounts(value: unknown): DeletionCounts | null {
   };
 }
 
-/** Deletion RPCs arrive with their own reviewed migration; before it, say so plainly. */
+/** SQLSTATE raised by every deletion RPC while the database's deletion switch is off. */
+export const DELETION_SWITCHED_OFF = "SGA03";
+
+/**
+ * Deletion is unavailable: its RPCs are not installed yet, or the database's
+ * deployment switch is off. Either way, say so plainly.
+ */
 export function deletionMissing(error: unknown): boolean {
   const code = (error as { code?: string } | null)?.code;
-  return code === "PGRST202" || code === "42883";
+  return rpcMissing(error) || code === DELETION_SWITCHED_OFF;
 }
 
 export function deletionPreviewFailure(error: unknown): DeletionPreview {

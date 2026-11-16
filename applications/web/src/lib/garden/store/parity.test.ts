@@ -5,7 +5,10 @@
  * so must every database and auth call, in order.
  *
  * The fake checks nothing a real database checks. This proves the two paths
- * ask for the same things; it does not prove RLS or any RPC.
+ * ask for the same things; it does not prove RLS or any RPC. The rules these
+ * scenarios stand in for (blank text, archived topics, the deletion switch,
+ * import limits, capabilities) are exercised for real only by the pgTAP suite
+ * in supabase/tests/browser_path_rules.sql.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createFakeDb, createWorld, type Call, type World } from "./testing/fake-supabase";
@@ -635,11 +638,170 @@ describe("import", () => {
       ...Array(5).fill({ ok: false, message: "Check the topic and entries, then retry." }),
       { ok: false, message: "Choose an active topic." },
     ]);
-    expect(run.calls.some((c) => c.target.startsWith("rpc:"))).toBe(false);
+    // Only the archived topic gets as far as the database: import_thought is
+    // asked first and, absent in this world, the call-by-call path reads the topic.
+    expect(run.calls.filter((c) => c.target.startsWith("rpc:")).map((c) => c.target)).toEqual(["rpc:import_thought"]);
     const failed = await both((s) => [() => s.importThought(input)], {
       arrange: (w) => (w.fail["rpc.save_entry"] = { code: "57014" }),
     });
     expect(values(failed)).toEqual([{ ok: false, message: "Could not import. Your files are unchanged; please retry." }]);
+  });
+});
+
+describe("import through import_thought (migration 20261116041903)", () => {
+  const input = {
+    plotId: P1,
+    title: "  Imported notes ",
+    entries: [
+      { body: "first imported entry", date: "2026-01-05" },
+      { body: "second imported entry", date: null },
+      { body: "first imported entry", date: "2026-01-05" },
+    ],
+  };
+  type Plan = { p_plot_id: string; p_seed_id: string; p_title: string; p_entries: { entry_id: string; revision_id: string; body: string; date: string | null }[] };
+  const installed = (w: World) => {
+    w.rpc.import_thought = (args) => ({
+      data: { id: args.p_seed_id, created: (args.p_entries as unknown[]).length, skipped: 0 },
+      error: null,
+    });
+  };
+
+  it("sends one call with the whole batch and no separate date update", async () => {
+    const run = await both((s) => [() => s.importThought(input)], { arrange: installed });
+    const plan = run.calls.find((c) => c.target === "rpc:import_thought")!.steps[0][1] as Plan;
+    expect(values(run)).toEqual([{ ok: true, id: plan.p_seed_id, created: 3, skipped: 0 }]);
+    expect(targets(run)).toEqual(["auth:getClaims", "rpc:import_thought"]);
+    expect(plan.p_plot_id).toBe(P1);
+    expect(plan.p_title).toBe("Imported notes");
+    expect(plan.p_entries.map((e) => [e.body, e.date])).toEqual(input.entries.map((e) => [e.body, e.date]));
+    expect(new Set(plan.p_entries.map((e) => e.entry_id)).size).toBe(3);
+  });
+
+  it("derives the same identifiers as the call-by-call import, so a replay across the migration is skipped", async () => {
+    const legacy = await both((s) => [() => s.importThought(input)]);
+    const rpc = await both((s) => [() => s.importThought(input)], { arrange: installed });
+    const plan = rpc.calls.find((c) => c.target === "rpc:import_thought")!.steps[0][1] as Plan;
+    const saves = legacy.calls.filter((c) => c.target === "rpc:save_entry").map((c) => c.steps[0][1] as Record<string, string>);
+    expect((values(legacy)[0] as { id: string }).id).toBe(plan.p_seed_id);
+    expect(plan.p_entries.map((e) => [e.entry_id, e.revision_id, e.body])).toEqual(
+      saves.map((s) => [s.p_entry_id, s.p_revision_id, s.p_body]),
+    );
+    expect(saves.every((s) => s.p_seed_id === plan.p_seed_id)).toBe(true);
+  });
+
+  it("phrases the database's refusals: topic, anything else, and an unreadable receipt", async () => {
+    const topic = await both((s) => [() => s.importThought(input)], {
+      arrange: (w) => (w.fail["rpc.import_thought"] = { code: "SGA02" }),
+    });
+    expect(values(topic)).toEqual([{ ok: false, message: "Choose an active topic." }]);
+    for (const code of ["22023", "40001", "42501", "23514"]) {
+      const refused = await both((s) => [() => s.importThought(input)], {
+        arrange: (w) => (w.fail["rpc.import_thought"] = { code }),
+      });
+      expect(values(refused), code).toEqual([{ ok: false, message: "Could not import. Your files are unchanged; please retry." }]);
+      expect(targets(refused), code).toEqual(["auth:getClaims", "rpc:import_thought"]);
+    }
+    const odd = await both((s) => [() => s.importThought(input)], {
+      arrange: (w) => (w.rpc.import_thought = () => ({ data: { id: 7 }, error: null })),
+    });
+    expect(values(odd)).toEqual([{ ok: false, message: "Could not import. Your files are unchanged; please retry." }]);
+  });
+
+  it("refuses more than 1,048,576 bytes of text before any import call", async () => {
+    const big = { ...input, entries: Array.from({ length: 60 }, (_, i) => ({ body: `${i} ` + "x".repeat(18000), date: null })) };
+    const run = await both((s) => [() => s.importThought(big)], { arrange: installed });
+    expect(values(run)).toEqual([{ ok: false, message: "Check the topic and entries, then retry." }]);
+    expect(targets(run)).toEqual(["auth:getClaims"]);
+  });
+});
+
+describe("database switches and refusals (migration 20261116041903)", () => {
+  const caps = (tending: boolean, deletion: boolean) => (w: World) => {
+    w.rpc.garden_capabilities = () => ({ data: { tending, deletion }, error: null });
+  };
+  const availabilityOf = (run: Run) => {
+    const load = values(run)[0] as { data: { aiAvailable: boolean; deletionAvailable: boolean } };
+    return [load.data.aiAvailable, load.data.deletionAvailable];
+  };
+
+  it("needs both the deployment flag and the database to allow", async () => {
+    const on = { ai: true, deletion: true };
+    expect(availabilityOf(await both((s) => [() => s.loadGarden()], { flags: on, arrange: caps(true, true) }))).toEqual([true, true]);
+    expect(availabilityOf(await both((s) => [() => s.loadGarden()], { flags: on, arrange: caps(true, false) }))).toEqual([true, false]);
+    expect(availabilityOf(await both((s) => [() => s.loadGarden()], { flags: on, arrange: caps(false, true) }))).toEqual([false, true]);
+    expect(availabilityOf(await both((s) => [() => s.loadGarden()], { flags: { ai: false, deletion: false }, arrange: caps(true, true) }))).toEqual([false, false]);
+    expect(availabilityOf(await both((s) => [() => s.loadGarden()], { flags: { ai: true, deletion: false }, arrange: caps(true, true) }))).toEqual([true, false]);
+  });
+
+  it("asks the database once per load, and reads a failed or malformed answer as nothing available", async () => {
+    const on = { ai: true, deletion: true };
+    const asked = await both((s) => [() => s.loadGarden()], { flags: on, arrange: caps(true, true) });
+    expect(targets(asked).filter((t) => t === "rpc:garden_capabilities")).toHaveLength(1);
+    const failed = await both((s) => [() => s.loadGarden()], {
+      flags: on,
+      arrange: (w) => (w.fail["rpc.garden_capabilities"] = { code: "42501" }),
+    });
+    expect(availabilityOf(failed)).toEqual([false, false]);
+    const odd = await both((s) => [() => s.loadGarden()], {
+      flags: on,
+      arrange: (w) => (w.rpc.garden_capabilities = () => ({ data: { tending: "yes", deletion: 1 }, error: null })),
+    });
+    expect(availabilityOf(odd)).toEqual([false, false]);
+  });
+
+  it("keeps today's behaviour against a database that predates the capabilities RPC", async () => {
+    const run = await both((s) => [() => s.loadGarden()], { flags: { ai: true, deletion: true } });
+    expect(availabilityOf(run)).toEqual([true, true]);
+    expect(targets(run)).toContain("rpc:garden_capabilities");
+  });
+
+  it("says deletion is unavailable when the database's switch is off, whatever the flag says", async () => {
+    const run = await both(
+      (s) => [
+        () => s.previewDeletion("entry", E1),
+        () => s.deleteItem("entry", E1),
+        () => s.deleteItem("plot", P1, "Work"),
+        () => s.deleteAccount("ada@example.test"),
+      ],
+      {
+        flags: { deletion: true },
+        arrange: (w) => {
+          for (const name of ["deletion_preview", "delete_entry", "delete_plot", "delete_account"])
+            w.fail[`rpc.${name}`] = { code: "SGA03" };
+        },
+      },
+    );
+    expect(values(run)).toEqual(Array(4).fill({ ok: false, message: "Deletion is not available yet. Nothing was erased." }));
+    expect(run.world.claims).not.toBeNull();
+  });
+
+  it("reports a thought the database refuses for an archived topic or garden like any failed save", async () => {
+    const run = await both((s) => [() => s.createArea("seed", "Late thought", P1, NEW(31))], {
+      arrange: (w) => (w.fail["seeds.insert"] = { code: "SGA02" }),
+    });
+    expect(values(run)).toEqual([{ ok: false, message: "Could not save. Your writing is still here; please retry." }]);
+  });
+
+  it("reports a blank name, a blank body or a correction the database refuses like any failed save", async () => {
+    const run = await both(
+      (s) => [
+        () => s.createArea("garden", "Refused by constraint", "", NEW(32)),
+        () => s.saveEntry({ seedId: S1, entryId: NEW(33), revisionId: NEW(34), body: "refused by constraint", expectedRevisionId: null }),
+        () => s.respondToBloom(NEW(35), B1, "correct", "refused by constraint"),
+      ],
+      {
+        arrange: (w) => {
+          w.fail["gardens.insert"] = { code: "23514" };
+          w.fail["rpc.save_entry"] = { code: "23514" };
+          w.fail["bloom_responses.insert"] = { code: "23514" };
+        },
+      },
+    );
+    expect(values(run)).toEqual([
+      { ok: false, message: "Could not save. Your writing is still here; please retry." },
+      { ok: false, message: "Could not save. Your writing is still here; please retry." },
+      { ok: false, message: "Could not save your response. Please retry." },
+    ]);
   });
 });
 
