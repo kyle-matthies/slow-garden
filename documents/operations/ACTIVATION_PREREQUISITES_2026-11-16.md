@@ -315,3 +315,18 @@ Could not be fixed or verified here:
 - **Finding 4, second half:** with the runtime off, an in-flight pass is not resolved
   by anything until the runtime is on again or the pass is cancelled (the documented
   drain-first order). The tick no longer posts for it.
+
+## 11. Two automated review claims on the pull request (both real, both fixed)
+
+| Claim | Verified | Fix | Test (failed first) |
+|---|---|---|---|
+| A. A run that returns no blooms could get a `go` receipt with pattern precision, claim faithfulness, echo precision and question grounding never measured | Real: reproduced, verdict `go` with nothing open | A threshold with nothing to score is `not-measured`, never a pass; it is listed in `open` and in a new `not_measured` field, and the verdict is `no-go`. Statuses are now exactly `pass`, `fail`, `not-measured`, `awaiting-blind-score`. `corpusCoverage` checks that the corpus's reference answers exercise every threshold, and a receipt on a corpus that does not cannot be `go` | `tests/evaluation/receipt.test.mjs`: four new tests (29 in the folder) |
+| B. An enqueue run that crossed the soft cap kept creating automatic passes | Real: with two scopes waiting one cent under the cap, both were created | The soft cap is re-read before every automatic pass. The pass that crosses it is allowed; the run stops there. The read is deliberately not `FOR UPDATE`: holding the month's row across tenants would invert `prepare_pass`'s lock order (accounts, then month) and could deadlock with an invited pass; a concurrent session can only add an invited pass, which the soft cap does not restrict | `supabase/tests/scheduling.sql`: four assertions (409 database tests) |
+
+Zero-denominator check on the other metrics: the deterministic and reference
+thresholds already reported `not-measured` for an empty denominator, and that was
+already a `no-go`. The current corpus exercises every threshold, some thinly (one
+reference item each for unfinished marks, open questions and questions).
+
+Rerun after these fixes: `db reset` 11 migrations; `test db` 9 files, 409 tests, PASS;
+`db lint` clean; runtime 93/93; tests/evaluation 29/29; canary 24/24.

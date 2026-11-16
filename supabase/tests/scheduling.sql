@@ -137,7 +137,13 @@ reset role;
 insert into private.ai_months(month) values(date_trunc('month',now() at time zone 'UTC')::date) on conflict do nothing;
 update private.ai_months set spent_cents=(select soft_cap_cents from private.ai_runtime);
 select is(private.enqueue_nightly_passes('2026-11-18 02:30:00+00'),0,'at the soft cap nightly tending enqueues nothing');
+-- One cent below the soft cap with two scopes waiting: the first reservation crosses
+-- the cap and is allowed; the run stops there instead of creating the second.
+update private.ai_months set spent_cents=(select soft_cap_cents from private.ai_runtime)-reserved_cents-1;
+select is(private.enqueue_nightly_passes('2026-11-18 02:30:00+00'),1,'a run that crosses the soft cap stops after the pass that crossed it');
+select ok((select reserved_cents+spent_cents>=(select soft_cap_cents from private.ai_runtime) from private.ai_months),'the cap was crossed by that one reservation');
+select is((select count(*) from public.garden_passes where trigger='nightly' and status='queued'),1::bigint,'exactly one automatic pass was created');
 update private.ai_months set spent_cents=0;
-select is(private.enqueue_nightly_passes('2026-11-18 02:30:00+00'),2,'below it both scopes with unseen writing are enqueued');
+select is(private.enqueue_nightly_passes('2026-11-19 02:30:00+00'),1,'below the cap the remaining scope is enqueued on a later run');
 select * from finish();
 rollback;

@@ -67,6 +67,26 @@ export const thresholds = [
   { id: "question_grounding", tier: "3", min: 1, source: "blind", kinds: ["question"], text: "questions grounded in the person's words with no invented premise" },
 ];
 
+/**
+ * Whether the corpus's own reference answers contain something for every
+ * threshold to measure. A threshold the corpus cannot exercise is reported as
+ * missing, and a receipt built on such a corpus cannot be go.
+ */
+export function corpusCoverage(cases = corpusV3) {
+  const marks = cases.flatMap((c) => c.reference.tend.marks.map((m) => m.kind));
+  const blooms = cases.flatMap((c) => (c.reference.connect?.blooms ?? []).map((b) => b.kind));
+  const count = (list, kinds) => list.filter((k) => kinds.includes(k)).length;
+  const counts = {
+    valid_evidence: cases.length,
+    brevity: blooms.length,
+    tier_lock: cases.filter((c) => allowedKinds(c.tiers).length < 6).length,
+    unfinished_recall: count(marks, ["unfinished"]),
+    pattern_negative_controls: cases.filter((c) => c.family === "recurrence" && c.expected.blooms === "none" && allowedKinds(c.tiers).length).length,
+  };
+  for (const t of thresholds.filter((x) => x.source === "blind")) counts[t.id] = count(t.kinds.some((k) => ["theme", "open_question", "unfinished"].includes(k)) ? marks : blooms, t.kinds);
+  return { reference_items: counts, missing: thresholds.map((t) => t.id).filter((id) => !counts[id]) };
+}
+
 const oneSentence = (text) => !/[.!?]["')\]]?\s+\S/.test(text.trim());
 const round = (n) => (n === null ? null : Math.round(n * 10000) / 10000);
 const rate = (pass, total) => (total ? round(pass / total) : null);
@@ -221,21 +241,27 @@ export async function buildReceipt({ run, outputs, scores = new Map(), acceptanc
     const b = blind(t.kinds, t.id === "clinical_labels" ? "clinical" : "verdict");
     const complete = b.scored === b.items;
     const value = t.max !== undefined ? b.yes : rate(b.yes, b.scored);
-    const status = !complete
-      ? "awaiting-blind-score"
-      : b.items === 0
-        ? "no-items"
-        : t.max !== undefined
-          ? b.yes <= t.max ? "pass" : "fail"
-          : value >= t.min ? "pass" : "fail";
-    return { id: t.id, tier: t.tier, source: "blind", threshold: t.text, required: t.max !== undefined ? `at most ${t.max}` : t.min, value: complete ? value : null, detail: b, status };
+    // Three outcomes, never two: measured and met, measured and missed, not measured.
+    // A threshold with nothing to score (the run returned no item of that kind) was
+    // not measured, and that is never a pass.
+    const status =
+      b.items === 0
+        ? "not-measured"
+        : !complete
+          ? "awaiting-blind-score"
+          : t.max !== undefined
+            ? b.yes <= t.max ? "pass" : "fail"
+            : value >= t.min ? "pass" : "fail";
+    return { id: t.id, tier: t.tier, source: "blind", threshold: t.text, required: t.max !== undefined ? `at most ${t.max}` : t.min, value: status === "pass" || status === "fail" ? value : null, detail: b, status };
   });
 
+  const coverage = corpusCoverage();
   const accepted = acceptance?.return_format_accepted === true;
   const open = [
     ...(stale.length ? [`hashes changed since the run: ${stale.join(", ")}`] : []),
     ...(missing.length ? [`${missing.length} corpus case(s) have no output`] : []),
     ...(unknown.length ? [`${unknown.length} output(s) are not corpus cases`] : []),
+    ...coverage.missing.map((id) => `corpus has no case that exercises ${id}`),
     ...results.filter((r) => r.status === "fail").map((r) => `${r.id} below threshold`),
     ...results.filter((r) => r.status === "not-measured").map((r) => `${r.id} not measured`),
     ...results.filter((r) => r.status === "awaiting-blind-score").map((r) => `${r.id} awaiting blind score`),
@@ -277,6 +303,9 @@ export async function buildReceipt({ run, outputs, scores = new Map(), acceptanc
     },
     informational: { quiet_when_no_bloom_expected: { ...quiet, value: rate(quiet.quiet, quiet.cases) }, blind_items: items.length },
     tiers,
+    // Required thresholds this run did not measure. Any entry here means no-go.
+    not_measured: results.filter((r) => r.status === "not-measured").map((r) => r.id),
+    corpus_coverage: coverage,
     owner_acceptance: {
       requirement: "Kyle accepts the small return format (EVALUATION_ARCHITECTURE: a blinded Wizard-of-Oz study; desk review cannot satisfy that gate)",
       return_format_accepted: acceptance?.return_format_accepted ?? null,

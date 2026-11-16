@@ -13,6 +13,7 @@ import { allowedKinds } from "../../supabase/functions/_shared/garden-runtime.mj
 import { corpusV3 } from "../../services/garden-worker/evaluation/corpus-v3.mjs";
 import {
   buildReceipt,
+  corpusCoverage,
   currentHashes,
   parseCsv,
   readScores,
@@ -209,4 +210,48 @@ globalThis.fetch = async (url, options) => {
     await rm(join(root, runDir), { recursive: true, force: true });
     await rm(stubDir, { recursive: true, force: true });
   }
+});
+
+test("a threshold that was never measured is not a pass: a run that returns no blooms cannot be go", async () => {
+  const lines = outputs();
+  for (const line of lines) line.outcome.result.blooms = [];
+  const receipt = await buildReceipt({ run: await runFor({ self_test: false }), outputs: lines, scores: allYes(reviewItems(lines)), acceptance: accepted });
+  assert.equal(receipt.verdict, "no-go");
+  for (const id of ["pattern_precision", "claim_faithfulness", "echo_precision", "question_grounding"]) {
+    assert.equal(find(receipt, id).status, "not-measured", id);
+    assert.equal(find(receipt, id).value, null, id);
+    assert.ok(receipt.open.includes(`${id} not measured`), id);
+    assert.ok(receipt.not_measured.includes(id), id);
+  }
+  assert.equal(find(receipt, "label_faithfulness").status, "pass", "what was measured still counts");
+  assert.equal(receipt.tiers.tier_2.status, "incomplete");
+  assert.equal(receipt.tiers.tier_3.status, "incomplete");
+});
+
+test("a run that returns nothing at all measures no blind threshold and is no-go", async () => {
+  const lines = outputs();
+  for (const line of lines) line.outcome.result = { blooms: [], marks: [], no_output_reason: null };
+  const receipt = await buildReceipt({ run: await runFor({ self_test: false }), outputs: lines, scores: new Map(), acceptance: accepted });
+  assert.equal(receipt.verdict, "no-go");
+  const blind = thresholds.filter((t) => t.source === "blind").map((t) => t.id);
+  assert.deepEqual(blind.filter((id) => find(receipt, id).status !== "not-measured"), []);
+  assert.equal(find(receipt, "unfinished_recall").status, "fail");
+});
+
+test("every status is one of four, and only measured-and-met is a pass", async () => {
+  const lines = outputs();
+  const receipt = await buildReceipt({ run: await runFor({ self_test: false }), outputs: lines, scores: allYes(reviewItems(lines)), acceptance: accepted });
+  for (const t of Object.values(receipt.tiers).flatMap((x) => x.thresholds)) {
+    assert.ok(["pass", "fail", "not-measured", "awaiting-blind-score"].includes(t.status), t.id);
+    if (t.status === "pass") assert.notEqual(t.value, null, t.id);
+  }
+  assert.deepEqual(receipt.not_measured, []);
+});
+
+test("the corpus exercises every threshold in every tier", () => {
+  assert.deepEqual(corpusCoverage().missing, []);
+  const thin = corpusCoverage(corpusV3.filter((c) => !(c.reference.connect?.blooms ?? []).some((b) => b.kind === "echo")));
+  assert.ok(thin.missing.includes("echo_precision"));
+  const noControls = corpusCoverage(corpusV3.filter((c) => !(c.family === "recurrence" && c.expected.blooms === "none")));
+  assert.ok(noControls.missing.includes("pattern_negative_controls"));
 });

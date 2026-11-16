@@ -16,7 +16,9 @@
 -- holds FOR KEY SHARE on it, which a DELETE must wait for, so a pass can never
 -- commit after its tenant was removed and be left queued with nobody to claim it.
 -- Nightly enqueue also stops at the soft cap (COST_AND_CAPACITY: crossing the soft
--- cap pauses new automatic passes); invited passes stop at the hard cap as before.
+-- cap pauses new automatic passes), re-checked before every pass it creates, so a
+-- run exceeds it by at most the one reservation that crosses it; invited passes
+-- stop at the hard cap as before.
 -- Additive: no existing row or column changes.
 begin;
 
@@ -116,12 +118,11 @@ grant execute on function public.claim_garden_pass(),public.check_garden_pass(uu
 create or replace function private.enqueue_nightly_passes(p_now timestamptz default now(),p_per_tenant integer default 6) returns integer
 language plpgsql security definer set search_path='' as $$
 declare a record; s record; n integer:=0; made integer; last timestamptz;
+  v_month date:=date_trunc('month',now() at time zone 'UTC')::date; v_soft integer; v_used numeric;
 begin
   if not (select enabled from private.ai_runtime where singleton) then return 0; end if;
-  -- Automatic passes pause at the soft cap; a person can still invite one.
-  if (select coalesce(sum(m.reserved_cents+m.spent_cents),0) from private.ai_months m
-        where m.month=date_trunc('month',now() at time zone 'UTC')::date)
-     >=(select soft_cap_cents from private.ai_runtime where singleton) then return 0; end if;
+  select soft_cap_cents into v_soft from private.ai_runtime where singleton;
+  insert into private.ai_months(month) values(v_month) on conflict do nothing;
   for a in select id from public.accounts acc where tend_overnight and extract(hour from p_now at time zone timezone)=2
       and exists(select 1 from private.ai_tenants t where t.tenant_id=acc.id) loop
     if exists(select 1 from public.garden_passes where tenant_id=a.id and trigger='nightly' and created_at>p_now-interval '20 hours') then continue; end if;
@@ -139,6 +140,19 @@ begin
       continue when not exists(select 1 from public.current_entries c join public.seeds sd on sd.id=c.seed_id
         where c.tenant_id=a.id and sd.plot_id=any(s.plot_ids) and sd.status='active' and c.archived_at is null
           and (last is null or greatest(c.created_at,c.revised_at)>last));
+      -- Automatic passes pause at the soft cap; a person can still invite one.
+      -- Checked before every pass, and it sees this run's own reservations, so one
+      -- run can pass the cap by at most the single reservation that crosses it. That
+      -- crossing pass is allowed: the cap is "no new automatic pass at or above it",
+      -- not "never above it".
+      -- Read without FOR UPDATE on purpose. prepare_pass locks public.accounts and
+      -- then this month's row; holding the month's row here across tenants would
+      -- take them in the opposite order and could deadlock with an invited pass.
+      -- The only thing a concurrent session can add between this read and the
+      -- insert is an invited pass, which is allowed above the soft cap anyway;
+      -- the reservation itself is still made under prepare_pass's row lock.
+      select m.reserved_cents+m.spent_cents into v_used from private.ai_months m where m.month=v_month;
+      if v_used>=v_soft then return n; end if;
       begin
         insert into public.garden_passes(id,tenant_id,garden_id,plot_ids,trigger) values(gen_random_uuid(),a.id,s.garden_id,s.plot_ids,'nightly');
         made:=made+1;
