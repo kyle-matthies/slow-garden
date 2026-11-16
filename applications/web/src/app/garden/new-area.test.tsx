@@ -1,8 +1,12 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, screen } from "@testing-library/react";
+import { renderWith, storeOf } from "@/lib/garden/store/testing/render";
 import { afterEach, expect, it, vi } from "vitest";
 import { NewArea } from "./new-area";
+import { createArea } from "./actions";
 
 vi.mock("./actions", () => ({ createArea: vi.fn() }));
+// The store reaches the component through the provider, as in the app.
+const render = renderWith(storeOf({ createArea }));
 afterEach(cleanup);
 
 it("waits behind its button by default and opens straight to the name field when asked", () => {

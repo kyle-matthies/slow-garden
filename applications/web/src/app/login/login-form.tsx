@@ -1,17 +1,22 @@
 "use client";
 
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
+import { useGardenStore } from "@/lib/garden/store/context";
 
 const RESEND_COOLDOWN_MS = 60_000; // matches Supabase auth.email.max_frequency
 
-export function LoginForm({ configured }: { configured: boolean }) {
+export function LoginForm({
+  configured,
+  onSignedIn,
+}: {
+  configured: boolean;
+  /** Where to go once the code is accepted; by default, the garden. */
+  onSignedIn?: () => void;
+}) {
   const router = useRouter();
-  const supabase = useMemo(
-    () => (configured ? createClient() : null),
-    [configured],
-  );
+  const store = useGardenStore();
+  const supabase = configured ? store : null;
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
   const [codeSent, setCodeSent] = useState(false);
@@ -34,6 +39,22 @@ export function LoginForm({ configured }: { configured: boolean }) {
     return () => window.clearInterval(interval);
   }, [resendAt]);
 
+  // Browser mode: no server checks the session before this page renders, so a
+  // signed-in visitor is sent on to the garden from here.
+  useEffect(() => {
+    if (!configured || store.kind !== "browser" || onSignedIn) return;
+    let current = true;
+    store.getSession().then(
+      (session) => {
+        if (current && session.signedIn) router.replace("/garden");
+      },
+      () => {},
+    );
+    return () => {
+      current = false;
+    };
+  }, [configured, store, onSignedIn, router]);
+
   function startResendCooldown() {
     const current = Date.now();
     setClock(current);
@@ -46,14 +67,11 @@ export function LoginForm({ configured }: { configured: boolean }) {
     setPending(true);
     setHasError(false);
     startResendCooldown();
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: { shouldCreateUser: true },
-    });
+    const result = await supabase.requestEmailCode(email, { createAccount: true });
     setPending(false);
-    if (error) {
+    if (!result.ok) {
       setHasError(true);
-      setMessage(error.message);
+      setMessage(result.message);
       return;
     }
     setCodeSent(true);
@@ -66,14 +84,11 @@ export function LoginForm({ configured }: { configured: boolean }) {
     setHasError(false);
     setCode("");
     startResendCooldown();
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: { shouldCreateUser: true },
-    });
+    const result = await supabase.requestEmailCode(email, { createAccount: true });
     setPending(false);
-    if (error) {
+    if (!result.ok) {
       setHasError(true);
-      setMessage(error.message);
+      setMessage(result.message);
       return;
     }
     setMessage("A new code is on its way. Only the newest code works.");
@@ -84,17 +99,14 @@ export function LoginForm({ configured }: { configured: boolean }) {
     if (!supabase) return;
     setPending(true);
     setHasError(false);
-    const { error } = await supabase.auth.verifyOtp({
-      email,
-      token: code.trim(),
-      type: "email",
-    });
+    const result = await supabase.verifyEmailCode(email, code);
     setPending(false);
-    if (error) {
+    if (!result.ok) {
       setHasError(true);
-      setMessage(error.message);
+      setMessage(result.message);
       return;
     }
+    if (onSignedIn) return onSignedIn();
     router.replace("/garden");
     router.refresh();
   }

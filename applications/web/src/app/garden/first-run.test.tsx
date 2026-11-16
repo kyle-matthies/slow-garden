@@ -1,4 +1,5 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import { renderWith, storeOf } from "@/lib/garden/store/testing/render";
 import { afterEach, expect, it, vi } from "vitest";
 import { FirstRun } from "./first-run";
 import { createArea, saveEntry } from "./actions";
@@ -7,6 +8,8 @@ import { emptyOnboardingDraft, loadOnboardingDraft, onboardingRecord } from "@/l
 import * as drafts from "@/lib/garden/drafts";
 
 vi.mock("./actions", () => ({ createArea: vi.fn(), saveEntry: vi.fn() }));
+// The mocked actions reach the component as a store, through the provider.
+const render = renderWith(storeOf({ createArea, saveEntry }));
 const garden = "10000000-0000-4000-8000-000000000001";
 const topic = "10000000-0000-4000-8000-000000000002";
 const thought = "10000000-0000-4000-8000-000000000003";

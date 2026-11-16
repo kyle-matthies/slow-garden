@@ -16,12 +16,8 @@ import { ChronologyLens, GardenSearch, type LensView } from "./chronology";
 import { EntryTime } from "./entry-time";
 import { EntryEditor } from "./entry-editor";
 import { FirstRun } from "./first-run";
-import {
-  respondToMark,
-  setArchived,
-  setPlotPermissions,
-  signOut,
-} from "./actions";
+import { useGardenReload, useGardenStore } from "@/lib/garden/store/context";
+import { ExportLink } from "./export-link";
 import { TendingSettings } from "./tending-settings";
 import { DeleteControl } from "./delete-control";
 import { discardDeletedDrafts } from "./delete-drafts";
@@ -81,6 +77,7 @@ function EntryCard({
   deletionAvailable?: boolean;
   readOnly?: boolean;
 }) {
+  const { loadEntryHistory } = useGardenStore();
   const [editing, setEditing] = useState(false),
     [history, setHistory] = useState<
       | {
@@ -94,11 +91,9 @@ function EntryCard({
     [error, setError] = useState("");
   async function viewHistory() {
     try {
-      const response = await fetch(`/garden/history?entry=${entry.entry_id}`, {
-        cache: "no-store",
-      });
-      if (!response.ok) throw Error();
-      setHistory(await response.json());
+      const result = await loadEntryHistory(entry.entry_id);
+      if (!result.ok) throw Error();
+      setHistory(result.revisions);
     } catch {
       setError("History could not be loaded. Please retry.");
     }
@@ -190,6 +185,15 @@ function EntryCard({
   );
 }
 export function GardenWorkspace({ data }: { data: GardenData }) {
+  const {
+    respondToMark,
+    setArchived,
+    setTopicTending: setPlotPermissions,
+    signOut,
+  } = useGardenStore();
+  // Browser mode: the garden is client state and is re-read through the store.
+  // Server mode (null): the server re-renders it, exactly as before.
+  const reloadGarden = useGardenReload();
   const { tending, markBloomsSeen } = useSeenTending(data.tenantId, data.tending);
   // "New" is known only once this browser's receipts are read: announce nothing
   // on the server or mid-hydration, so a dismissed reveal never flashes back.
@@ -379,7 +383,8 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
         )),
   );
   function refresh() {
-    router.refresh();
+    if (reloadGarden) void reloadGarden();
+    else router.refresh();
   }
   async function mutation(
     action: () => Promise<ActionResult>,
@@ -728,26 +733,38 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
             and every topic starts with Tending off.
           </p>
           <div className="action-row">
-            <a className="secondary-button" href="/garden/export">
+            <ExportLink
+              className="secondary-button"
+              format="json"
+              onFailure={setNotice}
+            >
               Export all sources · JSON
-            </a>
-            <a className="secondary-button" href="/garden/export?format=md">
+            </ExportLink>
+            <ExportLink
+              className="secondary-button"
+              format="md"
+              onFailure={setNotice}
+            >
               Export all sources · Markdown
-            </a>
+            </ExportLink>
             {data.gardenId && (
               <>
-                <a
+                <ExportLink
                   className="secondary-button"
-                  href={`/garden/export?garden=${data.gardenId}`}
+                  format="json"
+                  gardenId={data.gardenId}
+                  onFailure={setNotice}
                 >
                   Export this garden · JSON
-                </a>
-                <a
+                </ExportLink>
+                <ExportLink
                   className="secondary-button"
-                  href={`/garden/export?format=md&garden=${data.gardenId}`}
+                  format="md"
+                  gardenId={data.gardenId}
+                  onFailure={setNotice}
                 >
                   Export this garden · Markdown
-                </a>
+                </ExportLink>
               </>
             )}
           </div>

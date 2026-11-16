@@ -356,3 +356,19 @@ while the camera turns.
 - Deploy order: the web app is deployed before `20261116041903` is applied.
 - Revisit when: any external account exists, the browser path becomes the default, or
   a hosted advisor flags the SECURITY DEFINER functions.
+
+## D-027: Workspace runs on the data store; browser mode stays behind a flag
+
+- Date: 2026-11-16
+- Status: Decided under the owner working agreement; reversible by Kyle.
+- Every data call in the web client goes through `GardenStore`. The default
+  (`NEXT_PUBLIC_GARDEN_STORE` unset) is the server-action store and behaves as
+  before. Browser mode loads and writes through Supabase from the browser under RLS
+  and is not enabled anywhere.
+- In browser mode, sessions use the same script-readable cookies server mode already
+  uses, so token exposure to script is unchanged by the mode; hardening that is a
+  separate decision (see `architecture/PRIVACY_ARCHITECTURE_OPTIONS.md`).
+- Browser mode becomes the default only after the pending migrations are applied on
+  the hosted project, two-user RLS has been exercised through the browser, and the
+  static-export blockers recorded in
+  `operations/CLIENT_DATA_LAYER_STAGE2_2026-11-16.md` are removed.

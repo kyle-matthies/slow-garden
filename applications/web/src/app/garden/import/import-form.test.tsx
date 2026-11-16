@@ -1,10 +1,12 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import { renderWith, storeOf } from "@/lib/garden/store/testing/render";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { Garden, Plot } from "@/lib/garden/types";
 import { ImportForm } from "./import-form";
 
 const mocks = vi.hoisted(() => ({ importThought: vi.fn(), parse: vi.fn(), push: vi.fn() }));
 vi.mock("./actions", () => ({ importThought: mocks.importThought }));
+const render = renderWith(storeOf({ importThought: mocks.importThought }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: mocks.push }) }));
 vi.mock("@/lib/garden/import", async (original) => ({
   ...await original<typeof import("@/lib/garden/import")>(),

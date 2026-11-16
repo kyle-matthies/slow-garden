@@ -1,6 +1,6 @@
 "use client";
 import { useRef, useState, type FormEvent } from "react";
-import { createArea } from "./actions";
+import { useGardenStore } from "@/lib/garden/store/context";
 
 export function NewArea({
   kind,
@@ -14,6 +14,7 @@ export function NewArea({
   /** Show the name field straight away: the person already asked for it. */
   startOpen?: boolean;
 }) {
+  const { createArea } = useGardenStore();
   const [open, setOpen] = useState(startOpen),
     [name, setName] = useState(""),
     [pending, setPending] = useState(false),

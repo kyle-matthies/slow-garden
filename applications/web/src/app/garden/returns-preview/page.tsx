@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { ReturnsPreview } from "./preview";
+import { StoreBoundary } from "../store-boundary";
 
 const isProduction = process.env.NODE_ENV === "production";
 
@@ -21,7 +22,9 @@ export default function ReturnsPreviewPage() {
   if (isProduction) notFound();
   return (
     <Suspense fallback={<p>Opening the fixture Returns…</p>}>
-      <ReturnsPreview />
+      <StoreBoundary>
+        <ReturnsPreview />
+      </StoreBoundary>
     </Suspense>
   );
 }

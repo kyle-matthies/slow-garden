@@ -4,65 +4,20 @@
  * must never contain a path to cookies, the cache API or a server action.
  */
 // @vitest-environment node
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { dirname, join, relative, resolve } from "node:path";
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { imports, isServerModule, violations } from "./testing/import-graph";
 
 const STORE = dirname(fileURLToPath(import.meta.url));
-const SRC = resolve(STORE, "../../..");
-const FORBIDDEN = ["next/headers", "next/cache", "server-only", "next/server"];
-const IMPORT =
-  /(?:^|[\s;])(?:import|export)\s+(?:type\s+)?(?:[^'";]*?\sfrom\s+)?["']([^"']+)["']|import\(\s*["']([^"']+)["']\s*\)/g;
-
-function resolveModule(from: string, specifier: string): string | null {
-  const base = specifier.startsWith("@/")
-    ? join(SRC, specifier.slice(2))
-    : specifier.startsWith(".")
-      ? resolve(dirname(from), specifier)
-      : null;
-  if (!base) return null;
-  for (const candidate of [base, `${base}.ts`, `${base}.tsx`, join(base, "index.ts"), join(base, "index.tsx")])
-    if (existsSync(candidate) && statSync(candidate).isFile()) return candidate;
-  throw new Error(`Cannot resolve ${specifier} from ${relative(SRC, from)}`);
-}
-
-export function imports(source: string): string[] {
-  return [...source.matchAll(IMPORT)].map((m) => m[1] ?? m[2]);
-}
-function isServerModule(source: string): boolean {
-  return /^\s*(?:\/\*[\s\S]*?\*\/\s*|\/\/[^\n]*\n\s*)*["']use server["']/.test(source);
-}
-
-/** Every violation reachable from `entry`, with the import chain that reaches it. */
-function violations(entry: string): string[] {
-  const found: string[] = [];
-  const seen = new Set<string>();
-  const walk = (file: string, chain: string[]) => {
-    if (seen.has(file)) return;
-    seen.add(file);
-    const source = readFileSync(file, "utf8");
-    const here = [...chain, relative(SRC, file)];
-    if (isServerModule(source)) found.push(`${here.join(" -> ")} is a "use server" module`);
-    for (const specifier of imports(source)) {
-      if (FORBIDDEN.includes(specifier)) found.push(`${here.join(" -> ")} imports ${specifier}`);
-      if (/(^|\/)supabase\/(server|proxy)$/.test(specifier))
-        found.push(`${here.join(" -> ")} imports the server Supabase client`);
-      const next = resolveModule(file, specifier);
-      if (next) walk(next, here);
-    }
-  };
-  walk(entry, []);
-  return found;
-}
-
 const browserModules = readdirSync(STORE)
   .filter((name) => /^browser.*\.tsx?$/.test(name) && !/\.test\.tsx?$/.test(name))
   .map((name) => join(STORE, name));
 
 describe("browser store boundaries", () => {
   it("finds the browser modules", () => {
-    expect(browserModules.map((f) => relative(STORE, f)).sort()).toEqual(["browser-default.ts", "browser-store.ts"]);
+    expect(browserModules.map((f) => relative(STORE, f)).sort()).toEqual(["browser-default.ts", "browser-provider.tsx", "browser-store.ts"]);
   });
 
   it.each(browserModules.map((f) => [relative(STORE, f), f]))(

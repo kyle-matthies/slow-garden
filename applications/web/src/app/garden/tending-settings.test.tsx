@@ -1,10 +1,12 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import { renderWith, storeOf } from "@/lib/garden/store/testing/render";
 import { afterEach, expect, it, vi } from "vitest";
 import { TendingSettings } from "./tending-settings";
 import { TendingActivity } from "./tending-activity";
 import { EMPTY_TENDING } from "@/lib/garden/scene/tending";
 const save = vi.hoisted(() => vi.fn());
 vi.mock("./actions", () => ({ setTendingPreferences: save }));
+const render = renderWith(storeOf({ setTendingPreferences: save }));
 afterEach(() => { cleanup(); vi.resetAllMocks(); });
 
 it("saves permission without claiming that an overnight service started", async () => {

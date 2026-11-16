@@ -1,4 +1,5 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, screen } from "@testing-library/react";
+import { renderWith, storeOf } from "@/lib/garden/store/testing/render";
 import { afterEach, expect, it, vi } from "vitest";
 import { FIXTURE } from "@/app/dev/axe-fixtures/fixture";
 import { GardenWorkspace } from "./workspace";
@@ -12,6 +13,8 @@ vi.mock("./actions", () => ({
   createArea: vi.fn(), saveEntry: vi.fn(), readReturns: vi.fn(), inviteReflection: vi.fn(),
   respondToBloom: vi.fn(), cancelReflection: vi.fn(), previewDeletion: vi.fn(), deleteItem: vi.fn(), deleteAccount: vi.fn(),
 }));
+// No test here reaches the store; one that did would fail loudly.
+const render = renderWith(storeOf({}));
 vi.mock("./scene/garden-scene", () => ({ GardenScene: () => <div /> }));
 vi.mock("./scene/garden-ring", () => ({ GardenRing: () => <div /> }));
 vi.mock("./scene/thought-plant", () => ({ ThoughtPlant: () => null, TopicPlants: () => null }));

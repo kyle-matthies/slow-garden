@@ -5,6 +5,7 @@ import Loading from "@/app/loading";
 import { GardenWorkspace } from "@/app/garden/workspace";
 import { ImportForm } from "@/app/garden/import/import-form";
 import { ErrorFixture } from "./error-fixture";
+import { StoreBoundary } from "@/app/garden/store-boundary";
 import {
   syntheticGarden,
   syntheticTending,
@@ -17,7 +18,14 @@ export const metadata: Metadata = {
 
 export const dynamic = "force-dynamic";
 
-export default async function AxeFixturesPage({
+export default async function AxeFixturesPage(props: {
+  searchParams: Promise<{ state?: string; thoughts?: string; gardens?: string; deletion?: string }>;
+}) {
+  // The fixtures run on whichever store the environment selects.
+  return <StoreBoundary>{await fixture(props)}</StoreBoundary>;
+}
+
+async function fixture({
   searchParams,
 }: {
   searchParams: Promise<{ state?: string; thoughts?: string; gardens?: string; deletion?: string }>;

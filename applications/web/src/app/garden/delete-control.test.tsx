@@ -1,7 +1,9 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import { renderWith, storeOf } from "@/lib/garden/store/testing/render";
 import { afterEach, expect, it, vi } from "vitest";
 import { DeleteControl, erasedLines } from "./delete-control";
 import { DeleteZone } from "./delete-zone";
+import { requestEmailCode, verifyEmailCode } from "@/lib/garden/store/auth";
 
 const actions = vi.hoisted(() => ({
   previewDeletion: vi.fn(),
@@ -13,6 +15,13 @@ const drafts = vi.hoisted(() => ({ discardDeletedDrafts: vi.fn() }));
 vi.mock("./delete-drafts", () => drafts);
 const otp = vi.hoisted(() => ({ signInWithOtp: vi.fn(), verifyOtp: vi.fn() }));
 vi.mock("@/lib/supabase/client", () => ({ createClient: () => ({ auth: otp }) }));
+// The store under test: the mocked actions, and sign-in codes through the
+// shared auth helpers over the mocked browser client (as both stores do).
+const render = renderWith(storeOf({
+  ...actions,
+  requestEmailCode: (email, options) => requestEmailCode({ auth: otp } as never, email, options),
+  verifyEmailCode: (email, code) => verifyEmailCode({ auth: otp } as never, email, code),
+}));
 afterEach(() => { cleanup(); vi.resetAllMocks(); });
 const openDialog = (name: string) => fireEvent.click(screen.getByRole("button", { name }));
 

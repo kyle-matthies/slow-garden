@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { createArea, saveEntry } from "./actions";
+import { useGardenStore } from "@/lib/garden/store/context";
 import { draftsClearedSince, ensureTabIdentity, openDraftStore, subscribeDraftsCleared, type DraftBackend } from "@/lib/garden/drafts";
 import { BACKGROUND_THOUGHT_TITLE, DEFAULT_GARDEN_NAME, DEFAULT_TOPIC_NAME, emptyOnboardingDraft, loadOnboardingDraft, onboardingRecord, titleFromFirstLine, type OnboardingDraft } from "@/lib/garden/onboarding-draft";
 import { bedKeyFor, seedTopicFor, type SeedPack } from "./seed-pack-data";
@@ -84,6 +84,7 @@ function FirstRunSession({ tenantId, onDone }: {
   tenantId: string;
   onDone: (location: FirstRunLocation) => void;
 }) {
+  const { createArea, saveEntry } = useGardenStore();
   const [draft, setDraft] = useState(emptyOnboardingDraft);
   const { gardenId, topicId, thoughtId, gardenName, topicName, thoughtTitle, body, packs, beds, writeIn, background } = draft;
   const current = useRef(draft);
