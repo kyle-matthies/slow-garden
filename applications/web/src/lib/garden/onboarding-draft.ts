@@ -27,44 +27,95 @@ export function titleFromFirstLine(body: string, limit = 60): string {
   return `${(space > limit / 2 ? cut.slice(0, space) : cut).trimEnd()}…`;
 }
 
+/** The person's optional background is kept as an ordinary thought with this title. */
+export const BACKGROUND_THOUGHT_TITLE = "What I’m tending";
+
+/** A starting topic taken from a seed pack. Its name is copied so recovery never depends on the catalog. */
+export type OnboardingBed = {
+  /** `<pack id>/<index>`: stable identity inside the draft. */
+  key: string;
+  name: string;
+  /** Ticked: will be created on save. */
+  on: boolean;
+  requestId: string;
+  /** Set once the topic has been saved. */
+  id: string;
+};
+
 export type OnboardingDraft = {
-  version: 1;
+  version: 2;
   completed: boolean;
   step: number;
   gardenId: string;
+  /** The person's own topic ("Notes" unless renamed). */
   topicId: string;
   thoughtId: string;
   gardenName: string;
   topicName: string;
   thoughtTitle: string;
   body: string;
-  starters: string[];
   gardenRequestId: string;
   topicRequestId: string;
   thoughtRequestId: string;
-  starterIds: Record<string, string>;
   entryId: string;
   revisionId: string;
+  entrySaved: boolean;
+  /** Seed packs the person opened, and the topics they kept from them. */
+  packs: string[];
+  beds: OnboardingBed[];
+  /** Key of the bed the first page is written in; "" means the person's own topic. */
+  writeIn: string;
+  /** Optional background, saved as the person's own thought in a "Notes" topic. */
+  background: string;
+  notesRequestId: string;
+  notesId: string;
+  tendingRequestId: string;
+  tendingThoughtId: string;
+  tendingEntryId: string;
+  tendingRevisionId: string;
 };
 
 export const emptyOnboardingDraft = (): OnboardingDraft => ({
-  version: 1, completed: false, step: 1, gardenId: "", topicId: "", thoughtId: "",
-  gardenName: DEFAULT_GARDEN_NAME, topicName: DEFAULT_TOPIC_NAME, thoughtTitle: "", body: "", starters: [],
-  gardenRequestId: "", topicRequestId: "", thoughtRequestId: "", starterIds: {},
-  entryId: "", revisionId: "",
+  version: 2, completed: false, step: 1, gardenId: "", topicId: "", thoughtId: "",
+  gardenName: DEFAULT_GARDEN_NAME, topicName: DEFAULT_TOPIC_NAME, thoughtTitle: "", body: "",
+  gardenRequestId: "", topicRequestId: "", thoughtRequestId: "",
+  entryId: "", revisionId: "", entrySaved: false,
+  packs: [], beds: [], writeIn: "",
+  background: "", notesRequestId: "", notesId: "",
+  tendingRequestId: "", tendingThoughtId: "", tendingEntryId: "", tendingRevisionId: "",
 });
 
+const LEGACY_STARTERS = ["Reading", "Work", "Questions"];
+const packId = /^[a-z0-9-]{1,40}$/;
+const bedKey = /^[a-z0-9-]{1,40}\/\d{1,2}$/;
+const idOrBlank = (v: unknown) => typeof v === "string" && (v === "" || uuid.test(v));
+
+/** Reads the current shape, and upgrades a version 1 checkpoint written before seed packs existed. */
 export function parseOnboardingDraft(value: string): OnboardingDraft | null {
   try {
-    const d = JSON.parse(value) as OnboardingDraft;
-    if (!d || d.version !== 1 || typeof d.completed !== "boolean" || !Number.isInteger(d.step) || d.step < 1 || d.step > 4) return null;
-    for (const k of ["gardenName", "topicName", "thoughtTitle", "body"] as const)
-      if (typeof d[k] !== "string" || d[k].length > (k === "body" ? 20000 : k === "thoughtTitle" ? 160 : 120)) return null;
-    for (const k of ["gardenId", "topicId", "thoughtId", "gardenRequestId", "topicRequestId", "thoughtRequestId", "entryId", "revisionId"] as const)
-      if (typeof d[k] !== "string" || (d[k] !== "" && !uuid.test(d[k]))) return null;
-    if ((d.step >= 2 && !d.gardenId) || (d.step >= 3 && !d.topicId) || (d.step === 4 && !d.thoughtId)) return null;
-    if (!Array.isArray(d.starters) || d.starters.some((s) => !["Reading", "Work", "Questions"].includes(s))) return null;
-    if (!d.starterIds || typeof d.starterIds !== "object" || Array.isArray(d.starterIds) || Object.entries(d.starterIds).some(([k, v]) => !["Reading", "Work", "Questions"].includes(k) || typeof v !== "string" || !uuid.test(v))) return null;
+    const raw = JSON.parse(value) as Record<string, unknown> | null;
+    if (!raw || typeof raw !== "object" || (raw.version !== 1 && raw.version !== 2)) return null;
+    let d: OnboardingDraft;
+    if (raw.version === 1) {
+      const { starters, starterIds, ...rest } = raw;
+      if (!Array.isArray(starters) || starters.some((s) => !LEGACY_STARTERS.includes(s))) return null;
+      if (!starterIds || typeof starterIds !== "object" || Array.isArray(starterIds) || Object.entries(starterIds).some(([k, v]) => !LEGACY_STARTERS.includes(k) || typeof v !== "string" || !uuid.test(v))) return null;
+      // The old starter chips were never created as topics; nothing to carry over.
+      d = { ...emptyOnboardingDraft(), ...rest, version: 2 } as OnboardingDraft;
+    } else d = raw as unknown as OnboardingDraft;
+    if (typeof d.completed !== "boolean" || typeof d.entrySaved !== "boolean" || !Number.isInteger(d.step) || d.step < 1 || d.step > 4) return null;
+    for (const k of ["gardenName", "topicName", "thoughtTitle", "body", "background"] as const)
+      if (typeof d[k] !== "string" || d[k].length > (k === "body" || k === "background" ? 20000 : k === "thoughtTitle" ? 160 : 120)) return null;
+    for (const k of ["gardenId", "topicId", "thoughtId", "gardenRequestId", "topicRequestId", "thoughtRequestId", "entryId", "revisionId", "notesRequestId", "notesId", "tendingRequestId", "tendingThoughtId", "tendingEntryId", "tendingRevisionId"] as const)
+      if (!idOrBlank(d[k])) return null;
+    if (!Array.isArray(d.packs) || d.packs.length > 24 || d.packs.some((p) => typeof p !== "string" || !packId.test(p))) return null;
+    if (!Array.isArray(d.beds) || d.beds.length > 96) return null;
+    for (const b of d.beds)
+      if (!b || typeof b !== "object" || typeof b.key !== "string" || !bedKey.test(b.key) || typeof b.name !== "string" || !b.name.trim() || b.name.length > 120 || typeof b.on !== "boolean" || !idOrBlank(b.requestId) || !idOrBlank(b.id)) return null;
+    if (new Set(d.beds.map((b) => b.key)).size !== d.beds.length) return null;
+    if (typeof d.writeIn !== "string" || (d.writeIn !== "" && !d.beds.some((b) => b.key === d.writeIn))) return null;
+    const anyTopic = !!d.topicId || !!d.notesId || d.beds.some((b) => b.id);
+    if ((d.step >= 2 && !d.gardenId) || (d.step >= 3 && !anyTopic) || (d.step === 4 && !d.thoughtId)) return null;
     return d;
   } catch { return null; }
 }
