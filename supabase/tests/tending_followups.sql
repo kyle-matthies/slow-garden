@@ -5,6 +5,13 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set search_path=public,extensions;
 select no_plan();
+-- The worker's role is given nothing beyond what the migrations grant. Some
+-- Postgres images add default privileges on public tables for the service role
+-- and some do not; taking them away here makes this file behave the same on
+-- both, and proves ingestion does not lean on them.
+revoke all on public.seeds,public.accounts,public.entries,public.seed_revisions from service_role;
+select ok(not has_table_privilege('service_role','public.seeds','select') and not has_table_privilege('service_role','public.accounts','select'),'the worker role holds no privilege on thoughts or accounts');
+
 insert into auth.users(id,email,raw_app_meta_data,raw_user_meta_data,created_at,updated_at) values
  ('91111111-1111-4111-8111-111111111111','cap-alice@example.test','{}','{}',now(),now()),
  ('92222222-2222-4222-8222-222222222222','cap-bob@example.test','{}','{}',now(),now()),
@@ -125,6 +132,92 @@ select is((select count(*) from public.blooms where pass_id='9fffffff-ffff-4fff-
 select is((select bloom_allowance from private.pass_inputs where pass_id='9fffffff-ffff-4fff-8fff-fffffffffff3'),null,'it carries no nightly allowance');
 select is((select published from private.bloom_cycles where garden_id='9aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1' and cycle_date='2026-11-20'),3,'and does not draw on the night''s budget');
 select throws_ok(format('select public.finish_garden_pass(%L::uuid,%L::uuid,%L::jsonb,1,1,false)','9fffffff-ffff-4fff-8fff-fffffffffff3',gen_random_uuid(),'{"blooms":[]}'),'P0001','lease lost','the lease check is still in force');
+
+-- ---------------------------------------------------------------------------
+-- Time. Nothing below depends on when this file runs: every moment is given.
+-- ---------------------------------------------------------------------------
+-- The tending hour is the account's local 02:00 hour, whatever the UTC hour or date.
+select is(private.is_tending_hour(t::timestamptz,z),want,z||' at '||t) from (values
+  ('2026-11-20 02:30:00+00','UTC',true),('2026-11-20 01:59:59+00','UTC',false),('2026-11-20 03:00:00+00','UTC',false),
+  ('2026-11-20 06:48:00+00','UTC',false),('2026-11-20 23:59:59+00','UTC',false),('2026-11-21 00:00:00+00','UTC',false),
+  ('2026-11-20 10:30:00+00','America/Los_Angeles',true),('2026-11-20 02:30:00+00','America/Los_Angeles',false),
+  ('2026-11-20 12:30:00+00','Pacific/Kiritimati',true),('2026-11-20 13:30:00+00','Pacific/Pago_Pago',true),
+  ('2026-11-20 20:45:00+00','Asia/Kolkata',true),('2026-11-20 21:45:00+00','Asia/Kolkata',false),
+  -- 2027-03-14 in Los Angeles has no 02:00 hour: 01:59 PST is followed by 03:00 PDT.
+  ('2027-03-14 09:30:00+00','America/Los_Angeles',false),('2027-03-14 10:30:00+00','America/Los_Angeles',true),('2027-03-14 11:30:00+00','America/Los_Angeles',false),
+  -- An ordinary night: the 03:00 hour is not a second tending hour.
+  ('2027-03-15 10:30:00+00','America/Los_Angeles',false),('2027-03-15 09:30:00+00','America/Los_Angeles',true),
+  -- 2026-11-01 in Los Angeles repeats 01:00, not 02:00: one tending hour.
+  ('2026-11-01 08:30:00+00','America/Los_Angeles',false),('2026-11-01 09:30:00+00','America/Los_Angeles',false),('2026-11-01 10:30:00+00','America/Los_Angeles',true),('2026-11-01 11:30:00+00','America/Los_Angeles',false)
+) v(t,z,want);
+select is((select count(*) from generate_series('2026-11-20 00:30:00+00'::timestamptz,'2026-11-20 23:30:00+00','1 hour') h where private.is_tending_hour(h,z)),1::bigint,z||' has exactly one tending hour in a day')
+  from unnest(array['UTC','America/Los_Angeles','Pacific/Kiritimati','Pacific/Pago_Pago','Asia/Kolkata','Australia/Lord_Howe']) z;
+select is((select count(*) from generate_series('2027-03-14 08:30:00+00'::timestamptz,'2027-03-15 07:30:00+00','1 hour') h where private.is_tending_hour(h,'America/Los_Angeles')),1::bigint,'the night the clocks skip 02:00 still has exactly one tending hour');
+
+-- The cycle is the account's local date at the moment it is tended: the same
+-- instant is a different night for accounts either side of the date line, and
+-- UTC midnight means nothing to an account that is not on UTC.
+create function pg_temp.night(z text,t timestamptz) returns date language plpgsql as $$
+declare d date;
+begin
+  -- Enqueue for Alice's garden 3 only, at the given moment in the given zone, then undo it.
+  update public.accounts set timezone=z,tend_overnight=true where id='91111111-1111-4111-8111-111111111111';
+  update public.plots set ai_enabled=(id='9bbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb6') where tenant_id='91111111-1111-4111-8111-111111111111';
+  delete from public.garden_passes where tenant_id='91111111-1111-4111-8111-111111111111';
+  if private.enqueue_nightly_for('91111111-1111-4111-8111-111111111111',t)<>1 then return null; end if;
+  select i.cycle_date into d from private.pass_inputs i join public.garden_passes p on p.id=i.pass_id where p.tenant_id='91111111-1111-4111-8111-111111111111';
+  return d;
+end $$;
+select is(pg_temp.night('Pacific/Kiritimati','2026-11-20 12:30:00+00'),'2026-11-21'::date,'UTC+14 at 12:30 UTC: the night is already tomorrow''s date');
+select is(pg_temp.night('Pacific/Pago_Pago','2026-11-20 13:30:00+00'),'2026-11-20'::date,'UTC-11 at 13:30 UTC, an hour later: the night is still today''s date');
+select is(pg_temp.night('Asia/Kolkata','2026-11-20 20:45:00+00'),'2026-11-21'::date,'UTC+5:30 before UTC midnight: the night is the local date');
+select is(pg_temp.night('America/Los_Angeles','2026-11-20 10:30:00+00'),'2026-11-20'::date,'Los Angeles at 02:30 local');
+select is(pg_temp.night('America/Los_Angeles','2027-03-14 10:30:00+00'),'2027-03-14'::date,'the skipped-hour night is tended in its 03:00 hour');
+select is(pg_temp.night('UTC','2026-11-20 06:48:00+00'),null,'outside the tending hour nothing is enqueued, at any time of day');
+select is(pg_temp.night('UTC','2026-11-20 23:59:59+00'),null,'nor a second before UTC midnight');
+select is(pg_temp.night('UTC','2026-11-21 00:00:00+00'),null,'nor at UTC midnight');
+
+-- A night is tended once, and that is decided by the night, not by the wall clock:
+-- the same moment again is refused whether it is in the past or the future of "now".
+delete from public.garden_passes where tenant_id='91111111-1111-4111-8111-111111111111';
+update public.accounts set timezone='America/Los_Angeles' where id='91111111-1111-4111-8111-111111111111';
+select is(private.enqueue_nightly_for('91111111-1111-4111-8111-111111111111','2026-11-20 02:45:00+00'),0,'02:45 UTC is not a Los Angeles account''s tending hour');
+update public.accounts set timezone='UTC' where id='91111111-1111-4111-8111-111111111111';
+select is(array[private.enqueue_nightly_for('91111111-1111-4111-8111-111111111111','2001-02-03 02:10:00+00'),private.enqueue_nightly_for('91111111-1111-4111-8111-111111111111','2001-02-03 02:50:00+00')],array[1,0],'a night long past is tended once');
+select is(array[private.enqueue_nightly_for('91111111-1111-4111-8111-111111111111','2099-02-03 02:10:00+00'),private.enqueue_nightly_for('91111111-1111-4111-8111-111111111111','2099-02-03 02:50:00+00')],array[0,0],'a pass in flight for the scope still blocks another night''s pass');
+update public.garden_passes set status='cancelled' where tenant_id='91111111-1111-4111-8111-111111111111';
+select is(array[private.enqueue_nightly_for('91111111-1111-4111-8111-111111111111','2099-02-03 02:10:00+00'),private.enqueue_nightly_for('91111111-1111-4111-8111-111111111111','2099-02-03 02:50:00+00')],array[1,0],'a night far ahead is tended once too');
+
+-- A nightly pass with no night recorded on it falls back to the account's local
+-- date when the pass was created: two passes either side of local midnight are
+-- two nights, and either side of UTC midnight in a non-UTC zone they are one.
+create function pg_temp.fallback(z text,created timestamptz) returns date language plpgsql as $$
+declare v_id uuid:=gen_random_uuid(); d date;
+begin
+  update public.accounts set timezone=z where id='91111111-1111-4111-8111-111111111111';
+  delete from public.garden_passes where tenant_id='91111111-1111-4111-8111-111111111111' and status in('queued','processing');
+  insert into public.garden_passes(id,tenant_id,garden_id,plot_ids,trigger) values(v_id,'91111111-1111-4111-8111-111111111111','9aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3',array['9bbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb6']::uuid[],'nightly');
+  update public.garden_passes set created_at=created where id=v_id;
+  set local role service_role;
+  d:=private.pass_local_date(v_id);
+  reset role;
+  return d;
+end $$;
+select is(pg_temp.fallback('America/Los_Angeles','2026-11-21 07:59:59+00'),'2026-11-20'::date,'a second before local midnight is still that night');
+select is(pg_temp.fallback('America/Los_Angeles','2026-11-21 08:00:00+00'),'2026-11-21'::date,'local midnight starts the next');
+select is(pg_temp.fallback('America/Los_Angeles','2026-11-20 23:59:59+00'),'2026-11-20'::date,'a second before UTC midnight');
+select is(pg_temp.fallback('America/Los_Angeles','2026-11-21 00:00:00+00'),'2026-11-20'::date,'and UTC midnight itself are the same local night');
+select is(pg_temp.fallback('UTC','2026-11-20 23:59:59+00'),'2026-11-20'::date,'for a UTC account UTC midnight is the boundary');
+select is(pg_temp.fallback('UTC','2026-11-21 00:00:00+00'),'2026-11-21'::date,'on both sides');
+-- And the worker, with no privilege on accounts, publishes against that fallback night.
+update private.pass_inputs set next_attempt_at=now()+interval '1 hour';
+update private.pass_inputs set next_attempt_at=now()-interval '5 hours' where pass_id=(select id from public.garden_passes where tenant_id='91111111-1111-4111-8111-111111111111' and status='queued');
+set local role service_role;
+select public.claim_garden_pass() as late \gset
+select lives_ok(format('select public.finish_garden_pass(%L::uuid,%L::uuid,%L::jsonb,100,40,false)',:'late'::jsonb->>'id',:'late'::jsonb->>'token',pg_temp.three(:'late'::jsonb)),'a nightly pass with no recorded night is published by a worker that cannot read accounts');
+reset role;
+select is((select published from private.bloom_cycles where garden_id='9aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3' and cycle_date='2026-11-21'),3,'against the local date it was created on');
+update public.accounts set timezone='UTC',tend_overnight=false where id='91111111-1111-4111-8111-111111111111';
 
 -- A scope with more than twenty cross-pollinating topics is skipped with a note;
 -- the rest of that account, and later accounts, are still tended.

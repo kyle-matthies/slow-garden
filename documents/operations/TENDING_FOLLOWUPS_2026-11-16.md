@@ -14,6 +14,13 @@ Related: [runbook](AI_ACTIVATION_RUNBOOK.md), [hosted apply checklist](HOSTED_AP
 [prerequisites record](ACTIVATION_PREREQUISITES_2026-11-16.md) (§9: reversal of all six),
 [browser path rules](BROWSER_PATH_RULES_2026-11-16.md).
 
+## 0. Correction: the first version of this migration failed CI
+
+The first version (commit `5189f63`) failed GitHub's `database` job twice, although
+this record then said "816 tests PASS, also under CLI 2.109.1". That claim was wrong
+in substance. Section 7 has the cause, the proof and the corrected runs; the numbers
+in section 4 are the corrected ones.
+
 ## 1. Findings and what was done
 
 | # | Finding | Done | Test, seen failing first |
@@ -35,7 +42,10 @@ new user-facing message is needed; the web's existing "busy for a moment" wordin
 
 - **Cycle.** One garden on one night. The night is the account's local calendar date
   (`accounts.timezone`) at the moment nightly enqueue serves it, which is its 02:00
-  hour. Each pass enqueued that night records it in `private.pass_inputs.cycle_date`.
+  hour (the 03:00 hour on the one night a year a zone's clocks skip 02:00). Each pass
+  enqueued that night records it in `private.pass_inputs.cycle_date`, and an account is
+  enqueued once per cycle date. The date comes from the moment the enqueue was given
+  and the account's zone, never from the server's zone or the clock at publish time.
 - **Share, decided when the passes are created.** The garden's three are shared among
   that night's passes, ordered by how much new writing each froze (most first), then
   by scope key: one pass gets 3; two get 2 and 1; three or more get 1, 1, 1 and any
@@ -91,13 +101,15 @@ the new thought-first order (covered by the order above, not by an executed race
 Environment: cloud session, Linux, Node v22.23.4, Docker Engine 29.9.2, Supabase CLI
 3.1.0 (`npx supabase`) and 2.109.1 (the version CI pins). Database tests ran in an
 isolated copy of `supabase/` (project `sg-prereq`, ports 583xx); the upgrade scripts
-ran in the repository's dedicated `.local-runtime` stack (`slow-garden-web-thinking`).
+ran in the repository's dedicated `.local-runtime` stack (`slow-garden-web-thinking`),
+started by CLI 2.109.1 (Postgres 17.6).
 
 | Command | Result |
 |---|---|
-| `npx supabase db reset` | 13 migrations applied in order, through `20261116061751_tending_followups.sql` |
-| `npx supabase test db`, twice, then eight more times after a test fix (below) | 14 files, **816 tests, Result: PASS** on the first two runs and on all eight after the fix; three of six runs in between failed on that test flaw (before this migration: 12 files, 743). Also PASS under CLI 2.109.1 |
-| `npx supabase db lint --schema public,private --level warning --fail-on error` | "No schema errors found" |
+| CI's exact steps, CLI 2.109.1 from a stopped stack (`supabase start` with CI's exclude list, `db lint`, `test db`), four times | Postgres 17.6 (CI's image); 13 migrations; "No schema errors found"; 14 files, **865 tests, Result: PASS**, each time, files in CI's order |
+| The same with CLI 3.1.0 (`npx supabase`) | Postgres 17.11; 14 files, 865 tests, PASS; lint clean |
+| Suite with the server, the worker's and the signed-in role's time zone set to `Pacific/Kiritimati` (+14, the next calendar day), `Pacific/Pago_Pago` (-11, the previous day), `America/Los_Angeles`, `Asia/Kolkata` | 865, PASS in each. (The first Kolkata run failed two assertions in `scheduling.sql` for a different reason, fixed: section 7) |
+| Suite with a committed tick token left as `pg_cron` leaves one | 865, PASS |
 | `supabase@2.109.1 gen types typescript --local --schema public` against `applications/web/src/types/database.ts` | identical; no public signature changed |
 | `scripts/test-upgrade.sh` | exit 0: "Upgrade preserves all 30 source revisions, timestamps and IDs; latest entry and full export verified." |
 | `scripts/test-upgrade-browser-path-rules.sh` | exit 0: "0 existing rows changed or rejected; legacy rows still archive, restore, revise and export; new rows of the same kinds are refused." |
@@ -105,9 +117,9 @@ ran in the repository's dedicated `.local-runtime` stack (`slow-garden-web-think
 | `node scripts/canary-dry-run.mjs --out artifacts/generated/canary-dry-run.json` | `ok: true`, `content_free: true`, 24 of 24 scenarios |
 | `node --test tests/evaluation/*.test.mjs` | tests 29, pass 29 |
 | `npx tsc --noEmit` in `applications/web` | exit 0 |
-| `scripts/hosted-canary.sql` on the local database | `hosted synthetic canary passed`; nothing left behind |
-| `scripts/hosted-nightly-canary.sql`, preconditions unmet (fresh database) | refused at step 1 with the reason; result row `FAILED` with all counts 0; nothing created; switch off |
-| `scripts/hosted-nightly-canary.sql`, Phase-3-like local state | `hosted nightly canary passed`: 2 passes, 1 cycle date, 3 blooms allowed for the garden, 0 other tenants, 0 skips, switch off; cleanup row all zeros |
+| `scripts/hosted-canary.sql` on the local database (rewritten, section 8) | `hosted synthetic canary passed`; nothing left behind. With a deliberately broken precondition: the error, then `hosted synthetic canary FAILED`, nothing left behind |
+| `scripts/hosted-nightly-canary.sql` (rewritten, section 8), Phase-3-like local state | exit 0, `hosted nightly canary passed`: 2 passes, 1 cycle date, 3 blooms allowed for the garden, 0 other tenants, switch as found; cleanup row all zeros |
+| The same script against six failing preconditions or mid-script failures | exit 3 each time, a `nightly canary refused:` line, and the runtime, nightly switch, allowlist, accounts, passes and reservations exactly as before (section 8) |
 | `call private.run_nightly_enqueue()` scheduled every minute by a local-only `pg_cron` job | status `succeeded`: the in-transaction check does not misfire under `pg_cron`, and the procedure commits there |
 | `begin; call private.run_nightly_enqueue(); rollback;` sent as one string | Postgres's `invalid transaction termination` at the first COMMIT, before any work (the case the 25001 check cannot recognise) |
 | The hosted apply checklist's POST queries, on the local database | every expected value observed (13 versions, 5 triggers, both constraints not validated, three jobs, all ledgers empty) |
@@ -154,3 +166,100 @@ Not executed:
 - `documents/operations/README.md`: link this record and the hosted apply checklist.
 - `scripts/hosted-nightly-canary.sql` is a new file beside `hosted-canary.sql`, because
   a committing canary cannot live in a rollback-only script.
+
+## 7. Why CI failed, and what "tested under CLI 2.109.1" has to mean
+
+**Root cause.** `finish_garden_pass` runs as the worker's role (`service_role`,
+SECURITY INVOKER). The first version of this migration made it lock `public.seeds`
+and read `public.accounts` directly. No migration grants the worker's role anything on
+those tables. Whether it has a privilege anyway depends on the Postgres image: the
+image CLI 3.1.0 starts (17.11) leaves it one, the image CLI 2.109.1 and CI start
+(17.6) does not. On CI every ingestion with marks died with
+`42501: permission denied for table seeds`, and the files after it failed on what
+that left behind. It was not the time of day and not test order.
+
+**Why the earlier claim was wrong.** The earlier "PASS under 2.109.1" ran 2.109.1's
+`test db` against a database that 3.1.0 had started, so it tested the newer image
+with the older client. Only starting the stack with the pinned CLI reproduces CI.
+
+**Proof.** CI's steps were run exactly (`supabase@2.109.1 start` with CI's exclude
+list from a stopped stack, `db lint`, `test db`): Files=14, Tests=631, FAIL, the same
+four files and the same test numbers as GitHub, with the 42501 above in the log. On
+that image `has_table_privilege('service_role','public.seeds','select')` is false; on
+the other it is true.
+
+**Fix.** Ingestion reaches those two tables only through two SECURITY DEFINER
+helpers scoped to the pass (`private.lock_marked_seeds`, `private.pass_local_date`),
+granted to the worker's role. `tending_followups.sql` now revokes the worker's
+privileges on thoughts, accounts, entries and revisions before it runs, so it proves
+the same thing on either image. Whether the hosted project grants that default is
+unknown and no longer matters; the checklist records it.
+
+**Time, checked because it was the leading hypothesis.** The container's clock could
+not be moved (no libfaketime in the image; moving the host clock would have affected
+everything else on the machine). What was done instead:
+
+- Every moment the new code uses is now passed in or stored, and tested explicitly:
+  the tending hour for six zones through a full day, either side of UTC midnight and
+  local midnight, and the night a zone's clocks skip 02:00; the cycle date either
+  side of the date line; the fallback date either side of local and UTC midnight.
+- The whole suite was run with the server's and roles' time zone moved by +14, -11,
+  -8 and +5:30 hours, which moves every local date and local hour the database
+  computes from the same instant.
+- Two real time dependences were found and fixed:
+  1. **"A night is tended once" compared a pass's creation time (the wall clock)
+     with the moment the enqueue was given.** In production they are the same. In
+     tests with fixed dates the answer depended on today's date, and
+     `scheduling.sql` would have started failing on 2026-11-18. The rule is now "one
+     nightly run per account per cycle date"; passes from before this migration keep
+     the twenty-hour rule.
+  2. **A zone whose clocks jump from 01:59 to 03:00 has no 02:00 hour that night**,
+     so an account there was not tended at all one night a year (for
+     `America/Los_Angeles`, 14 March 2027). The 03:00 hour now stands in on that
+     night only.
+- One clock-related flake in a test of mine was found and fixed: `scheduling.sql`
+  counted every tick token and queued request in the database, and the real
+  five-minute `pg_cron` tick can commit one while another test file's fixtures are
+  committed (a file that stores a worker URL). A run that crossed a five-minute
+  boundary at the wrong moment failed. Its assertions now look only at rows the
+  test's own transaction wrote.
+
+Not verified: behaviour with the container's wall clock actually set to another time.
+
+## 8. The two canary scripts, made to fail closed
+
+An automated review said the nightly canary, run with psql's defaults, carried on
+after a refused precondition and could switch off a nightly schedule that was already
+running. Verified against the first version: with the nightly switch on, it printed
+its refusal, carried on, and left the switch **off**. (It could not enqueue a real
+account: that step was conditional. The switch was the real damage.)
+
+`scripts/hosted-nightly-canary.sql`, rewritten:
+
+- psql only, `ON_ERROR_STOP` on; preconditions, the synthetic account, the allowlist
+  row, the opening of the nightly switch and the proof that the synthetic account is
+  the only one nightly enqueue could reach are one transaction, so a failure there
+  changes nothing;
+- it changes one setting and puts back exactly the value it found, as the very next
+  statement after the committing call, whether that call succeeded or not;
+- it deletes only rows it created, and exits non-zero unless the verdict is "passed"
+  and cleanup is complete.
+
+Failure paths run locally, each ending with exit 3 and the database unchanged: nightly
+switch already on (left on); runtime off; allowlist not empty; no worker URL; a
+collision part-way through creating the synthetic account; the synthetic account not
+being the only one reachable. What cannot be wrapped: the committing call and the
+restore after it. If the connection is lost between them the switch is left on with
+only the synthetic account allowlisted; the script's header says what to do.
+
+`scripts/hosted-canary.sql`, rewritten: it used to rely on the client keeping
+`BEGIN … ROLLBACK` as one session, and with psql's defaults it printed its closing
+line even after an error. Every write now happens inside one statement, in a block
+that always undoes itself, so nothing is kept whatever the client does with
+transactions, and the result row reads `passed` only if every check ran, `FAILED`
+otherwise. It has no psql meta-commands, so it still runs through a SQL tool.
+
+`HOSTED_APPLY_CHECKLIST.md`: every PRE and POST query is now read-only. POST 6 used
+to call `private.tick_garden_worker()`, which issues a token and queues a request when
+there is work; it is replaced by counts. The runbook's 2.0a and 2.6 were changed the
+same way.

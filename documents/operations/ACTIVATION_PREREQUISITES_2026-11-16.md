@@ -243,6 +243,8 @@ drop function private.lock_own_pass_inputs();
 --   private.enqueue_nightly_for, private.run_nightly_enqueue,
 --   private.erase_garden, public.delete_plot, public.delete_account
 --                                                     20261116041903_browser_path_rules.sql
+--   private.nightly_accounts                          20261116041903_browser_path_rules.sql
+drop function private.lock_marked_seeds(uuid,jsonb), private.pass_local_date(uuid), private.is_tending_hour(timestamptz,text);
 drop table private.nightly_skips, private.bloom_cycles;
 alter table private.pass_inputs drop column cycle_date, drop column bloom_allowance, drop column blooms_withheld;
 ```

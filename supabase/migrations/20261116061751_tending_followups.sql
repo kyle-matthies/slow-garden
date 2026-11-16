@@ -7,7 +7,10 @@
 --    tended topics could publish six.
 --      Cycle. A nightly cycle is one garden on one night, where the night is the
 --      account's local calendar date at the moment nightly enqueue runs for it
---      (its 02:00 hour in accounts.timezone). Every pass enqueued that night
+--      (its 02:00 hour in accounts.timezone, or the 03:00 hour on the night the
+--      clocks skip 02:00). The date comes from the time the enqueue was given
+--      and the account's zone, never from the server's zone or the wall clock
+--      at publish time. Every pass enqueued that night
 --      carries that date (private.pass_inputs.cycle_date).
 --      Share. When the night's passes for a garden are created its three are
 --      shared out among them, by a rule that uses only counts and ids: passes
@@ -58,6 +61,10 @@
 -- Reversal (as the operator, runtime disabled, queues drained):
 --   drop trigger passes_lock_inputs_first on public.garden_passes;
 --   drop function private.lock_own_pass_inputs();
+--   re-create private.nightly_accounts from 20261116041903_browser_path_rules.sql;
+--   drop function private.lock_marked_seeds(uuid,jsonb), private.pass_local_date(uuid),
+--     private.is_tending_hour(timestamptz,text);   (after finish_garden_pass and
+--     enqueue_nightly_for below have been re-created)
 --   re-create public.finish_garden_pass from 20261116023937_provider_transport.sql,
 --     private.enqueue_nightly_for, private.run_nightly_enqueue, private.erase_garden,
 --     public.delete_plot and public.delete_account from 20261116041903_browser_path_rules.sql;
@@ -108,6 +115,57 @@ revoke all on private.nightly_skips from public,anon,authenticated;
 grant select on private.nightly_skips to service_role;
 
 -- ---------------------------------------------------------------------------
+-- Helpers the worker's ingestion needs. finish_garden_pass runs as the service
+-- role (SECURITY INVOKER), and the service role holds no privilege on
+-- public.seeds or public.accounts: no migration grants one, and whether a
+-- platform default does depends on the Postgres image (it did on the image the
+-- newer CLI starts and did not on the one CI and 2.109.1 start, where the first
+-- version of this migration failed with 42501). So the two things ingestion
+-- needs from those tables go through SECURITY DEFINER helpers, scoped to the
+-- pass, and nothing here relies on a default privilege.
+-- ---------------------------------------------------------------------------
+-- Key-share lock on the thoughts a result's marks cite, within the pass's own
+-- tenant, in id order. Malformed ids are ignored here and refused by validation.
+create function private.lock_marked_seeds(p_pass uuid,p_marks jsonb) returns void
+language plpgsql security definer set search_path='' as $$
+begin
+  if jsonb_typeof(p_marks) is distinct from 'array' then return; end if;
+  perform 1 from public.seeds s
+    where s.tenant_id=(select gp.tenant_id from public.garden_passes gp where gp.id=p_pass)
+      and s.id in(select (m->>'seed_id')::uuid from jsonb_array_elements(p_marks) m
+        where m->>'seed_id' ~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$')
+    order by s.id for key share;
+end $$;
+-- The night a pass belongs to when none was recorded on it: the account's local
+-- date at the moment the pass was created.
+create function private.pass_local_date(p_pass uuid) returns date
+language sql stable security definer set search_path='' as $$
+  select (gp.created_at at time zone a.timezone)::date
+    from public.garden_passes gp join public.accounts a on a.id=gp.tenant_id where gp.id=p_pass;
+$$;
+revoke all on function private.lock_marked_seeds(uuid,jsonb),private.pass_local_date(uuid) from public,anon,authenticated;
+grant execute on function private.lock_marked_seeds(uuid,jsonb),private.pass_local_date(uuid) to service_role;
+
+-- The tending hour: the account's local 02:00 hour. On the one night a year
+-- when a zone's clocks jump from 01:59 to 03:00 there is no 02:00 hour, and
+-- the night used to be skipped altogether; the 03:00 hour stands in for it.
+create function private.is_tending_hour(p_now timestamptz,p_timezone text) returns boolean
+language sql stable set search_path='' as $$
+  select extract(hour from p_now at time zone p_timezone)=2
+    or (extract(hour from p_now at time zone p_timezone)=3
+        and extract(hour from (p_now-interval '1 hour') at time zone p_timezone)=1);
+$$;
+revoke all on function private.is_tending_hour(timestamptz,text) from public,anon,authenticated;
+
+create or replace function private.nightly_accounts(p_now timestamptz) returns uuid[]
+language sql stable security definer set search_path='' as $$
+  select coalesce(array_agg(acc.id order by acc.id),'{}') from public.accounts acc
+    where acc.tend_overnight and private.is_tending_hour(p_now,acc.timezone)
+      and exists(select 1 from private.ai_tenants t where t.tenant_id=acc.id);
+$$;
+revoke all on function private.nightly_accounts(timestamptz) from public,anon,authenticated;
+
+-- ---------------------------------------------------------------------------
 -- Nightly enqueue for one account. As in browser_path_rules, plus: scopes are
 -- visited in a fixed order; a scope of more than twenty topics is skipped with a
 -- note; a check violation is handled like the other refusals; and the passes
@@ -122,11 +180,17 @@ begin
   if not (select enabled from private.ai_runtime where singleton) then return 0; end if;
   select soft_cap_cents into v_soft from private.ai_runtime where singleton;
   insert into private.ai_months(month) values(v_month) on conflict do nothing;
-  if not exists(select 1 from public.accounts acc where acc.id=p_tenant and acc.tend_overnight and extract(hour from p_now at time zone acc.timezone)=2
+  if not exists(select 1 from public.accounts acc where acc.id=p_tenant and acc.tend_overnight and private.is_tending_hour(p_now,acc.timezone)
       and exists(select 1 from private.ai_tenants t where t.tenant_id=acc.id)) then return 0; end if;
-  if exists(select 1 from public.garden_passes where tenant_id=p_tenant and trigger='nightly' and created_at>p_now-interval '20 hours') then return 0; end if;
-  -- The night: the account's local date at the moment its 02:00 hour is being served.
+  -- The night: the account's local date at the moment its tending hour is being served.
   select (p_now at time zone acc.timezone)::date into v_cycle from public.accounts acc where acc.id=p_tenant;
+  -- A night is tended once. Decided by the night itself, not by comparing a
+  -- pass's creation time with p_now (which made the answer depend on when the
+  -- function was called with a given p_now). Passes from before this migration
+  -- carry no night and keep the old twenty-hour rule.
+  if exists(select 1 from public.garden_passes gp join private.pass_inputs i on i.pass_id=gp.id
+      where gp.tenant_id=p_tenant and gp.trigger='nightly'
+        and (i.cycle_date=v_cycle or (i.cycle_date is null and gp.created_at>p_now-interval '20 hours'))) then return 0; end if;
   for s in
     select pl.garden_id,array_agg(pl.id order by pl.id) as plot_ids
       from public.plots pl join public.gardens g on g.id=pl.garden_id and g.status='active'
@@ -222,12 +286,7 @@ returns void language plpgsql security invoker set search_path='' as $$
 declare j private.pass_inputs; p public.garden_passes; b jsonb; e jsonb; mk jsonb; idx integer:=0; cost numeric; active boolean; v3 boolean; counts jsonb:='{}'::jsonb; key text;
   v_total integer:=0; v_allow integer; v_cycle date; v_published integer; v_chosen jsonb;
 begin
-  if jsonb_typeof(p_result->'marks')='array' then
-    perform 1 from public.seeds s
-      where s.id in(select (m->>'seed_id')::uuid from jsonb_array_elements(p_result->'marks') m
-        where m->>'seed_id' ~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$')
-      order by s.id for key share;
-  end if;
+  perform private.lock_marked_seeds(p_id,p_result->'marks');
   select * into j from private.pass_inputs where pass_id=p_id for update;
   if j.pass_id is null or j.lease_token is distinct from p_token or j.lease_until is null or j.lease_until<=now() then raise exception 'lease lost'; end if;
   select * into p from public.garden_passes where id=p_id for update;
@@ -265,7 +324,7 @@ begin
     -- the transaction, so two passes finishing together are counted one after
     -- the other.
     if p.trigger='nightly' and v_total>0 then
-      v_cycle:=coalesce(j.cycle_date,(select (p.created_at at time zone a.timezone)::date from public.accounts a where a.id=p.tenant_id));
+      v_cycle:=coalesce(j.cycle_date,private.pass_local_date(p.id));
       insert into private.bloom_cycles(garden_id,tenant_id,cycle_date) values(p.garden_id,p.tenant_id,v_cycle) on conflict do nothing;
       select published into v_published from private.bloom_cycles where garden_id=p.garden_id and cycle_date=v_cycle for update;
       v_allow:=greatest(0,least(v_total,coalesce(j.bloom_allowance,3),3-v_published));

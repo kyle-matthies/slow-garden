@@ -53,7 +53,7 @@ $$;
 
 -- 1. One night, two tended topics in one garden. Their shares are overridden to
 --    three each, so only the garden's counter stands between them and six.
-select is((select n from dblink('setup',$q$select private.enqueue_nightly_passes(date_trunc('day',now())+interval '2 hours 30 minutes')$q$) as t(n integer)),2,'two nightly passes are enqueued for one garden');
+select is((select n from dblink('setup',$q$select private.enqueue_nightly_passes('2026-11-20 02:30:00+00')$q$) as t(n integer)),2,'two nightly passes are enqueued for one garden');
 select dblink_exec('setup',$q$update private.pass_inputs set bloom_allowance=3$q$);
 select dblink_exec('w1','begin');
 select j as job1 from dblink('w1','select public.claim_garden_pass()') as t(j jsonb) \gset

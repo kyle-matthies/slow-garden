@@ -12,8 +12,12 @@ Related: [SUPABASE_CHANGE_WORKFLOW](../../infrastructure/SUPABASE_CHANGE_WORKFLO
 [reversal order](ACTIVATION_PREREQUISITES_2026-11-16.md) §9.
 
 Every query below returns counts, booleans, names or versions. None reads a note body,
-a bloom, a title, an email address or any other content. Record each result with the
-date and who observed it.
+a bloom, a title, an email address or any other content. **Every query in the PRE and
+POST tables is read-only**: none calls a function that writes, sends a request or
+changes a setting, so running one at the wrong moment changes nothing. The only two
+things here that write are the apply itself and the canary in POST 13, which undoes
+everything it does inside its own statement. Record each result with the date and who
+observed it.
 
 ## The migrations, in order
 
@@ -85,20 +89,27 @@ project-scoped connection, in order, without pausing). Note the time each finish
 | 3 | `select deletion_enabled from private.deployment_switches;` | `false` |
 | 4 | `select enabled, transport, reasoning_effort, nightly_enabled from private.ai_runtime;` | `false, batch, null, false` |
 | 5 | `select jobname, schedule, command from cron.job order by jobname;` | Three jobs: `slow-garden-cron-prune`; `slow-garden-nightly` at `7 * * * *` with command `call private.run_nightly_enqueue()`; `slow-garden-worker` at `*/5 * * * *` with command `select private.tick_garden_worker()` |
-| 6 | `select private.tick_garden_worker();` | null (runtime off, nothing owed, no worker URL) |
+| 6 | `select private.garden_worker_url() is null as no_worker_url, (select count(*) from private.pass_inputs i join public.garden_passes p on p.id=i.pass_id where i.cleanup_pending and p.status in('cancelled','withdrawn','failed','complete')) as cleanup_owed, (select count(*) from private.provider_orphans) as orphans;` | `true, 0, 0`: with the runtime off, nothing owed and no worker URL the scheduled tick sends nothing. (Do not call `private.tick_garden_worker()` to check: when there is something to do it issues a token and queues a request.) |
 | 7 | `select count(*) from net.http_request_queue;` | `0` |
 | 8 | `select conname, convalidated from pg_constraint where conname in('seed_revisions_body_rule','bloom_responses_correction_rule') order by 1;` | both present, both `convalidated=false`. Never validate them |
 | 9 | `select count(*) from private.bloom_cycles; select count(*) from private.nightly_skips; select count(*) from private.worker_ticks; select count(*) from private.provider_orphans;` | `0, 0, 0, 0` |
 | 10 | `select count(*) from pg_trigger where tgname in('passes_allowlist','passes_lock_inputs_first','pass_inputs_freeze_runtime','pass_inputs_keep_orphan','ai_tenants_removed') and not tgisinternal;` | `5` |
 | 11 | `select has_function_privilege('authenticated','public.finish_garden_pass(uuid,uuid,jsonb,integer,integer,boolean)','execute'), has_function_privilege('authenticated','public.consume_worker_tick(text)','execute'), has_function_privilege('authenticated','public.mark_garden_dispatch(uuid,uuid,boolean,integer)','execute');` | `false, false, false` |
 | 12 | Security and performance advisors (workflow step 7) | No new error-level finding. `pg_net`'s own grants are a known, recorded item (runbook 2.7) |
-| 13 | Canary: run `scripts/hosted-canary.sql` | The statement before the rollback returns `hosted synthetic canary passed`; afterwards `select count(*) from auth.users where email like 'slow-garden-canary-%';` is `0` |
+| 13 | Canary: run `scripts/hosted-canary.sql` whole | Its last statement returns `hosted synthetic canary passed`. On any failure it returns `hosted synthetic canary FAILED` after the error. Either way nothing is kept: every write is undone inside the one statement that made it, whatever the client does with transactions. Afterwards `select count(*) from auth.users where id in('98989898-9898-4989-8989-989898989891','98989898-9898-4989-8989-989898989892');` is `0` and POST 4 still reads `false, batch, null, false` |
 | 14 | After the next `:07`: `select status, count(*) from cron.job_run_details d join cron.job j using(jobid) where j.jobname='slow-garden-nightly' group by 1;` | only `succeeded`. With the gates closed the procedure commits once and returns; this is its first hosted commit and it touches nothing |
 | 15 | Web: sign in, open the garden, save an entry, open Returns | Works as before; no deletion control is shown |
 | 16 | Regenerate types from the migration-replayed local schema and compare with `applications/web/src/types/database.ts` (workflow step 9) | identical |
 
 Do **not** run `scripts/hosted-nightly-canary.sql` here: it needs the runtime enabled
-and belongs to runbook Phase 3 (3.12).
+and belongs to runbook Phase 3 (3.12). It is not rollback-only, runs only through
+`psql -f`, and refuses to start, changing nothing, unless its preconditions hold.
+
+One assumption to check on the hosted project rather than trust: the worker's role
+(`service_role`) is given what it needs by the migrations themselves, not by a platform
+default. `select has_table_privilege('service_role','public.seeds','select'), has_table_privilege('service_role','public.accounts','select');`
+may be `true` or `false` depending on the Postgres image; record it. The worker path
+works either way (tested on both).
 
 ## If something is wrong
 
