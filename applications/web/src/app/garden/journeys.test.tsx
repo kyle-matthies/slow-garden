@@ -12,12 +12,20 @@
  * a database checks. This proves the two modes show the person the same
  * things for the same steps; it is not a database test.
  */
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, configure, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { useEffect, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createFakeDb, createWorld, type World } from "@/lib/garden/store/testing/fake-supabase";
 import type { Db } from "@/lib/garden/store/queries";
 import type { GardenLoad } from "@/lib/garden/store/types";
+
+// These journeys wait on real multi-step loads (the loader, then the Returns
+// record, each several awaited reads). Testing Library's default one-second
+// wait is an assumption about machine speed, not about the app: a slow CI
+// runner exceeded it while the page was still correctly loading. The waits
+// below are still on what the person sees; only the bound is wider.
+configure({ asyncUtilTimeout: 8000 });
+vi.setConfig({ testTimeout: 40000 });
 
 const nav = vi.hoisted(() => ({
   listeners: new Set<() => void>(),
