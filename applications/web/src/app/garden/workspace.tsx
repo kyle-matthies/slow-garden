@@ -23,6 +23,9 @@ import {
   signOut,
 } from "./actions";
 import { TendingSettings } from "./tending-settings";
+import { DeleteControl } from "./delete-control";
+import { discardDeletedDrafts } from "./delete-drafts";
+import { DeleteZone } from "./delete-zone";
 import { TendingActivity } from "./tending-activity";
 import { RecentWriting } from "./recent-writing";
 import { NewArea } from "./new-area";
@@ -36,6 +39,7 @@ import { LevelTrail, type TrailStep } from "./level-trail";
 import { TENDING_LABEL, tendingLabel, tendingState, type TendingState } from "./level-vocabulary";
 import { ReturnsPage, liveBlooms } from "./level-returns";
 import { MorningReturn } from "./morning-return";
+import { NavGlyph, focusWritingPage, pickWritingThought } from "./level-nav";
 
 /**
  * "" is Meadow (the living scene), "list" is Pages (the same garden on paper),
@@ -65,12 +69,14 @@ function EntryCard({
   tenantId,
   onRefresh,
   onArchive,
+  onDeleted,
   readOnly = false,
 }: {
   entry: Entry;
   tenantId: string;
   onRefresh: () => void;
   onArchive: () => void;
+  onDeleted: () => void | Promise<void>;
   readOnly?: boolean;
 }) {
   const [editing, setEditing] = useState(false),
@@ -156,6 +162,12 @@ function EntryCard({
         >
           {entry.archived_at ? "Restore entry" : "Archive entry"}
         </button>
+        <DeleteControl
+          kind="entry"
+          id={entry.entry_id}
+          name="this entry"
+          onDeleted={onDeleted}
+        />
       </div>
       {history && (
         <ol className="revision-list" aria-label="Revision history">
@@ -399,6 +411,17 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
         : `${label} restored. It is available in active views.`,
     );
   }
+  /** Permanent deletion finished: drop matching local drafts, say so, and show what remains. */
+  async function afterDelete(
+    label: string,
+    deleted: { entryId: string } | { seedIds: readonly string[] },
+    topic?: string,
+  ) {
+    await discardDeletedDrafts(data.tenantId, deleted);
+    if (topic !== undefined) navigate(topic, "");
+    setNotice(`${label} deleted permanently.`);
+    refresh();
+  }
   async function leave(scope: "local" | "global" = "local") {
     if (
       !window.confirm(
@@ -540,7 +563,7 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
       {/* One top bar: where you can go (Meadow, Pages, Returns, All gardens)
           and one menu for everything about the account. First run keeps only
           the wordmark and that menu: nothing else is rendered, not hidden. */}
-      <header className="garden-top">
+      <header className="garden-top" data-chrome={showChrome || undefined}>
         <Link href={`/garden?garden=${data.gardenId}`} className="wordmark">
           <span className="wordmark-text">Slow Garden</span>
           <span className="wordmark-dot" aria-hidden="true">✳</span>
@@ -554,6 +577,7 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
                   aria-pressed={view === ""}
                   onClick={() => chooseView("")}
                 >
+                  <NavGlyph name="meadow" />
                   Meadow
                 </button>
                 <button
@@ -561,15 +585,32 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
                   aria-pressed={view === "list"}
                   onClick={() => chooseView("list")}
                 >
+                  <NavGlyph name="pages" />
                   Pages
                 </button>
               </div>
+              {/* Phone tab bar only: one tap to the writing page from anywhere. */}
+              <button
+                type="button"
+                className="plain-button top-link write-link"
+                onClick={() => {
+                  const target = pickWritingThought(data, plotId, seedId);
+                  if (!target) return navigate(plotId, "", "list");
+                  if (target.id !== seedId || (view !== "" && view !== "list"))
+                    navigate(target.plot_id, target.id, homeView());
+                  focusWritingPage();
+                }}
+              >
+                <NavGlyph name="write" />
+                Write
+              </button>
               <button
                 type="button"
                 className="plain-button top-link returns-link"
                 aria-current={returnsMode ? "page" : undefined}
                 onClick={openReturns}
               >
+                <NavGlyph name="returns" />
                 Returns
                 {unseenBlooms > 0 && (
                   <>
@@ -595,6 +636,17 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
           <ToolsMenu>
             {(close) => (
               <>
+                {showChrome && (
+                  <button
+                    className="plain-button tools-phone-only"
+                    onClick={() => {
+                      close();
+                      navigate("", "", "gardens");
+                    }}
+                  >
+                    All gardens
+                  </button>
+                )}
                 <button
                   className="plain-button"
                   onClick={() => {
@@ -719,6 +771,11 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
               Sign out on all devices
             </button>
           </div>
+          <DeleteZone
+            tenantId={data.tenantId}
+            garden={garden ? { id: garden.id, name: garden.name } : undefined}
+            seedIds={data.seeds.map((s) => s.id)}
+          />
         </section>
       )}
       {ringMode ? (
@@ -988,6 +1045,18 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
                         ? "Restore this thought"
                         : "Archive thought"}
                     </button>
+                    <DeleteControl
+                      kind="seed"
+                      id={seed.id}
+                      name={seed.title}
+                      onDeleted={() =>
+                        afterDelete(
+                          "Thought",
+                          { seedIds: [seed.id] },
+                          seed.plot_id,
+                        )
+                      }
+                    />
                   </div>
                 </div>
               </aside>
@@ -1033,6 +1102,9 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
                       }
                       onArchive={() =>
                         archiveItem("entry", e.entry_id, !e.archived_at)
+                      }
+                      onDeleted={() =>
+                        afterDelete("Entry", { entryId: e.entry_id })
                       }
                     />
                   ))}
@@ -1193,6 +1265,22 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
                 >
                   {plot.archived_at ? "Restore topic" : "Archive topic"}
                 </button>
+                <DeleteControl
+                  kind="plot"
+                  id={plot.id}
+                  name={plot.name}
+                  onDeleted={() =>
+                    afterDelete(
+                      "Topic",
+                      {
+                        seedIds: data.seeds
+                          .filter((s) => s.plot_id === plot.id)
+                          .map((s) => s.id),
+                      },
+                      "",
+                    )
+                  }
+                />
               </details>
             </>
           ) : (

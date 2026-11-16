@@ -219,6 +219,8 @@ class FakeLedger {
       this.forceLeaseLossOn = null;
       throw Error("lease lost");
     }
+    // This in-memory ledger never deletes a pass, so its orphan queue is always empty.
+    if (name === "claim_provider_orphan") return null;
     if (name === "claim_garden_pass") {
       const pass = [...this.passes.values()]
         .filter((candidate) => this.#claimable(candidate))

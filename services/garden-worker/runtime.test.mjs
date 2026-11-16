@@ -685,3 +685,180 @@ test("v3 ignores reasoning metadata but still rejects tool calls", () => {
   line.response.body.output.push({ type: "function_call", name: "unexpected_tool" });
   assert.throws(() => parseTendConnect(JSON.stringify(line), job), /no_valid_stage/);
 });
+
+// Provider orphans: cleanup that outlives a deleted pass (runbook gap 3.9).
+import { drainOrphan } from "../../supabase/functions/_shared/garden-runtime.mjs";
+function orphanHarness(orphan, overrides = {}) {
+  const h = harness(null, overrides);
+  h.rpc = async (name, args) => {
+    h.calls.push([name, args]);
+    if (name === "claim_provider_orphan") return orphan;
+    return null;
+  };
+  return h;
+}
+test("an idle worker with no orphans stays idle", async () => {
+  const h = orphanHarness(null);
+  assert.deepEqual(await runOne(h), { state: "idle" });
+  assert.deepEqual(
+    h.calls.map(([name]) => name),
+    ["claim_garden_pass", "claim_provider_orphan"],
+  );
+  assert.equal(h.providerCalls.length, 0);
+});
+test("an orphan queue that cannot be read is reported, not mistaken for idle", async () => {
+  const h = orphanHarness(null);
+  h.rpc = async (name) => {
+    if (name === "claim_provider_orphan") throw new Error("PGRST202");
+    return null;
+  };
+  assert.deepEqual(await runOne(h), { state: "orphan_queue_unavailable" });
+  assert.equal(h.providerCalls.length, 0);
+});
+const notFound = () => Object.assign(new Error("provider_request_failed"), { status: 404 });
+test("an orphan the provider no longer knows is already deleted", async () => {
+  const h = orphanHarness(
+    { id: "o", token: "t", provider_id: "b", input_file_id: "in", output_file_id: "out" },
+    {
+      getBatch: async () => {
+        throw notFound();
+      },
+      deleteFile: async () => {
+        throw notFound();
+      },
+    },
+  );
+  assert.deepEqual(await drainOrphan(h), { state: "orphan_cleaned" });
+  assert.deepEqual(h.calls.at(-1)[1], { p_id: "o", p_token: "t", p_done: true });
+});
+test("a pass deleted after upload has its file removed from the in-memory id", async () => {
+  const h = harness({ id: "j", token: "t", status: "processing", snapshot, created_at: new Date().toISOString(), attempts: 1 });
+  const original = h.rpc;
+  h.rpc = async (name, args) => {
+    if (name === "update_garden_job") throw new Error("lease lost");
+    return original(name, args);
+  };
+  assert.deepEqual(await runOne(h), { state: "lease_lost" });
+  assert.deepEqual(h.providerCalls.map(([name, id]) => [name, name === "upload" ? "" : id]), [
+    ["upload", ""],
+    ["deleteFile", "file"],
+  ]);
+});
+test("a pass deleted after batch creation has its batch cancelled and its file removed", async () => {
+  const h = harness({ id: "j", token: "t", status: "processing", snapshot, created_at: new Date().toISOString(), attempts: 1 });
+  const original = h.rpc;
+  h.rpc = async (name, args) => {
+    if (name === "update_garden_job" && args.p_provider) throw new Error("lease lost");
+    return original(name, args);
+  };
+  assert.deepEqual(await runOne(h), { state: "lease_lost" });
+  assert.deepEqual(
+    h.providerCalls.map(([name]) => name),
+    ["upload", "createBatch", "cancelBatch", "deleteFile"],
+  );
+  assert.deepEqual(h.providerCalls.at(-2), ["cancelBatch", "batch"]);
+  assert.deepEqual(h.providerCalls.at(-1), ["deleteFile", "file"]);
+});
+test("cleanup of an unrecorded batch never masks the lost lease", async () => {
+  const h = harness(
+    { id: "j", token: "t", status: "processing", snapshot, created_at: new Date().toISOString(), attempts: 1 },
+    {
+      cancelBatch: async () => {
+        throw new Error("provider_request_failed");
+      },
+    },
+  );
+  const original = h.rpc;
+  h.rpc = async (name, args) => {
+    if (name === "update_garden_job" && args.p_provider) throw new Error("lease lost");
+    return original(name, args);
+  };
+  assert.deepEqual(await runOne(h), { state: "lease_lost" });
+  assert.deepEqual(h.providerCalls.at(-1), ["deleteFile", "file"]);
+});
+test("an orphan with a terminal batch has every file deleted, then is resolved", async () => {
+  const h = orphanHarness(
+    {
+      id: "o",
+      token: "t",
+      provider_id: "b",
+      input_file_id: "in",
+      output_file_id: null,
+    },
+    {
+      getBatch: async () => ({
+        status: "completed",
+        output_file_id: "out",
+        error_file_id: "err",
+      }),
+    },
+  );
+  assert.deepEqual(await runOne(h), { state: "orphan_cleaned" });
+  assert.deepEqual(
+    h.providerCalls.filter(([name]) => name === "deleteFile").map(([, id]) => id),
+    ["out", "err", "in"],
+  );
+  assert.deepEqual(h.calls.at(-1), [
+    "resolve_provider_orphan",
+    { p_id: "o", p_token: "t", p_done: true },
+  ]);
+});
+test("an orphan whose batch is still running is cancelled and kept, with no file deleted", async () => {
+  const h = orphanHarness({
+    id: "o",
+    token: "t",
+    provider_id: "b",
+    input_file_id: "in",
+    output_file_id: null,
+  });
+  assert.deepEqual(await drainOrphan(h), { state: "orphan_cancelling" });
+  assert.deepEqual(
+    h.providerCalls.map(([name]) => name),
+    ["getBatch", "cancelBatch"],
+  );
+  assert.deepEqual(h.calls.at(-1)[1], { p_id: "o", p_token: "t", p_done: false });
+});
+test("an orphan with only an uploaded file needs no batch lookup", async () => {
+  const h = orphanHarness({
+    id: "o",
+    token: "t",
+    provider_id: null,
+    input_file_id: "in",
+    output_file_id: null,
+  });
+  assert.deepEqual(await drainOrphan(h), { state: "orphan_cleaned" });
+  assert.deepEqual(h.providerCalls, [["deleteFile", "in"]]);
+});
+test("a provider failure keeps the orphan queued", async () => {
+  const h = orphanHarness(
+    {
+      id: "o",
+      token: "t",
+      provider_id: null,
+      input_file_id: "in",
+      output_file_id: "out",
+    },
+    {
+      deleteFile: async () => {
+        throw new Error("provider_request_failed");
+      },
+    },
+  );
+  assert.deepEqual(await drainOrphan(h), { state: "orphan_retry" });
+  assert.deepEqual(h.calls.at(-1)[1], { p_id: "o", p_token: "t", p_done: false });
+});
+test("a lost orphan lease writes nothing further", async () => {
+  const h = orphanHarness({
+    id: "o",
+    token: "t",
+    provider_id: null,
+    input_file_id: "in",
+    output_file_id: null,
+  });
+  const original = h.rpc;
+  h.rpc = async (name, args) => {
+    if (name === "resolve_provider_orphan") throw new Error("lease lost");
+    return original(name, args);
+  };
+  assert.deepEqual(await drainOrphan(h), { state: "lease_lost" });
+});

@@ -344,3 +344,209 @@ export async function setTendingPreferences(
     };
   }
 }
+
+/** What a permanent deletion will erase, counted by the database from the same sets it deletes. */
+export type DeletionKind = "entry" | "seed" | "plot" | "garden" | "account";
+export type DeletionCounts = {
+  gardens: number;
+  topics: number;
+  thoughts: number;
+  entries: number;
+  versions: number;
+  returns: number;
+  responses: number;
+  marks: number;
+};
+export type DeletionPreview =
+  | { ok: true; counts: DeletionCounts; confirmPhrase: string | null }
+  | { ok: false; message: string };
+const DELETION_KINDS: readonly DeletionKind[] = [
+  "entry",
+  "seed",
+  "plot",
+  "garden",
+  "account",
+];
+const DELETION_ID =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const DELETION_UNAVAILABLE =
+  "Deletion is not available yet. Nothing was erased.";
+/** SQLSTATE raised by delete_account when the session is not a live, recent sign-in. */
+const RECENT_SIGN_IN_REQUIRED = "SGA01";
+/**
+ * Ship-order switch. Off by default: the deletion migration must be applied
+ * to the database before this is turned on. While off, no delete control is
+ * rendered and every deletion action refuses.
+ */
+function deletionOn(): boolean {
+  return process.env.GARDEN_DELETION_ENABLED === "true";
+}
+export async function deletionEnabled(): Promise<boolean> {
+  return deletionOn();
+}
+export type DeleteAccountResult =
+  | { ok: true }
+  | { ok: false; message: string; reauth?: true };
+function deletionCounts(value: unknown): DeletionCounts | null {
+  if (!value || typeof value !== "object") return null;
+  const row = value as Record<string, unknown>;
+  const read = (key: keyof DeletionCounts) =>
+    typeof row[key] === "number" ? (row[key] as number) : 0;
+  return {
+    gardens: read("gardens"),
+    topics: read("topics"),
+    thoughts: read("thoughts"),
+    entries: read("entries"),
+    versions: read("versions"),
+    returns: read("returns"),
+    responses: read("responses"),
+    marks: read("marks"),
+  };
+}
+/** Deletion RPCs arrive with their own reviewed migration; before it, say so plainly. */
+function deletionMissing(error: unknown): boolean {
+  const code = (error as { code?: string } | null)?.code;
+  return code === "PGRST202" || code === "42883";
+}
+/** Read-only. Also returns the phrase to type for an account (its email address). */
+export async function previewDeletion(
+  kind: DeletionKind,
+  id: string,
+): Promise<DeletionPreview> {
+  if (!DELETION_KINDS.includes(kind) || (kind !== "account" && !DELETION_ID.test(id)))
+    return { ok: false, message: "That item cannot be deleted from here." };
+  if (!deletionOn()) return { ok: false, message: DELETION_UNAVAILABLE };
+  try {
+    const db = await createClient();
+    const { data: auth, error: authError } = await db.auth.getClaims();
+    if (authError || !auth?.claims?.sub)
+      return { ok: false, message: "Please sign in again. Nothing was erased." };
+    const { data, error } = await db.rpc(
+      "deletion_preview",
+      kind === "account" ? { p_kind: kind } : { p_kind: kind, p_id: id },
+    );
+    if (error)
+      return {
+        ok: false,
+        message: deletionMissing(error)
+          ? DELETION_UNAVAILABLE
+          : "Could not count what this would erase. Nothing was erased.",
+      };
+    const counts = deletionCounts(data);
+    if (!counts)
+      return {
+        ok: false,
+        message: "This is no longer here. It may already have been deleted.",
+      };
+    const email =
+      typeof auth.claims.email === "string" ? auth.claims.email.trim() : "";
+    return {
+      ok: true,
+      counts,
+      confirmPhrase:
+        kind === "account" ? email || "delete my account" : null,
+    };
+  } catch {
+    return {
+      ok: false,
+      message: "Could not count what this would erase. Nothing was erased.",
+    };
+  }
+}
+function deletionFailure(error: unknown): ActionResult {
+  const code = (error as { code?: string } | null)?.code;
+  return {
+    ok: false,
+    message: deletionMissing(error)
+      ? DELETION_UNAVAILABLE
+      : code === "22023"
+        ? "The name you typed does not match. Nothing was erased."
+        : code === "40P01" || code === "55P03"
+          ? "The garden was busy for a moment. Nothing was erased; please try again."
+          : "Could not delete. Nothing was erased; please retry.",
+  };
+}
+/**
+ * Permanently erase an entry, thought, topic or garden with everything derived
+ * from it. Each call is one database transaction: it erases everything or nothing.
+ * Deleting something already gone succeeds, so a retry is safe.
+ */
+export async function deleteItem(
+  kind: Exclude<DeletionKind, "account">,
+  id: string,
+  confirmName = "",
+): Promise<ActionResult> {
+  if (!DELETION_KINDS.includes(kind) || (kind as string) === "account" || !DELETION_ID.test(id))
+    return { ok: false, message: "That item cannot be deleted from here." };
+  if (!deletionOn()) return { ok: false, message: DELETION_UNAVAILABLE };
+  try {
+    const { db } = await authenticated();
+    const { error } =
+      kind === "entry"
+        ? await db.rpc("delete_entry", { p_entry_id: id })
+        : kind === "seed"
+          ? await db.rpc("delete_seed", { p_seed_id: id })
+          : kind === "plot"
+            ? await db.rpc("delete_plot", {
+                p_plot_id: id,
+                p_confirm_name: confirmName,
+              })
+            : await db.rpc("delete_garden", {
+                p_garden_id: id,
+                p_confirm_name: confirmName,
+              });
+    if (error) return deletionFailure(error);
+    revalidatePath("/garden");
+    return { ok: true };
+  } catch {
+    return {
+      ok: false,
+      message: "Could not delete. Nothing was erased; please retry.",
+    };
+  }
+}
+/**
+ * Permanently erase the account: every garden, everything derived, the account
+ * row and the sign-in identity, in one transaction. Then clear this browser's
+ * session. The caller clears local drafts and leaves for the landing page.
+ * The database refuses unless this session is a live sign-in from the last
+ * ten minutes; that refusal comes back as `reauth`.
+ */
+export async function deleteAccount(
+  confirm: string,
+): Promise<DeleteAccountResult> {
+  if (!deletionOn()) return { ok: false, message: DELETION_UNAVAILABLE };
+  try {
+    const { db } = await authenticated();
+    const { error } = await db.rpc("delete_account", { p_confirm: confirm });
+    if (error) {
+      const code = (error as { code?: string }).code;
+      if (code === RECENT_SIGN_IN_REQUIRED)
+        return {
+          ok: false,
+          reauth: true,
+          message:
+            "For your safety, deleting an account needs a sign-in from the last ten minutes. Nothing was erased.",
+        };
+      if (code === "22023")
+        return {
+          ok: false,
+          message: "What you typed does not match. Nothing was erased.",
+        };
+      return deletionFailure(error) as DeleteAccountResult;
+    }
+    // An account that is already gone (a replay) still ends this browser's session.
+    try {
+      // The identity no longer exists, so the server may refuse; cookies are cleared regardless.
+      await db.auth.signOut({ scope: "local" });
+    } catch {
+      // Nothing left to sign out of.
+    }
+    return { ok: true };
+  } catch {
+    return {
+      ok: false,
+      message: "Could not delete the account. Nothing was erased; please retry.",
+    };
+  }
+}
