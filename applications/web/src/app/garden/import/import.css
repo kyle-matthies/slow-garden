@@ -1,7 +1,11 @@
 .import-page {
-  width: min(720px, calc(100% - 40px));
+  width: min(
+    720px,
+    calc(100% - 32px - env(safe-area-inset-left) - env(safe-area-inset-right))
+  );
   margin-inline: auto;
-  padding-bottom: 80px;
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: calc(80px + env(safe-area-inset-bottom));
 }
 .import-top {
   display: flex;

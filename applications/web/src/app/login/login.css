@@ -2,6 +2,8 @@
 .calm-page {
   min-height: 100vh;
   min-height: 100dvh;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right)
+    env(safe-area-inset-bottom) env(safe-area-inset-left);
   display: grid;
   background: var(--landing-bg);
 }
@@ -151,19 +153,44 @@
   50% { transform: scale(1); opacity: 1; }
 }
 
-@media (max-width: 820px) {
+/* Phone first: these are the base values; wider screens follow. */
+.calm-shell {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 24px;
+  width: calc(100% - 36px);
+  padding-block: 20px 32px;
+  align-content: start;
+  margin-top: 0;
+}
+.calm-copy h1 {
+  margin: 10px 0 10px;
+  font-size: clamp(2.4rem, 10vw, 3.2rem);
+}
+.calm-copy > p {
+  font-size: 0.96rem;
+}
+.calm-steps {
+  display: none;
+}
+@media (min-width: 821px) {
   .calm-shell {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 24px;
-    width: calc(100% - 36px);
-    padding-block: 20px 32px;
-    align-content: start;
-    margin-top: 0;
+    grid-template-columns: minmax(0, 1fr) minmax(340px, 440px);
+    gap: clamp(36px, 8vw, 104px);
+    width: min(1040px, calc(100% - 48px));
+    padding-block: 40px;
+    align-content: normal;
+    margin-top: auto;
   }
-  .calm-copy h1 { margin: 10px 0 10px; font-size: clamp(2.4rem, 10vw, 3.2rem); }
-  .calm-copy > p { font-size: 0.96rem; }
-  /* On a phone the form comes straight after the heading. */
-  .calm-steps { display: none; }
+  .calm-copy h1 {
+    margin: 22px 0 16px;
+    font-size: clamp(2.8rem, 5vw, 4.4rem);
+  }
+  .calm-copy > p {
+    font-size: 1.02rem;
+  }
+  .calm-steps {
+    display: grid;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   .calm-growing .leaf { animation: none; }

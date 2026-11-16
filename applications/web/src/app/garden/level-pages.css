@@ -13,7 +13,8 @@
   min-width: 0;
   max-width: 1240px;
   margin: 0 auto;
-  padding: var(--page-pad-top) var(--page-pad-x) 64px;
+  padding: var(--page-pad-top) max(var(--page-pad-x), env(safe-area-inset-right))
+    64px max(var(--page-pad-x), env(safe-area-inset-left));
   background: transparent;
 }
 .level-eyebrow {
@@ -215,7 +216,7 @@
   align-items: center;
   gap: 6px;
   color: var(--moss);
-  font-size: 0.68rem;
+  font-size: 0.75rem;
   font-weight: 750;
   letter-spacing: var(--tracking-eyebrow);
   text-transform: uppercase;
@@ -752,33 +753,87 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
   }
+  /* On a phone the writing page is the screen. The plate dissolves into the
+     sheet: a small plant and the title stay above the page as a caption; the
+     facts and the archive and delete controls move below the entries. */
   .specimen-sheet {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 16px;
+    grid-template-columns: 52px minmax(0, 1fr);
+    gap: 0 12px;
+    align-items: center;
   }
-  /* On a phone the plate folds to a caption so the blank page is near the top. */
-  .specimen-plate {
-    position: static;
-    grid-template-columns: 84px minmax(0, 1fr);
-    gap: 14px;
-    align-items: start;
+  .specimen-sheet > .specimen-plate,
+  .specimen-sheet .specimen-label {
+    display: contents;
+  }
+  .specimen-sheet > .specimen-plate::before,
+  .specimen-sheet > .specimen-plate::after {
+    content: none;
   }
   .specimen-frame {
-    height: 112px;
-    padding: 8px 8px 0;
+    grid-area: 1 / 1 / 3 / 2;
+    height: 64px;
+    padding: 4px 4px 0;
     box-shadow: var(--shadow-sm);
   }
   .specimen-frame .plant-drawing {
-    width: 60px;
-    height: 92px;
-    margin-bottom: 4px;
+    width: 40px;
+    height: 56px;
+    margin-bottom: 2px;
+  }
+  .specimen-label > .level-eyebrow {
+    grid-area: 1 / 2;
+    align-self: end;
   }
   .specimen-label h1 {
+    grid-area: 2 / 2;
+    align-self: start;
     font-size: var(--text-xl);
   }
-  .specimen-facts div:nth-child(n + 3),
+  .specimen-pages {
+    grid-area: 3 / 1 / 4 / -1;
+    margin-top: 12px;
+  }
+  .specimen-facts {
+    grid-area: 4 / 1 / 5 / -1;
+    margin-top: 28px;
+  }
+  .specimen-manage {
+    grid-area: 5 / 1 / 6 / -1;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 24px;
+    margin-top: 12px;
+  }
   .specimen-manage .form-note {
-    display: none;
+    flex-basis: 100%;
+  }
+  /* The blank page runs edge to edge and is as tall as the screen allows. */
+  .specimen-pages > .writing-form {
+    --writing-bleed: var(--page-pad-x);
+    margin-inline: calc(-1 * var(--page-pad-x));
+    padding: 14px var(--page-pad-x) 12px;
+    border-inline: 0;
+    border-radius: 0;
+  }
+  .specimen-pages > .writing-form textarea {
+    min-height: max(220px, calc(100dvh - 400px));
+    padding: 10px 0 14px;
+  }
+  /* Brought into view by Write, the page stops just under the trail bar. */
+  .specimen-pages > .writing-form {
+    scroll-margin-top: calc(52px + env(safe-area-inset-top));
+  }
+  /* A ring round the whole page is noise on a phone: with the caret in it,
+     the page's top rule thickens and brightens instead. */
+  .specimen-pages > .writing-form .writing-textarea:focus-visible {
+    outline: none;
+  }
+  .specimen-pages > .writing-form:has(.writing-textarea:focus-visible) {
+    border-top-color: var(--moss);
+    box-shadow:
+      inset 0 3px 0 var(--moss),
+      var(--shadow-page);
   }
   .journal-entry.entry-page {
     padding-left: 34px;
@@ -851,5 +906,19 @@
     top: auto;
     bottom: calc(100% - var(--scene-dock-top, 100% - 190px) + 10px);
     width: min(26rem, calc(100% - 32px));
+  }
+}
+/* Touch at any width (tablets keep the wide layout): the quieter controls on
+   level pages are still 44px targets. */
+@media (pointer: coarse) {
+  .returns-bloom-sources button,
+  .specimen-facts a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+  .entry-actions button {
+    min-width: 44px;
+    min-height: 44px;
   }
 }

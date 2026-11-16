@@ -321,7 +321,7 @@
   align-items: center;
   gap: 8px;
   font-family: var(--font-geist-sans), sans-serif;
-  font-size: 0.74rem;
+  font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -392,7 +392,7 @@
   padding: 1px 8px;
   border-radius: 999px;
   border: 1px solid currentColor;
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   font-family: var(--font-geist-sans), sans-serif;
@@ -634,38 +634,71 @@
   font-style: italic;
 }
 
-@media (max-width: 760px) {
+/* Phone first: these are the base values; wider screens follow. */
+.return-cabinet {
+  padding: 20px 16px;
+  border-radius: 12px;
+}
+.cabinet-header h2 {
+  font-size: 1.9rem;
+}
+.cabinet-pass-morning {
+  font-size: 1.35rem;
+}
+.cabinet-responses {
+  padding: 14px 14px 4px;
+}
+.cabinet-actions {
+  width: 100%;
+}
+.cabinet-actions {
+  gap: 6px;
+}
+.cabinet-actions .secondary-button {
+  flex: 1 1 0;
+  min-width: 0;
+  gap: 6px;
+  padding: 0 6px;
+  font-size: 0.92rem;
+}
+.cabinet-continue {
+  min-height: 44px;
+}
+.cabinet-quiet:not([data-complete="true"]):not(.cabinet-empty) {
+  align-items: flex-start;
+}
+@media (min-width: 761px) {
   .return-cabinet {
-    padding: 20px 16px;
-    border-radius: 12px;
+    padding: 32px;
+    border-radius: 16px;
   }
   .cabinet-header h2 {
-    font-size: 1.9rem;
+    font-size: 2.2rem;
   }
   .cabinet-pass-morning {
-    font-size: 1.35rem;
+    font-size: 1.6rem;
   }
   .cabinet-responses {
-    padding: 14px 14px 4px;
+    padding: 14px 18px 4px;
   }
   .cabinet-actions {
-    width: 100%;
+    width: auto;
   }
   .cabinet-actions {
-    gap: 6px;
+    gap: 10px;
   }
   .cabinet-actions .secondary-button {
-    flex: 1 1 0;
-    min-width: 0;
-    gap: 6px;
-    padding: 0 6px;
-    font-size: 0.92rem;
+    flex: 0 1 auto;
+    min-width: auto;
+    gap: 8px;
+    padding: 0 18px;
+    font-size: inherit;
   }
   .cabinet-continue {
-    min-height: 44px;
+    min-height: 36px;
   }
   .cabinet-quiet:not([data-complete="true"]):not(.cabinet-empty) {
-    align-items: flex-start;
+    align-items: center;
   }
 }
 @media (prefers-reduced-motion: no-preference) {

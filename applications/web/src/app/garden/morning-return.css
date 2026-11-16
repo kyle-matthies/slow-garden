@@ -51,7 +51,7 @@
 .morning-return-kicker,
 .morning-return-kind {
   font-family: var(--font-geist-sans), sans-serif;
-  font-size: 0.74rem;
+  font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -323,5 +323,48 @@
     --mr-edge: rgba(230, 189, 114, 0.35);
     --mr-rule: rgba(200, 230, 210, 0.18);
     box-shadow: 0 14px 40px rgba(0, 0, 0, 0.35);
+  }
+}
+
+/* Touch: the thoughts behind a bloom are 44px targets at every width. */
+@media (pointer: coarse) {
+  .morning-return-thought {
+    min-height: 44px;
+  }
+}
+/* A phone held sideways: the reveal is short, so it drops its ornaments and
+   keeps Open Returns and Dismiss in view without scrolling inside the card. */
+@media (max-height: 520px) and (orientation: landscape) {
+  .scene-host > .morning-return {
+    --reveal-top: 8px;
+    right: var(--reveal-gutter);
+    left: auto;
+    transform: none;
+    width: min(26rem, calc(100% - 2 * var(--reveal-gutter)));
+    padding: 10px 14px 8px;
+  }
+  .scene-host > .morning-return .morning-return-sun,
+  .scene-host > .morning-return .morning-return-glyph,
+  .scene-host > .morning-return .morning-return-touches {
+    display: none;
+  }
+  .scene-host > .morning-return h2 {
+    font-size: 1.15rem;
+  }
+  .scene-host > .morning-return .morning-return-blooms {
+    margin-top: 6px;
+  }
+  .scene-host > .morning-return .morning-return-bloom {
+    padding: 6px 0;
+  }
+  .scene-host > .morning-return .morning-return-line {
+    font-size: 0.98rem;
+    line-height: 1.3;
+  }
+  .scene-host > .morning-return .morning-return-footer {
+    position: sticky;
+    bottom: -8px;
+    padding: 6px 0 8px;
+    background: var(--mr-paper);
   }
 }

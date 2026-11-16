@@ -317,6 +317,66 @@ export function EntryEditor({
     return () => window.removeEventListener("beforeunload", protect);
   }, [baseBody, draft.body, ready]);
 
+  // Phone writing mode. While a writing page holds the caret the document is
+  // marked `data-writing` (the stylesheet moves the tab bar aside and pins the
+  // save bar), and `--keyboard-inset` reports how much of the layout an
+  // on-screen keyboard covers. Safari does not resize the layout for its
+  // keyboard, so the inset is read from `visualViewport`; where the layout
+  // already resizes (Chromium, `interactive-widget=resizes-content`) it is 0.
+  useEffect(() => {
+    const form = formRef.current;
+    if (!form) return;
+    const root = document.documentElement;
+    const viewport = window.visualViewport;
+    let leaving = 0;
+    let mine = false;
+    const measure = () => {
+      if (!viewport) return;
+      const covered = window.innerHeight - viewport.height - viewport.offsetTop;
+      // A pinch zoom also shrinks the visual viewport; that is not a keyboard.
+      const keyboard = viewport.scale <= 1.01 && covered > 60;
+      root.style.setProperty(
+        "--keyboard-inset",
+        `${keyboard ? Math.round(covered) : 0}px`,
+      );
+    };
+    const stop = () => {
+      viewport?.removeEventListener("resize", measure);
+      viewport?.removeEventListener("scroll", measure);
+      if (!mine) return;
+      mine = false;
+      // Another writing page may have taken the caret in the meantime.
+      if (document.activeElement?.closest(".writing-form")) return;
+      delete root.dataset.writing;
+      root.style.removeProperty("--keyboard-inset");
+    };
+    const enter = (event: FocusEvent) => {
+      if (!(event.target instanceof HTMLTextAreaElement)) return;
+      window.clearTimeout(leaving);
+      mine = true;
+      root.dataset.writing = "";
+      measure();
+      viewport?.addEventListener("resize", measure);
+      viewport?.addEventListener("scroll", measure);
+    };
+    // Wait a moment: a tap on Save moves focus within the form, and the bar
+    // must not shift under the finger.
+    const leave = () => {
+      window.clearTimeout(leaving);
+      leaving = window.setTimeout(() => {
+        if (!form.contains(document.activeElement)) stop();
+      }, 250);
+    };
+    form.addEventListener("focusin", enter);
+    form.addEventListener("focusout", leave);
+    return () => {
+      window.clearTimeout(leaving);
+      form.removeEventListener("focusin", enter);
+      form.removeEventListener("focusout", leave);
+      stop();
+    };
+  }, []);
+
   useEffect(() => {
     const textarea = textareaRef.current;
     if (!textarea) return;
@@ -464,6 +524,13 @@ export function EntryEditor({
         disabled={!ready || pending}
         maxLength={20000}
         required
+        // Native writing aids only: the phone's own capitalisation and spell
+        // check. No suggestions come from the garden (product invariant).
+        autoCapitalize="sentences"
+        autoCorrect="on"
+        spellCheck
+        autoComplete="off"
+        enterKeyHint="enter"
       />
       <div className="writing-footer">
         <button

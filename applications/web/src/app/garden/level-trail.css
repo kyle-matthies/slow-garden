@@ -1,14 +1,20 @@
 /* The depth trail: one breadcrumb for Meadow and Pages. Imported by level-trail.tsx. */
+/* Base rules are the phone: a compact bar pinned to the top, clear of the
+   notch, with a back arrow; earlier levels fold to their glyphs. */
 .level-trail-bar {
-  position: relative;
-  z-index: 6;
+  position: sticky;
+  top: 0;
+  z-index: 20;
   display: flex;
+  flex: none;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: 6px;
   width: 100%;
-  min-height: 56px;
-  padding: 6px clamp(14px, 2.6vw, 38px);
+  min-height: 52px;
+  padding: calc(4px + env(safe-area-inset-top))
+    max(8px, env(safe-area-inset-right)) 4px
+    max(8px, env(safe-area-inset-left));
   border-bottom: var(--border);
   background: var(--surface-solid);
   color: var(--garden-ink);
@@ -36,15 +42,15 @@
   display: flex;
   align-items: center;
   min-width: 0;
-  flex: 0 1 auto;
+  flex: 0 0 auto;
 }
 /* The path between levels. */
 .level-trail-step + .level-trail-step::before {
   content: "";
   flex: none;
-  width: 18px;
+  width: 6px;
   height: 1px;
-  margin-inline: 4px;
+  margin-inline: 0;
   background: currentColor;
   opacity: 0.35;
 }
@@ -69,8 +75,25 @@
   text-decoration: none;
 }
 .level-trail-step button {
+  width: 44px;
+  justify-content: center;
+  padding: 0;
+  gap: 0;
   cursor: pointer;
   color: var(--garden-muted);
+}
+.level-trail-step button .level-trail-name {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+.level-trail-step[data-current] {
+  flex: 1 1 0;
+}
+.level-trail-step[data-current]::before {
+  margin-right: 6px;
 }
 .level-trail-step button:hover {
   color: var(--garden-ink);
@@ -100,6 +123,9 @@
   background: var(--return-gold-soft);
   color: var(--return-gold-ink);
 }
+.level-trail-below {
+  display: none;
+}
 .level-trail-below .level-glyph {
   padding: 4px;
   width: 16px;
@@ -115,7 +141,7 @@
 }
 .level-trail-level {
   color: var(--moss);
-  font-size: 0.66rem;
+  font-size: var(--text-xs);
   font-weight: 750;
   letter-spacing: var(--tracking-eyebrow);
   text-transform: uppercase;
@@ -127,12 +153,25 @@
   white-space: nowrap;
 }
 .level-trail-here .level-trail-name {
-  max-width: 34ch;
+  max-width: none;
   color: var(--garden-ink);
   font-weight: 700;
 }
 .level-trail-back {
-  display: none;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  margin-right: 2px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--garden-ink);
+  font-size: 1.7rem;
+  line-height: 1;
+  cursor: pointer;
 }
 .level-trail-aside {
   position: relative;
@@ -142,56 +181,47 @@
   gap: 12px;
 }
 
-@media (max-width: 760px) {
+/* Wider than a phone: every level keeps its name and the levels still below
+   are drawn faintly; the bar scrolls with the page. */
+@media (min-width: 761px) {
   .level-trail-bar {
-    min-height: 52px;
-    padding: 4px 8px;
-    gap: 6px;
+    position: relative;
+    z-index: 6;
+    gap: 16px;
+    min-height: 56px;
+    padding: 6px clamp(14px, 2.6vw, 38px);
   }
   .level-trail-back {
-    display: inline-flex;
-    flex: none;
-    align-items: center;
-    justify-content: center;
-    width: 44px;
-    height: 44px;
-    margin-right: 2px;
-    border: 0;
-    border-radius: 50%;
-    background: transparent;
-    color: var(--garden-ink);
-    font-size: 1.7rem;
-    line-height: 1;
-    cursor: pointer;
-  }
-  /* Earlier levels fold to their glyphs; the current level keeps its name. */
-  .level-trail-step button {
-    width: 44px;
-    justify-content: center;
-    padding: 0;
-    gap: 0;
-  }
-  .level-trail-step button .level-trail-name {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
+    display: none;
   }
   .level-trail-step + .level-trail-step::before {
-    width: 6px;
-    margin-inline: 0;
+    width: 18px;
+    margin-inline: 4px;
   }
+  .level-trail-step button {
+    width: auto;
+    justify-content: flex-start;
+    padding: 0 6px 0 0;
+    gap: 8px;
+  }
+  .level-trail-step button .level-trail-name {
+    position: static;
+    width: auto;
+    height: auto;
+    overflow: hidden;
+    clip-path: none;
+  }
+  .level-trail-step,
   .level-trail-step[data-current] {
-    flex: 1 1 auto;
+    flex: 0 1 auto;
   }
   .level-trail-step[data-current]::before {
-    margin-right: 6px;
+    margin-right: 4px;
   }
   .level-trail-here .level-trail-name {
-    max-width: none;
+    max-width: 34ch;
   }
   .level-trail-below {
-    display: none;
+    display: flex;
   }
 }
