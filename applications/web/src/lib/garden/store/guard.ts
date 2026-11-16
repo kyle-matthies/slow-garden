@@ -57,16 +57,25 @@ export function guardStore(store: GardenStore, options: GuardOptions): GardenSto
 
   const refusal = (message: string): ActionResult => ({ ok: false, message });
 
+  /**
+   * Forget what was remembered for a previous account. The first account seen
+   * is only noted: what a read has already recorded for it must survive the
+   * first write.
+   */
+  function follow(view: GardenData) {
+    if (account && account !== view.tenantId) {
+      created.clear();
+      returned.clear();
+      returnsOf = "";
+    }
+    account = view.tenantId;
+  }
+
   /** Null when the write may go ahead; otherwise why not. */
   async function refuse(allowed: (view: GardenData) => boolean): Promise<string | null> {
     const view = options.view();
     if (!view) return NOT_ON_SCREEN;
-    if (account !== view.tenantId) {
-      created.clear();
-      returned.clear();
-      returnsOf = "";
-      account = view.tenantId;
-    }
+    follow(view);
     const session = await store.getSession();
     // Signed out: the store's own "sign in again" answer is the right one.
     if (session.signedIn && session.tenantId !== view.tenantId) {
@@ -110,6 +119,7 @@ export function guardStore(store: GardenStore, options: GuardOptions): GardenSto
     async loadReturns(gardenId) {
       const view = options.view();
       if (!view || view.gardenId !== gardenId) throw new Error(NOT_ON_SCREEN);
+      follow(view);
       const result = await store.loadReturns(gardenId);
       if (returnsOf !== gardenId) returned.clear();
       returnsOf = gardenId;

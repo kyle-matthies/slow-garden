@@ -145,6 +145,15 @@ describe("guardStore", () => {
     expect(await store.cancelPass("listed-pass")).toMatchObject({ ok: true });
   });
 
+  it("accepts a response when opening Returns was the first thing done on the page", async () => {
+    const { store, inner } = setup(view("a"));
+    await store.loadReturns("a");
+    expect(await store.respondToBloom("r", "listed-bloom", "keep", "")).toMatchObject({ ok: true });
+    expect(await store.cancelPass("listed-pass")).toMatchObject({ ok: true });
+    expect(inner.respondToBloom).toHaveBeenCalledTimes(1);
+    expect(inner.cancelPass).toHaveBeenCalledTimes(1);
+  });
+
   it("passes reads, sign-in and sign-out straight through", async () => {
     const { store, inner } = setup(null);
     await store.loadGarden("a");
