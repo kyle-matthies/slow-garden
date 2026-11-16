@@ -1,101 +1,17 @@
 import { createClient } from "@/lib/supabase/server";
 import type { GardenData } from "./types";
-import { loadTending } from "./tending-data";
-import { loadTendingHistory } from "./tending-history";
+import { loadGardenWith } from "./store/queries";
 
-// Read every page explicitly: PostgREST's server row cap is not an export limit.
-export async function allRows<T>(
-  query: (
-    start: number,
-    end: number,
-  ) => PromiseLike<{ data: T[] | null; error: unknown }>,
-): Promise<T[]> {
-  const rows: T[] = [];
-  for (let start = 0; ; start += 500) {
-    const { data, error } = await query(start, start + 499);
-    if (error) throw error;
-    rows.push(...(data ?? []));
-    if (!data || data.length < 500) return rows;
-  }
-}
+// The paging reader and the garden loader now live in store/queries (no server
+// imports) so the browser data layer issues exactly the same reads (ADR-009).
+export { allRows } from "./store/queries";
+
 export async function loadGarden(
   tenantId: string,
   requested?: string,
 ): Promise<GardenData> {
-  const db = await createClient();
-  const gardens = await allRows((a, b) =>
-    db
-      .from("gardens")
-      .select("id,name,status")
-      .order("created_at")
-      .order("id")
-      .range(a, b),
-  );
-  const gardenId =
-    gardens.find((g) => g.id === requested)?.id ??
-    gardens.find((g) => g.status === "active")?.id ??
-    gardens[0]?.id ??
-    "";
-  const [plots, seeds, entries] = gardenId
-    ? await Promise.all([
-        allRows((a, b) =>
-          db
-            .from("plots")
-            .select("*")
-            .eq("garden_id", gardenId)
-            .order("created_at")
-            .order("id")
-            .range(a, b),
-        ),
-        allRows((a, b) =>
-          db
-            .from("seeds")
-            .select("*")
-            .eq("garden_id", gardenId)
-            .order("created_at")
-            .order("id")
-            .range(a, b),
-        ),
-        allRows((a, b) =>
-          db
-            .from("current_entries")
-            .select("*")
-            .eq("garden_id", gardenId)
-            .order("created_at")
-            .order("entry_id")
-            .range(a, b),
-        ),
-      ])
-    : [[], [], []];
-  const [tending, account, tendingHistory] = await Promise.all([
-    gardenId
-      ? loadTending(db, gardenId, entries as GardenData["entries"])
-      : undefined,
-    db
-      .from("accounts")
-      .select("tend_overnight,timezone")
-      .eq("id", tenantId)
-      .maybeSingle()
-      .then(
-        ({ data, error }) =>
-          !error && data
-            ? { tendOvernight: data.tend_overnight, timezone: data.timezone }
-            : undefined,
-        () => undefined,
-      ),
-    gardenId ? loadTendingHistory(db, gardenId) : undefined,
-  ]);
-  return {
-    tenantId,
-    gardens,
-    gardenId,
-    plots,
-    seeds,
-    entries: entries as GardenData["entries"],
+  return loadGardenWith(await createClient(), tenantId, requested, {
     aiAvailable: process.env.GARDEN_AI_ENABLED === "true",
     deletionAvailable: process.env.GARDEN_DELETION_ENABLED === "true",
-    tending,
-    tendingHistory,
-    account,
-  };
+  });
 }
