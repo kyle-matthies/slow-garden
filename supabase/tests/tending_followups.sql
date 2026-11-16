@@ -5,12 +5,21 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set search_path=public,extensions;
 select no_plan();
--- The worker's role is given nothing beyond what the migrations grant. Some
--- Postgres images add default privileges on public tables for the service role
--- and some do not; taking them away here makes this file behave the same on
--- both, and proves ingestion does not lean on them.
-revoke all on public.seeds,public.accounts,public.entries,public.seed_revisions from service_role;
-select ok(not has_table_privilege('service_role','public.seeds','select') and not has_table_privilege('service_role','public.accounts','select'),'the worker role holds no privilege on thoughts or accounts');
+-- Take away every privilege the API roles hold only by a platform default and
+-- not from a migration. Which defaults exist depends on the Postgres image (the
+-- image CI starts gives none of these; a newer one gives all of them), so after
+-- this the file runs with exactly the migrations' grants on either image.
+revoke select,insert,update,delete on public.accounts,public.entries,public.seed_revisions,public.seeds,public.current_entries,public.garden_themes from service_role;
+revoke insert,update,delete on public.gardens,public.plots from service_role;
+revoke insert,update,delete on public.current_entries,public.garden_themes from authenticated;
+revoke execute on function public.create_seed(uuid,text,double precision,double precision),public.save_entry(uuid,uuid,uuid,text,uuid),
+  public.import_thought(uuid,uuid,text,jsonb),public.export_garden_sources(),public.garden_capabilities(),public.deletion_preview(text,uuid),
+  public.delete_entry(uuid),public.delete_seed(uuid),public.delete_plot(uuid,text),public.delete_garden(uuid,text),public.delete_account(text) from service_role;
+select ok(not has_table_privilege('service_role','public.seeds','select') and not has_table_privilege('service_role','public.accounts','select')
+  and not has_table_privilege('service_role','public.gardens','update') and not has_table_privilege('service_role','public.garden_themes','select')
+  and not has_table_privilege('authenticated','public.current_entries','insert')
+  and not has_function_privilege('service_role','public.save_entry(uuid,uuid,uuid,text,uuid)','execute')
+  and not has_function_privilege('service_role','public.delete_account(text)','execute'),'the API roles hold only what the migrations grant');
 
 insert into auth.users(id,email,raw_app_meta_data,raw_user_meta_data,created_at,updated_at) values
  ('91111111-1111-4111-8111-111111111111','cap-alice@example.test','{}','{}',now(),now()),
@@ -34,10 +43,10 @@ insert into private.ai_tenants(tenant_id) values('91111111-1111-4111-8111-111111
 update private.ai_runtime set enabled=true,approved_at=now(),model='synthetic-test-model',workflow_version='connect-v2-test',input_cents_per_million=200,output_cents_per_million=1000;
 
 -- The committing procedure refuses to run inside a transaction, before doing anything.
-select throws_ok($$call private.run_nightly_enqueue()$$,'25001','run_nightly_enqueue commits after each account and must be called on its own, not inside a transaction','the nightly procedure refuses to run inside a transaction');
+select throws_ok($$call private.run_nightly_enqueue()$$,'2D000','invalid transaction termination','the nightly procedure cannot run inside a transaction');
 select is((select count(*) from public.garden_passes),0::bigint,'and leaves nothing behind');
 update private.ai_runtime set enabled=false;
-select throws_ok($$call private.run_nightly_enqueue()$$,'25001',null,'it refuses the same way with the gates closed');
+select throws_ok($$call private.run_nightly_enqueue()$$,'2D000',null,'it refuses the same way with the gates closed');
 update private.ai_runtime set enabled=true;
 
 -- One night: six scopes, each garden's budget of three shared out when the passes are created.
@@ -96,7 +105,9 @@ select ok(not has_table_privilege('authenticated','private.bloom_cycles','select
 -- The garden's counter is the backstop: a nightly pass with no allowance recorded
 -- (created by an operator) in the same cycle publishes nothing more.
 insert into public.garden_passes(id,tenant_id,garden_id,plot_ids,trigger) values('9fffffff-ffff-4fff-8fff-fffffffffff1','91111111-1111-4111-8111-111111111111','9aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',array['9bbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2']::uuid[],'nightly');
-update private.pass_inputs set cycle_date='2026-11-20',next_attempt_at=now()-interval '1 hour' where pass_id='9fffffff-ffff-4fff-8fff-fffffffffff1';
+-- It carries no cycle; it was created half an hour into the garden's night.
+update public.garden_passes set created_at='2026-11-20 03:00:00+00' where id='9fffffff-ffff-4fff-8fff-fffffffffff1';
+update private.pass_inputs set next_attempt_at=now()-interval '1 hour' where pass_id='9fffffff-ffff-4fff-8fff-fffffffffff1';
 update private.pass_inputs set next_attempt_at=now()+interval '1 hour' where pass_id<>'9fffffff-ffff-4fff-8fff-fffffffffff1';
 set local role service_role;
 select public.claim_garden_pass() as extra \gset
@@ -164,6 +175,8 @@ begin
   update public.accounts set timezone=z,tend_overnight=true where id='91111111-1111-4111-8111-111111111111';
   update public.plots set ai_enabled=(id='9bbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb6') where tenant_id='91111111-1111-4111-8111-111111111111';
   delete from public.garden_passes where tenant_id='91111111-1111-4111-8111-111111111111';
+  -- (A test-only reset: a garden's cycles outlive its passes, so each case starts from an untended garden.)
+  delete from private.bloom_cycles where tenant_id='91111111-1111-4111-8111-111111111111';
   if private.enqueue_nightly_for('91111111-1111-4111-8111-111111111111',t)<>1 then return null; end if;
   select i.cycle_date into d from private.pass_inputs i join public.garden_passes p on p.id=i.pass_id where p.tenant_id='91111111-1111-4111-8111-111111111111';
   return d;

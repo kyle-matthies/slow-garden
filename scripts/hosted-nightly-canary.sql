@@ -29,6 +29,8 @@
 \set canary '97979797-9797-4979-8979-979797979791'
 select set_config('canary.verdict','',false) as reset \gset
 select nightly_enabled::text as prior_nightly from private.ai_runtime where singleton \gset
+-- Preparing a pass creates this month's budget row if there is none. Remember whether it was there.
+select exists(select 1 from private.ai_months where month=date_trunc('month',now() at time zone 'UTC')::date)::int as month_existed \gset
 -- A moment in today's 02:00 hour UTC, the synthetic tenant's zone.
 select (date_trunc('day',now() at time zone 'UTC')::timestamp at time zone 'UTC'+interval '2 hours 30 minutes')::text as canary_moment \gset
 
@@ -110,6 +112,12 @@ select set_config('canary.verdict',case when
 begin;
 delete from private.ai_tenants where tenant_id=:'canary';
 delete from auth.users where id=:'canary';
+\if :month_existed
+\else
+  -- The month's budget row was created by this run. Remove it only if it is untouched.
+  delete from private.ai_months m where m.month=date_trunc('month',now() at time zone 'UTC')::date
+    and m.reserved_cents=0 and m.spent_cents=0 and not exists(select 1 from private.pass_inputs i where i.budget_month=m.month);
+\endif
 commit;
 
 -- Part E: what is left, and the verdict. Expect every count 0.
@@ -117,6 +125,8 @@ select
   (select count(*) from auth.users where id=:'canary') as canary_users,
   (select count(*) from public.garden_passes where tenant_id=:'canary') as canary_passes,
   (select count(*) from private.ai_tenants) as allowlisted,
+  (select count(*) from private.bloom_cycles where tenant_id=:'canary') as canary_cycles,
+  (select count(*) from private.ai_months)-:month_existed as budget_rows_added,
   (select coalesce(sum(reserved_cents),0) from private.ai_months)-(select coalesce(sum(reserved_cents),0) from private.pass_inputs where actual_cents is null) as reservations_without_a_pass,
   (select nightly_enabled from private.ai_runtime where singleton) as nightly_switch;
 \set ON_ERROR_STOP on
