@@ -41,6 +41,8 @@ update public.entries e set created_at=now()-(d.days||' days')::interval from (v
 update public.seed_revisions r set created_at=e.created_at from public.entries e where e.id=r.entry_id;
 alter table public.seed_revisions enable trigger seed_revisions_reject_update;
 update private.ai_runtime set enabled=true,approved_at=now(),model='synthetic-test-model',workflow_version='tend-connect-v3-test';
+-- Tending runs only for allowlisted accounts (private.ai_tenants).
+insert into private.ai_tenants(tenant_id) select id from public.accounts;
 
 -- First tend-connect-v3 pass: everything is new; tiers unlock from evidence.
 set local role authenticated;

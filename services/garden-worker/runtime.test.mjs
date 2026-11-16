@@ -862,3 +862,335 @@ test("a lost orphan lease writes nothing further", async () => {
   };
   assert.deepEqual(await drainOrphan(h), { state: "lease_lost" });
 });
+
+/* ---- Synchronous transport ------------------------------------------------ */
+import {
+  syncLimits,
+  httpProvider,
+} from "../../supabase/functions/_shared/garden-runtime.mjs";
+
+const answer = (value, usage = { input_tokens: 100, output_tokens: 40 }) => ({
+  status_code: 200,
+  retryable: false,
+  body: {
+    status: "completed",
+    output: [
+      { type: "reasoning", summary: [] },
+      { type: "message", content: [{ type: "output_text", text: JSON.stringify(value) }] },
+    ],
+    usage,
+  },
+});
+const refusal = (status) => ({ status_code: status, body: null, retryable: status === 429 || status >= 500 });
+const timeoutError = () => Object.assign(new Error("provider_request_failed"), { timeout: true });
+const syncJob = (extra = {}) => ({
+  id: "j",
+  token: "t",
+  status: "processing",
+  transport: "sync",
+  dispatches: 0,
+  attempts: 1,
+  snapshot,
+  model: "pinned",
+  workflow_version: "connect-v2",
+  created_at: new Date().toISOString(),
+  ...extra,
+});
+const v3SyncJob = (tiers = { catalog: true, notice: true, resurface: false }) =>
+  syncJob({
+    workflow_version: "tend-connect-v3",
+    snapshot: snapshot.map((s) => ({ ...s, title: "Workspace", role: "changed", created_at: "2026-03-01T00:00:00.000Z" })),
+    context: { tiers },
+  });
+const tendOk = {
+  marks: [{ seed_id: "s1", kind: "theme", label: "workspace", evidence: [{ revision_id: "r1", excerpt: "a quieter workspace" }] }],
+};
+// A ledger stub that records calls and lets a test script each RPC.
+function syncHarness(job, { respond, ledger = {}, now } = {}) {
+  const calls = [];
+  const responds = [];
+  let active = true;
+  const h = {
+    calls,
+    responds,
+    deactivate: () => (active = false),
+    now,
+    rpc: async (name, args) => {
+      calls.push([name, args]);
+      if (ledger[name]) return ledger[name](args, calls);
+      if (name === "claim_garden_pass") return job;
+      if (name === "check_garden_pass") return active;
+      if (name === "mark_garden_dispatch") return args.p_rejected ? "closed" : "ok";
+      return null;
+    },
+    provider: {
+      upload: () => assert.fail("sync never uploads a file"),
+      createBatch: () => assert.fail("sync never creates a batch"),
+      getBatch: () => assert.fail("sync never polls a batch"),
+      cancelBatch: () => assert.fail("sync never cancels a batch"),
+      download: () => assert.fail("sync never downloads a file"),
+      deleteFile: () => assert.fail("sync has no file to delete"),
+      respond: async (body, options) => {
+        responds.push([body, options]);
+        return respond(body, options, h);
+      },
+    },
+  };
+  if (!now) delete h.now;
+  return h;
+}
+const names = (h) => h.calls.map(([name]) => name);
+const finishArgs = (h) => h.calls.find(([name]) => name === "finish_garden_pass")?.[1];
+
+test("sync limits keep a provider call inside its lease and the lease inside the function limit", () => {
+  // ASSUMPTION recorded in the runtime: an Edge Function must answer within 150 seconds.
+  const assumedEdgeLimitMs = 150_000;
+  assert.ok(syncLimits.callTimeoutMs + syncLimits.settleMarginMs <= syncLimits.leaseMs);
+  assert.ok(syncLimits.leaseMs <= syncLimits.invocationBudgetMs);
+  assert.ok(syncLimits.invocationBudgetMs < assumedEdgeLimitMs);
+});
+test("sync: one call, no files, validated result settled with real usage", async () => {
+  const h = syncHarness(syncJob({ reasoning_effort: "low" }), { respond: async () => answer(valid) });
+  assert.deepEqual(await runOne(h), { state: "complete", transport: "sync" });
+  assert.equal(h.responds.length, 1);
+  const [body, options] = h.responds[0];
+  assert.equal(body.store, false);
+  assert.deepEqual(body.reasoning, { effort: "low" });
+  assert.equal(body.tools, undefined);
+  assert.equal(body.background, undefined);
+  assert.equal(options.timeoutMs, syncLimits.callTimeoutMs);
+  assert.equal(options.key, "garden-sync-j-1");
+  assert.deepEqual(names(h), [
+    "claim_garden_pass",
+    "check_garden_pass",
+    "mark_garden_dispatch",
+    "check_garden_pass",
+    "finish_garden_pass",
+  ]);
+  const finished = finishArgs(h);
+  assert.deepEqual(finished.p_result, valid);
+  assert.equal(finished.p_input_tokens, 100);
+  assert.equal(finished.p_output_tokens, 40);
+  assert.equal(finished.p_failed, undefined);
+});
+test("no reasoning effort pinned means the field is not sent", () => {
+  assert.equal("reasoning" in requestFor(syncJob()).body, false);
+  assert.equal("reasoning" in requestsFor(v3SyncJob())[0].body, false);
+  assert.deepEqual(requestsFor({ ...v3SyncJob(), reasoning_effort: "low" })[1].body.reasoning, { effort: "low" });
+});
+test("connect-v2 parsing ignores reasoning metadata", () => {
+  const line = JSON.stringify({ custom_id: "j", response: { status_code: 200, body: answer(valid).body } });
+  assert.deepEqual(parseBatchLine(line, { id: "j", snapshot }).result, valid);
+});
+test("sync v3: stages run concurrently and land independently", async () => {
+  const h = syncHarness(v3SyncJob(), {
+    respond: async (body) =>
+      body.text.format.name === "garden_tend" ? answer(tendOk) : refusal(500),
+  });
+  const result = await runOne(h);
+  assert.equal(result.state, "complete");
+  assert.equal(result.stages.tend, "ok");
+  assert.equal(result.stages.connect, "provider_stage_failed");
+  assert.equal(h.responds.length, 2);
+  assert.deepEqual(h.responds.map(([, o]) => o.key), ["garden-sync-j:tend-1", "garden-sync-j:connect-1"]);
+  assert.equal(finishArgs(h).p_result.marks.length, 1);
+  assert.equal(finishArgs(h).p_input_tokens, 100);
+});
+test("sync: timeout mid-call leaves the dispatch open and schedules a retry", async () => {
+  const h = syncHarness(syncJob(), {
+    respond: async () => {
+      throw timeoutError();
+    },
+  });
+  assert.deepEqual(await runOne(h), { state: "retry_scheduled", reason: "timeout" });
+  assert.equal(finishArgs(h), undefined, "usage is unknown, so the pass is not settled");
+  assert.equal(h.calls.some(([n, a]) => n === "mark_garden_dispatch" && a.p_rejected), false);
+  assert.deepEqual(h.calls.at(-1), ["update_garden_job", { p_id: "j", p_token: "t", p_release: true }]);
+});
+test("sync v3: one stage timing out discards the other stage's answer", async () => {
+  const h = syncHarness(v3SyncJob(), {
+    respond: async (body) => {
+      if (body.text.format.name === "garden_tend") return answer(tendOk);
+      throw timeoutError();
+    },
+  });
+  assert.deepEqual(await runOne(h), { state: "retry_scheduled", reason: "timeout" });
+  assert.equal(finishArgs(h), undefined);
+});
+test("sync: a broken connection is treated as unknown usage, like a timeout", async () => {
+  const h = syncHarness(syncJob(), {
+    respond: async () => {
+      throw new Error("provider_request_failed");
+    },
+  });
+  assert.deepEqual(await runOne(h), { state: "retry_scheduled", reason: "network" });
+});
+test("sync: lease lost after the provider answered stores nothing and never throws", async () => {
+  const h = syncHarness(syncJob(), {
+    respond: async () => answer(valid),
+    ledger: {
+      finish_garden_pass: () => {
+        throw new Error("lease lost");
+      },
+    },
+  });
+  assert.deepEqual(await runOne(h), { state: "lease_lost" });
+  assert.equal(names(h).filter((n) => n === "finish_garden_pass").length, 1, "no second write is attempted");
+  assert.equal(names(h).includes("update_garden_job"), false);
+});
+test("sync: the redispatch after a lost answer uses a new key and is the ledger's decision", async () => {
+  const h = syncHarness(syncJob({ dispatches: 1, attempts: 2 }), { respond: async () => answer(valid) });
+  assert.equal((await runOne(h)).state, "complete");
+  assert.equal(h.responds[0][1].key, "garden-sync-j-2");
+});
+test("sync: duplicate invocation while the first holds the lease does nothing", async () => {
+  const h = syncHarness(null, { respond: () => assert.fail("no provider call"), ledger: { claim_provider_orphan: () => null } });
+  assert.deepEqual(await runOne(h), { state: "idle" });
+  assert.equal(h.responds.length, 0);
+});
+test("sync: budget stop at dispatch fails the pass without a provider call", async () => {
+  const h = syncHarness(syncJob({ dispatches: 1 }), {
+    respond: () => assert.fail("no provider call"),
+    ledger: { mark_garden_dispatch: () => "budget" },
+  });
+  assert.deepEqual(await runOne(h), { state: "failed", reason: "budget_stop" });
+  assert.equal(finishArgs(h).p_failed, true);
+});
+test("sync: the dispatch limit fails the pass without a provider call", async () => {
+  const h = syncHarness(syncJob({ dispatches: 3 }), {
+    respond: () => assert.fail("no provider call"),
+    ledger: { mark_garden_dispatch: () => "limit" },
+  });
+  assert.deepEqual(await runOne(h), { state: "failed", reason: "dispatch_limit" });
+});
+test("sync: cancelled before dispatch never contacts the provider", async () => {
+  const h = syncHarness(syncJob(), {
+    respond: () => assert.fail("no provider call"),
+    ledger: { mark_garden_dispatch: () => "inactive" },
+  });
+  assert.deepEqual(await runOne(h), { state: "cancelled" });
+});
+test("sync: cancelled while in flight discards the answer and records only its cost", async () => {
+  const h = syncHarness(syncJob(), {
+    respond: async (_body, _options, harness) => {
+      harness.deactivate();
+      return answer(valid);
+    },
+  });
+  assert.deepEqual(await runOne(h), { state: "cancelled" });
+  const finished = finishArgs(h);
+  assert.equal(finished.p_failed, true);
+  assert.deepEqual(finished.p_result, { blooms: [], no_output_reason: null }, "the answer is not passed on");
+  assert.equal(finished.p_input_tokens, 100);
+});
+test("sync: a retryable provider error closes the dispatch uncharged and retries", async () => {
+  const h = syncHarness(syncJob(), { respond: async () => refusal(503) });
+  assert.deepEqual(await runOne(h), { state: "retry_scheduled", reason: "provider_error" });
+  assert.deepEqual(names(h).slice(-2), ["mark_garden_dispatch", "update_garden_job"]);
+  assert.equal(h.calls.at(-2)[1].p_rejected, true);
+  assert.equal(finishArgs(h), undefined);
+});
+test("sync: a retryable provider error stops retrying after five attempts", async () => {
+  const h = syncHarness(syncJob({ attempts: 5 }), { respond: async () => refusal(429) });
+  assert.deepEqual(await runOne(h), { state: "failed", reason: "provider_error" });
+});
+test("sync: a permanent provider error fails the pass", async () => {
+  const h = syncHarness(syncJob(), { respond: async () => refusal(400) });
+  assert.deepEqual(await runOne(h), { state: "failed", reason: "provider_error" });
+  assert.equal(finishArgs(h).p_failed, true);
+});
+test("sync: invalid output fails the pass but keeps the usage it cost", async () => {
+  const h = syncHarness(syncJob(), {
+    respond: async () => answer({ ...valid, blooms: [{ ...bloom, evidence: [{ revision_id: "r1", excerpt: "invented" }] }] }),
+  });
+  assert.deepEqual(await runOne(h), { state: "failed", reason: "invalid_output" });
+  assert.equal(finishArgs(h).p_failed, true);
+  assert.equal(finishArgs(h).p_output_tokens, 40);
+});
+test("sync: a tool call in the answer is refused", async () => {
+  const withTool = answer(valid);
+  withTool.body.output.push({ type: "function_call", name: "send_email" });
+  const h = syncHarness(syncJob(), { respond: async () => withTool });
+  assert.deepEqual(await runOne(h), { state: "failed", reason: "invalid_output" });
+});
+test("sync: an oversized snapshot is failed before any dispatch", async () => {
+  const big = [{ ...snapshot[0], body: "x".repeat(syncLimits.requestBytes) }];
+  const h = syncHarness(syncJob({ snapshot: big }), { respond: () => assert.fail("no provider call") });
+  assert.deepEqual(await runOne(h), { state: "failed", reason: "oversized_snapshot" });
+  assert.equal(names(h).includes("mark_garden_dispatch"), false);
+});
+test("sync: too little of the function's time left defers without dispatching", async () => {
+  // The claim itself used up the invocation: the clock jumps once the job is in hand.
+  let clock = Date.parse("2026-11-16T00:00:00Z");
+  const job = syncJob({ created_at: new Date(clock).toISOString() });
+  const h = syncHarness(job, {
+    respond: () => assert.fail("no provider call"),
+    now: () => clock,
+    ledger: {
+      claim_garden_pass: () => {
+        clock += 60_000;
+        return job;
+      },
+    },
+  });
+  assert.deepEqual(await runOne(h), { state: "deferred", reason: "time_budget" });
+  assert.equal(names(h).includes("mark_garden_dispatch"), false);
+  assert.deepEqual(h.calls.at(-1)[1], { p_id: "j", p_token: "t", p_release: true });
+});
+test("sync: an expired pass is failed without a provider call", async () => {
+  const h = syncHarness(syncJob({ created_at: new Date(Date.now() - 31 * 3_600_000).toISOString() }), {
+    respond: () => assert.fail("no provider call"),
+  });
+  assert.deepEqual(await runOne(h), { state: "expired", reason: "deadline" });
+});
+test("sync: a cancelled pass that never dispatched is settled, then cleaned with no provider call", async () => {
+  const cancelled = syncJob({ status: "cancelled", settled: false });
+  const first = syncHarness(cancelled, { respond: () => assert.fail("no provider call") });
+  assert.deepEqual(await runOne(first), { state: "cancelled" });
+  const second = syncHarness({ ...cancelled, settled: true }, { respond: () => assert.fail("no provider call") });
+  assert.deepEqual(await runOne(second), { state: "cleaned" });
+  assert.equal(second.calls.at(-1)[1].p_clean, true);
+});
+test("sync: a provider without a synchronous call fails the pass rather than falling back to batch", async () => {
+  const h = syncHarness(syncJob(), {});
+  delete h.provider.respond;
+  assert.deepEqual(await runOne(h), { state: "failed", reason: "transport_unavailable" });
+});
+test("a batch pass never uses the synchronous call", async () => {
+  const h = harness(
+    { id: "j", token: "t", status: "queued", transport: "batch", snapshot, model: "pinned", created_at: new Date().toISOString() },
+    {},
+  );
+  h.provider.respond = () => assert.fail("batch never calls respond");
+  assert.equal((await runOne(h)).state, "submitted");
+});
+test("http adapter: sync call sends store:false to the Responses endpoint and drops error bodies", async () => {
+  const seen = [];
+  const fetcher = async (url, options) => {
+    seen.push([url, options]);
+    return seen.length === 1
+      ? new Response(JSON.stringify({ status: "completed", output: [], usage: {} }), { status: 200 })
+      : new Response(JSON.stringify({ error: { message: "echoed private text" } }), { status: 500 });
+  };
+  const provider = httpProvider("synthetic-key", fetcher);
+  const ok = await provider.respond({ model: "m", store: false }, { timeoutMs: 1000, key: "k" });
+  assert.equal(ok.status_code, 200);
+  assert.equal(seen[0][0], "https://api.openai.com/v1/responses");
+  assert.equal(seen[0][1].headers["Idempotency-Key"], "k");
+  assert.equal(JSON.parse(seen[0][1].body).store, false);
+  const failed = await provider.respond({ model: "m", store: false }, { timeoutMs: 1000 });
+  assert.deepEqual(failed, { status_code: 500, body: null, retryable: true });
+});
+test("http adapter: a timed-out sync call is reported as a timeout, without a body", async () => {
+  const provider = httpProvider("synthetic-key", (_url, options) =>
+    new Promise((_resolve, reject) => {
+      // AbortSignal.timeout does not keep the event loop alive on its own.
+      const keepAlive = setTimeout(() => {}, 5000);
+      options.signal.addEventListener("abort", () => {
+        clearTimeout(keepAlive);
+        reject(options.signal.reason);
+      });
+    }),
+  );
+  await assert.rejects(provider.respond({ model: "m" }, { timeoutMs: 20 }), (error) => error.timeout === true && error.message === "provider_request_failed");
+});

@@ -23,6 +23,47 @@ stays outside Git under an explicit private study flag.
   `node --test tests/evaluation/corpus-v3.test.mjs`.
 - `run-model.mjs` — runs a packet through a candidate model for blind review. It refuses to
   start without `--owner-approved`, `--model` and an API key, and it never runs in CI.
+  The key is read from the `OPENAI_API_KEY` environment variable of the terminal that
+  runs it and is never written to a file.
+- `receipt.mjs` — turns a run directory into the single runbook 0.4 receipt
+  (`receipt.json`): model snapshot, reasoning effort, workflow version, transport, prompt,
+  schema, corpus and runtime hashes, per-tier results against the tend-connect-v3
+  thresholds, blind-score slots and the owner-acceptance slot. It calls no model. Gate:
+  `node --test tests/evaluation/receipt.test.mjs`, an offline self-test on recorded
+  synthetic outputs (the corpus's own reference answers).
+
+## Producing the evaluation receipt
+
+One command, after runbook 1.1 and 1.2 (it sends the synthetic corpus to the provider):
+
+    OPENAI_API_KEY=<key> node services/garden-worker/evaluation/run-model.mjs \
+      --owner-approved --workflow tend-connect-v3 \
+      --model <dated-model-snapshot> --reasoning-effort <effort> \
+      --run-dir artifacts/generated/evaluation/<yyyy-mm-dd>
+
+The run directory must be under the ignored `artifacts/generated/`. It receives
+`run.json`, `outputs.jsonl`, `review.csv`, `review-key.json` and `receipt.json`. The
+receipt starts as `no-go`. Fill `verdict` (y/n) on every row of `review.csv` and
+`clinical` (y/n) on theme rows; the sheet hides case, family and expectation. Then:
+
+    node services/garden-worker/evaluation/receipt.mjs artifacts/generated/evaluation/<yyyy-mm-dd> \
+      --accept-return-format --accepted-by "<name>" --basis "<what was reviewed>"
+
+`verdict` is `go` only when every threshold passes, every blind slot is scored, the
+acceptance is recorded, the run was owner-approved, every corpus case has an output and
+no hash has changed since the run. The receipt contains no corpus text and no model
+output, so it can be copied into `documents/operations/`. How each threshold is measured:
+
+| Source | Thresholds |
+|---|---|
+| deterministic (recomputed from outputs) | no stage refused and no mark dropped; brevity and caps; no bloom of a locked kind |
+| reference (corpus reference answers; a proxy) | unfinished recall; no pattern on the shared-word negative controls |
+| blind (owner's `review.csv`) | label faithfulness, clinical labels, open questions, unfinished precision, pattern precision, claim faithfulness, echo precision, question grounding |
+
+Limits: the receipt covers tend-connect-v3 only; the corpus has one reference case each
+for "unfinished" and "open question"; the five-baseline comparison and the Wizard-of-Oz
+study in `EVALUATION_ARCHITECTURE.md` are not automated here, and the receipt records the
+stated basis of acceptance rather than judging it.
 
 ## Families
 

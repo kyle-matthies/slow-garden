@@ -29,6 +29,8 @@ select throws_ok($$select public.claim_garden_pass()$$,'42501',null,'users canno
 select throws_ok($$insert into public.garden_passes(id,garden_id,plot_ids) values('ffffffff-ffff-4fff-8fff-fffffffffff1','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',array['bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1']::uuid[])$$,'55000','AI evaluation gate has not been activated','AI activation is closed by default');
 reset role;
 update private.ai_runtime set enabled=true,approved_at=now(),model='synthetic-test-model';
+-- Tending runs only for allowlisted accounts (private.ai_tenants).
+insert into private.ai_tenants(tenant_id) select id from public.accounts;
 set local role authenticated;
 select throws_ok($$insert into public.garden_passes(id,garden_id,plot_ids) values('ffffffff-ffff-4fff-8fff-fffffffffff1','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',array['bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1']::uuid[])$$,'42501','plot permission denied','AI-off excluded at database boundary');
 update public.plots set ai_enabled=true where id='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1';

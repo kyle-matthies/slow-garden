@@ -1,4 +1,9 @@
 // The worker is invoked by a server scheduler, never by a browser.
+// One invocation handles one job. The job carries its own transport, frozen when
+// the pass was prepared: "batch" (file + batch, polled on later ticks) or "sync"
+// (one Responses call per stage, settled in this invocation). The sync path
+// bounds itself to stay inside the Edge Function time limit (see syncLimits in
+// the shared runtime; the 150-second limit assumed there is not verified here).
 // @ts-ignore shared executable module is also exercised by Node's test runner.
 import { runOne, httpProvider } from "../_shared/garden-runtime.mjs";
 Deno.serve(async (request: Request) => {

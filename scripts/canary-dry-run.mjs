@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
-import { runOne } from "../supabase/functions/_shared/garden-runtime.mjs";
+import { runOne, syncLimits } from "../supabase/functions/_shared/garden-runtime.mjs";
 
 const FIVE_MINUTES = 5 * 60 * 1000;
 const TWO_MINUTES = 2 * 60 * 1000;
@@ -43,6 +43,19 @@ class FakeProvider {
   deletes = 0;
   nextFile = 1;
   nextBatch = 1;
+  responses = 0;
+  // Optional script for the synchronous call: (body) => answer, or throws.
+  onRespond = null;
+
+  // Synchronous transport: one call per stage, nothing stored at the provider.
+  async respond(body) {
+    this.responses += 1;
+    if (this.onRespond) {
+      const scripted = await this.onRespond(body);
+      if (scripted) return scripted;
+    }
+    return syncAnswer(body);
+  }
 
   async upload(text) {
     const id = `file-${this.nextFile++}`;
@@ -118,9 +131,15 @@ class FakeLedger {
     this.passes = new Map();
     this.nextPass = 1;
     this.forceLeaseLossOn = null;
+    // Mirrors private.ai_runtime.transport and private.ai_tenants.
+    this.transport = "batch";
+    this.allowlist = new Set(["tenant-a", "tenant-b", "tenant-c"]);
   }
 
   createPass(tenantId, snapshot = fixture, { workflowVersion = "synthetic-v1", context = {} } = {}) {
+    if (!this.enabled) throw Error("AI evaluation gate has not been activated");
+    if (!this.allowlist.has(tenantId))
+      throw Error("tending is not available for this account yet");
     if (
       [...this.passes.values()].some(
         (pass) =>
@@ -160,6 +179,10 @@ class FakeLedger {
       cleanupPending: false,
       blooms: [],
       marks: [],
+      transport: this.transport,
+      dispatches: 0,
+      dispatchOpen: false,
+      lostCents: 0,
     };
     this.passes.set(id, pass);
     this.reservedCents += PASS_ESTIMATE_CENTS;
@@ -184,7 +207,9 @@ class FakeLedger {
 
   #claimable(pass) {
     const active =
-      ["queued", "processing"].includes(pass.status) && this.enabled;
+      ["queued", "processing"].includes(pass.status) &&
+      this.enabled &&
+      this.allowlist.has(pass.tenantId);
     const cleanup =
       ["cancelled", "withdrawn", "failed", "complete"].includes(pass.status) &&
       pass.cleanupPending;
@@ -211,6 +236,8 @@ class FakeLedger {
       attempts: pass.attempts,
       created_at: pass.created_at,
       settled: pass.actualCents !== null,
+      transport: pass.transport,
+      dispatches: pass.dispatches,
     };
   }
 
@@ -237,11 +264,33 @@ class FakeLedger {
       return Boolean(
         this.#validLease(pass, args.p_token) &&
           ["queued", "processing"].includes(pass.status) &&
-          this.enabled,
+          this.enabled &&
+          this.allowlist.has(pass.tenantId),
       );
     }
     const pass = this.passes.get(args.p_id);
     if (!this.#validLease(pass, args.p_token)) throw Error("lease lost");
+    if (name === "mark_garden_dispatch") {
+      if (pass.transport !== "sync") throw Error("not a synchronous pass");
+      if (args.p_rejected) {
+        pass.dispatchOpen = false;
+        return "closed";
+      }
+      if (pass.actualCents !== null) return "settled";
+      if (!(await this.rpc("check_garden_pass", args))) return "inactive";
+      if (pass.dispatches >= 3) return "limit";
+      if (pass.dispatchOpen) {
+        // The earlier dispatch never reported back: book it at the full reservation.
+        if (this.reservedCents + this.spentCents + pass.reservedCents > this.hardCapCents)
+          return "budget";
+        this.spentCents += pass.reservedCents;
+        pass.lostCents += pass.reservedCents;
+      }
+      pass.dispatches += 1;
+      pass.dispatchOpen = true;
+      pass.leaseUntil = this.clock.now() + syncLimits.leaseMs;
+      return "ok";
+    }
     if (name === "update_garden_job") {
       if (args.p_provider !== undefined && args.p_provider !== null)
         pass.provider_id = args.p_provider;
@@ -358,6 +407,35 @@ function resultLine(id, { duplicate = false } = {}) {
   return duplicate ? `${line}\n${line}` : line;
 }
 
+// What the fake provider answers on the synchronous path, chosen by the stage's schema name.
+function syncAnswer(body) {
+  const stage = body.text.format.name;
+  const evidence = [{ revision_id: fixture[0].revision_id, excerpt: "a quieter workspace returns" }];
+  const value =
+    stage === "garden_tend"
+      ? { marks: [{ seed_id: fixture[0].seed_id, kind: "theme", label: "workspace", evidence }] }
+      : stage === "garden_connect"
+        ? { blooms: [], no_output_reason: null }
+        : { blooms: [{ kind: "question", interpretation: INTERPRETATION, evidence }], no_output_reason: null };
+  return {
+    status_code: 200,
+    retryable: false,
+    body: {
+      status: "completed",
+      output: [{ type: "message", content: [{ type: "output_text", text: JSON.stringify(value) }] }],
+      usage: { input_tokens: 100, output_tokens: 50 },
+    },
+  };
+}
+const refusal = (status) => ({ status_code: status, body: null, retryable: status === 429 || status >= 500 });
+const timeout = () => Object.assign(new Error("provider_request_failed"), { timeout: true });
+
+function syncEnvironment(options) {
+  const env = environment(options);
+  env.ledger.transport = "sync";
+  return env;
+}
+
 function environment(options) {
   const clock = new FakeClock();
   const ledger = new FakeLedger(clock, options);
@@ -392,7 +470,7 @@ async function drain(env, steps) {
     }
     sawWork = true;
     steps.push({ state: result.state });
-    if (["waiting", "cancelling"].includes(result.state))
+    if (["waiting", "cancelling", "retry_scheduled", "deferred"].includes(result.state))
       env.clock.advance(FIVE_MINUTES);
   }
   throw Error("drain_limit");
@@ -630,6 +708,304 @@ scenarios.push(
   }),
 );
 
+// ---- Owner-only allowlist ---------------------------------------------------
+scenarios.push(
+  scenario("allowlist_empty_runs_nothing", async () => {
+    const env = environment();
+    env.ledger.allowlist = new Set();
+    let refused = false;
+    try {
+      env.ledger.createPass("tenant-a");
+    } catch (error) {
+      refused = error.message === "tending is not available for this account yet";
+    }
+    const idle = await step(env);
+    env.ledger.allowlist = new Set(["tenant-a"]);
+    const pass = env.ledger.createPass("tenant-a");
+    let otherRefused = false;
+    try {
+      env.ledger.createPass("tenant-b");
+    } catch {
+      otherRefused = true;
+    }
+    // The tenant leaves the allowlist with a pass queued: it is never dispatched.
+    env.ledger.allowlist = new Set();
+    const afterRemoval = await step(env);
+    const checks = [
+      { check: "empty_allowlist_refuses_pass", ok: refused },
+      { check: "worker_idle", ok: idle.state === "idle" },
+      { check: "allowlisted_tenant_accepted", ok: Boolean(pass) },
+      { check: "other_tenant_refused", ok: otherRefused },
+      { check: "removed_tenant_not_dispatched", ok: afterRemoval.state === "idle" && env.provider.uploads === 0 },
+      { check: "no_provider_contact", ok: env.provider.uploads + env.provider.responses === 0 },
+    ];
+    return { name: "allowlist_empty_runs_nothing", steps: [{ state: idle.state }, { state: afterRemoval.state }], checks, ok: checks.every((c) => c.ok) };
+  }),
+);
+
+// ---- Synchronous transport --------------------------------------------------
+// Every sync scenario also proves that no file or batch is ever created.
+const noFiles = (env) => ({
+  check: "no_files_or_batches",
+  ok: env.provider.uploads === 0 && env.provider.batchesCreated === 0 && env.provider.filesRemaining() === 0,
+});
+
+scenarios.push(
+  scenario("sync_submit_and_complete", async () => {
+    const env = syncEnvironment();
+    const steps = [];
+    const pass = env.ledger.createPass("tenant-a");
+    const completed = await step(env);
+    steps.push({ state: completed.state });
+    await drain(env, steps);
+    const checks = [
+      { check: "completed_in_one_invocation", ok: completed.state === "complete" && completed.transport === "sync" },
+      { check: "one_provider_call", ok: env.provider.responses === 1 },
+      { check: "one_bloom_stored", ok: pass.blooms.length === 1 },
+      { check: "actual_usage_charged", ok: env.ledger.spentCents > 0 && env.ledger.spentCents < PASS_ESTIMATE_CENTS },
+      { check: "reservation_released", ok: env.ledger.reservedCents === 0 },
+      { check: "cleanup_pending_false", ok: pass.cleanupPending === false },
+      noFiles(env),
+    ];
+    return { name: "sync_submit_and_complete", steps, checks, ok: checks.every((c) => c.ok) };
+  }),
+  scenario("sync_tend_connect", async () => {
+    const env = syncEnvironment();
+    const steps = [];
+    const snapshot = fixture.map((item) => ({ ...item, title: "Synthetic thought", role: "changed" }));
+    const pass = env.ledger.createPass("tenant-a", snapshot, {
+      workflowVersion: "tend-connect-v3-synthetic",
+      context: { tiers: { catalog: true, notice: true, resurface: false } },
+    });
+    env.provider.onRespond = (body) => (body.text.format.name === "garden_connect" ? refusal(500) : null);
+    const completed = await step(env);
+    steps.push({ state: completed.state, stages: completed.stages });
+    await drain(env, steps);
+    const checks = [
+      { check: "two_stage_calls", ok: env.provider.responses === 2 },
+      { check: "catalogue_landed", ok: pass.marks.length === 1 },
+      { check: "failed_stage_shows_nothing", ok: pass.blooms.length === 0 && completed.stages?.connect === "provider_stage_failed" },
+      { check: "pass_complete", ok: pass.status === "complete" },
+      noFiles(env),
+    ];
+    return { name: "sync_tend_connect", steps, checks, ok: checks.every((c) => c.ok) };
+  }),
+  scenario("sync_timeout_mid_call", async () => {
+    const env = syncEnvironment();
+    const steps = [];
+    const pass = env.ledger.createPass("tenant-a");
+    let calls = 0;
+    env.provider.onRespond = () => {
+      calls += 1;
+      if (calls > 1) return null;
+      env.clock.advance(syncLimits.callTimeoutMs);
+      throw timeout();
+    };
+    const timedOut = await step(env);
+    steps.push({ state: timedOut.state, reason: timedOut.reason });
+    const openAfterTimeout = pass.dispatchOpen && pass.actualCents === null;
+    await drain(env, steps);
+    const checks = [
+      { check: "timeout_schedules_retry", ok: timedOut.state === "retry_scheduled" && timedOut.reason === "timeout" },
+      { check: "dispatch_left_open_unsettled", ok: openAfterTimeout },
+      { check: "second_dispatch_made", ok: pass.dispatches === 2 && env.provider.responses === 2 },
+      { check: "lost_dispatch_booked_at_reservation", ok: pass.lostCents === PASS_ESTIMATE_CENTS },
+      { check: "one_bloom_after_retry", ok: pass.blooms.length === 1 && pass.status === "complete" },
+      { check: "reservation_released", ok: env.ledger.reservedCents === 0 },
+      noFiles(env),
+    ];
+    return { name: "sync_timeout_mid_call", steps, checks, ok: checks.every((c) => c.ok) };
+  }),
+  scenario("sync_timeouts_exhaust_dispatch_limit", async () => {
+    const env = syncEnvironment();
+    const steps = [];
+    const pass = env.ledger.createPass("tenant-a");
+    env.provider.onRespond = () => {
+      throw timeout();
+    };
+    await drain(env, steps);
+    const states = steps.map(({ state }) => state);
+    const checks = [
+      { check: "three_dispatches_then_stop", ok: pass.dispatches === 3 && env.provider.responses === 3 },
+      { check: "pass_failed", ok: pass.status === "failed" && states.includes("failed") },
+      { check: "nothing_stored", ok: pass.blooms.length === 0 },
+      { check: "every_dispatch_charged", ok: env.ledger.spentCents === 3 * PASS_ESTIMATE_CENTS },
+      { check: "reservation_released", ok: env.ledger.reservedCents === 0 },
+      noFiles(env),
+    ];
+    return { name: "sync_timeouts_exhaust_dispatch_limit", steps, checks, ok: checks.every((c) => c.ok) };
+  }),
+  scenario("sync_lease_lost_after_answer", async () => {
+    const env = syncEnvironment();
+    const steps = [];
+    const pass = env.ledger.createPass("tenant-a");
+    let calls = 0;
+    env.provider.onRespond = () => {
+      calls += 1;
+      // The provider answers, but only after the lease has run out.
+      if (calls === 1) env.clock.advance(syncLimits.leaseMs + 1000);
+      return null;
+    };
+    const lost = await step(env);
+    steps.push({ state: lost.state });
+    const nothingStored = pass.blooms.length === 0 && pass.actualCents === null;
+    await drain(env, steps);
+    const checks = [
+      { check: "lease_loss_is_reported", ok: lost.state === "lease_lost" },
+      { check: "late_answer_not_stored", ok: nothingStored },
+      { check: "redispatched_once", ok: pass.dispatches === 2 },
+      { check: "lost_dispatch_booked_at_reservation", ok: pass.lostCents === PASS_ESTIMATE_CENTS },
+      { check: "one_bloom_after_retry", ok: pass.blooms.length === 1 },
+      noFiles(env),
+    ];
+    return { name: "sync_lease_lost_after_answer", steps, checks, ok: checks.every((c) => c.ok) };
+  }),
+  scenario("sync_duplicate_invocation", async () => {
+    const env = syncEnvironment();
+    const steps = [];
+    const pass = env.ledger.createPass("tenant-a");
+    let duplicate = null;
+    env.provider.onRespond = async () => {
+      // A second worker is invoked while the first is waiting on the provider.
+      if (!duplicate) duplicate = await step(env);
+      return null;
+    };
+    const first = await step(env);
+    steps.push({ state: first.state }, { state: duplicate?.state });
+    await drain(env, steps);
+    const checks = [
+      { check: "duplicate_is_idle", ok: duplicate?.state === "idle" },
+      { check: "first_completes", ok: first.state === "complete" },
+      { check: "one_provider_call", ok: env.provider.responses === 1 },
+      { check: "one_dispatch", ok: pass.dispatches === 1 },
+      { check: "one_bloom_stored", ok: pass.blooms.length === 1 },
+      noFiles(env),
+    ];
+    return { name: "sync_duplicate_invocation", steps, checks, ok: checks.every((c) => c.ok) };
+  }),
+  scenario("sync_budget_stop", async () => {
+    // Room for exactly one reservation: a redispatch after a lost call cannot be booked.
+    const env = syncEnvironment({ hardCapCents: PASS_ESTIMATE_CENTS + 1 });
+    const steps = [];
+    const pass = env.ledger.createPass("tenant-a");
+    let rejected = false;
+    try {
+      env.ledger.createPass("tenant-b");
+    } catch (error) {
+      rejected = error.message === "AI budget reached";
+    }
+    env.provider.onRespond = () => {
+      throw timeout();
+    };
+    await drain(env, steps);
+    const stopped = steps.find((item) => item.state === "failed");
+    const checks = [
+      { check: "second_pass_rejected_at_cap", ok: rejected },
+      { check: "redispatch_refused_at_cap", ok: Boolean(stopped) && pass.dispatches === 1 },
+      { check: "one_provider_call", ok: env.provider.responses === 1 },
+      { check: "spend_within_hard_cap", ok: env.ledger.spentCents <= env.ledger.hardCapCents },
+      { check: "reservation_released", ok: env.ledger.reservedCents === 0 },
+      noFiles(env),
+    ];
+    return { name: "sync_budget_stop", steps, checks, ok: checks.every((c) => c.ok) };
+  }),
+  scenario("sync_cancel_in_flight", async () => {
+    const env = syncEnvironment();
+    const steps = [];
+    const pass = env.ledger.createPass("tenant-a");
+    env.provider.onRespond = () => {
+      env.ledger.cancelPass(pass);
+      return null;
+    };
+    const cancelled = await step(env);
+    steps.push({ state: cancelled.state });
+    await drain(env, steps);
+    const checks = [
+      { check: "reported_cancelled", ok: cancelled.state === "cancelled" && pass.status === "cancelled" },
+      { check: "answer_discarded", ok: pass.blooms.length === 0 },
+      { check: "actual_usage_charged", ok: env.ledger.spentCents > 0 && env.ledger.spentCents < PASS_ESTIMATE_CENTS },
+      { check: "reservation_released", ok: env.ledger.reservedCents === 0 },
+      { check: "cleanup_pending_false", ok: pass.cleanupPending === false },
+      noFiles(env),
+    ];
+    return { name: "sync_cancel_in_flight", steps, checks, ok: checks.every((c) => c.ok) };
+  }),
+  scenario("sync_provider_error", async () => {
+    const env = syncEnvironment();
+    const steps = [];
+    const pass = env.ledger.createPass("tenant-a");
+    let calls = 0;
+    env.provider.onRespond = () => (++calls === 1 ? refusal(503) : null);
+    const retried = await step(env);
+    steps.push({ state: retried.state, reason: retried.reason });
+    const uncharged = env.ledger.spentCents === 0 && pass.dispatchOpen === false;
+    await drain(env, steps);
+    const permanent = syncEnvironment();
+    const refused = permanent.ledger.createPass("tenant-a");
+    permanent.provider.onRespond = () => refusal(400);
+    const failed = await step(permanent);
+    steps.push({ state: failed.state, reason: failed.reason });
+    const checks = [
+      { check: "retryable_error_schedules_retry", ok: retried.state === "retry_scheduled" && retried.reason === "provider_error" },
+      { check: "refused_dispatch_not_charged", ok: uncharged && pass.lostCents === 0 },
+      { check: "completes_on_retry", ok: pass.status === "complete" && pass.blooms.length === 1 },
+      { check: "permanent_error_fails", ok: failed.state === "failed" && refused.status === "failed" && refused.blooms.length === 0 },
+      noFiles(env),
+      noFiles(permanent),
+    ];
+    return { name: "sync_provider_error", steps, checks, ok: checks.every((c) => c.ok) };
+  }),
+  scenario("sync_oversized_snapshot", async () => {
+    const env = syncEnvironment();
+    const steps = [];
+    const big = [{ ...fixture[0], body: "x".repeat(syncLimits.requestBytes) }];
+    const pass = env.ledger.createPass("tenant-a", big);
+    const failed = await step(env);
+    steps.push({ state: failed.state, reason: failed.reason });
+    await drain(env, steps);
+    const checks = [
+      { check: "failed_before_dispatch", ok: failed.state === "failed" && failed.reason === "oversized_snapshot" },
+      { check: "no_provider_call", ok: env.provider.responses === 0 && pass.dispatches === 0 },
+      { check: "reservation_released", ok: env.ledger.reservedCents === 0 },
+      noFiles(env),
+    ];
+    return { name: "sync_oversized_snapshot", steps, checks, ok: checks.every((c) => c.ok) };
+  }),
+  scenario("sync_function_time_limit", async () => {
+    const env = syncEnvironment();
+    const steps = [];
+    const pass = env.ledger.createPass("tenant-a");
+    // The ledger is slow: by the time the job is in hand, too little of the invocation is left.
+    const rpc = env.ledger.rpc.bind(env.ledger);
+    let slow = true;
+    env.ledger.rpc = async (name, args) => {
+      const result = await rpc(name, args);
+      if (slow && name === "claim_garden_pass" && result) {
+        slow = false;
+        env.clock.advance(60_000);
+      }
+      return result;
+    };
+    const deferred = await step(env);
+    steps.push({ state: deferred.state, reason: deferred.reason });
+    const untouched = env.provider.responses === 0 && pass.dispatches === 0;
+    await drain(env, steps);
+    const checks = [
+      { check: "deferred_without_dispatch", ok: deferred.state === "deferred" && untouched },
+      { check: "completes_on_a_later_tick", ok: pass.status === "complete" && env.provider.responses === 1 },
+      {
+        check: "call_fits_lease_and_function_limit",
+        ok:
+          syncLimits.callTimeoutMs + syncLimits.settleMarginMs <= syncLimits.leaseMs &&
+          syncLimits.leaseMs <= syncLimits.invocationBudgetMs &&
+          syncLimits.invocationBudgetMs < 150_000,
+      },
+      noFiles(env),
+    ];
+    return { name: "sync_function_time_limit", steps, checks, ok: checks.every((c) => c.ok) };
+  }),
+);
+
 async function main() {
   const results = [];
   for (const runScenario of scenarios) results.push(await runScenario());
@@ -649,6 +1025,7 @@ async function main() {
           (total, provider) => total + provider.batchesCreated,
           0,
         ),
+        sync_calls: providers.reduce((total, provider) => total + provider.responses, 0),
         cancels: providers.reduce((total, provider) => total + provider.cancels, 0),
         downloads: providers.reduce(
           (total, provider) => total + provider.downloads,

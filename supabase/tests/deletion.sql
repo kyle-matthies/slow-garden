@@ -23,6 +23,8 @@ insert into auth.sessions(id,user_id,created_at,updated_at) values
 ('99999999-9999-4999-8999-999999999998','11111111-1111-4111-8111-111111111111',now()-interval '30 days',now()),
 ('99999999-9999-4999-8999-999999999997','22222222-2222-4222-8222-222222222222',now(),now());
 update private.ai_runtime set enabled=true,approved_at=now(),model='synthetic-test-model',workflow_version='tend-connect-v3-test';
+-- Tending runs only for allowlisted accounts (private.ai_tenants).
+insert into private.ai_tenants(tenant_id) select id from public.accounts;
 
 -- Privileges and function hygiene.
 select ok(not has_function_privilege('anon','public.delete_entry(uuid)','execute')
