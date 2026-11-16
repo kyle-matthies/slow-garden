@@ -50,7 +50,16 @@ export function createGardenStore(selection: StoreSelection = {}): GardenStore {
   const kind = selection.kind ?? storeKind();
   // Keep the two dynamic imports in separate branches of a build-time constant
   // so the bundler can discard the one a build does not use.
-  if (process.env.NEXT_PUBLIC_GARDEN_STORE === "browser" || kind === "browser")
+  if (process.env.NEXT_PUBLIC_GARDEN_STORE === "browser") {
+    // A browser build carries no server code, so an explicit request for the
+    // server store is refused rather than silently answered by the other one.
+    if (selection.kind === "server")
+      throw new Error("The server store is not available in a browser-store build.");
+    return lazyStore("browser", async () =>
+      (await import("./browser-default")).createDefaultBrowserStore(selection.flags),
+    );
+  }
+  if (kind === "browser")
     return lazyStore("browser", async () =>
       (await import("./browser-default")).createDefaultBrowserStore(selection.flags),
     );

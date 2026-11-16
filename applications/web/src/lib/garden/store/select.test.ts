@@ -60,6 +60,14 @@ describe("NEXT_PUBLIC_GARDEN_STORE", () => {
     vi.stubEnv("NEXT_PUBLIC_GARDEN_STORE", "server");
     expect(createGardenStore({ kind: "browser" }).kind).toBe("browser");
   });
+
+  it("refuses an explicit server store in a browser-store build instead of swapping it", () => {
+    vi.stubEnv("NEXT_PUBLIC_GARDEN_STORE", "browser");
+    expect(() => createGardenStore({ kind: "server" })).toThrow(
+      "The server store is not available in a browser-store build.",
+    );
+    expect(made).toMatchObject({ server: 0, browser: 0 });
+  });
 });
 
 describe("lazyStore", () => {
