@@ -1,8 +1,8 @@
 # Database rules for the browser data path
 
-- Date: 2026-11-16
+- Date: 2026-11-16 (revised the same day after an independent review; see "Review findings")
 - Scope: one migration, `supabase/migrations/20261116041903_browser_path_rules.sql`, its
-  pgTAP tests, the store's use of it, and this record.
+  tests, the store's use of it, and this record.
 - Requirements: the eight "cannot move safely yet" blockers in
   [CLIENT_DATA_LAYER_2026-11-16.md](CLIENT_DATA_LAYER_2026-11-16.md).
 - **Nothing hosted was touched.** No Supabase or Vercel connector or cloud call was made.
@@ -14,155 +14,237 @@
 
 | File | Change |
 |---|---|
-| `supabase/migrations/20261116041903_browser_path_rules.sql` | New. Created with `supabase migration new browser_path_rules`. |
-| `supabase/tests/browser_path_rules.sql` | New. 216 tests. |
-| `supabase/tests/browser_path_rules_concurrency.sql` | New. 12 tests, two real sessions over dblink. |
-| `supabase/tests/deletion.sql`, `deletion_concurrency.sql` | One line each to switch deletion on (and off again in cleanup). Needed because deletion now ships switched off; nothing else in them changed. |
-| `applications/web/src/types/database.ts` | Two functions added (`garden_capabilities`, `import_thought`). See "Types" below. |
-| `applications/web/src/lib/garden/store/rules.ts` | Blank-character list, limits, capability parsing, the combination rule, import limits, SQLSTATE names. `deletionMissing` now also recognises the database switch. |
+| `supabase/migrations/20261116041903_browser_path_rules.sql` | New. Created with `supabase migration new browser_path_rules`; edited in place after review (never applied anywhere but the local stack). |
+| `supabase/tests/browser_path_rules.sql` | New. 277 tests. |
+| `supabase/tests/browser_path_rules_concurrency.sql` | New. 26 tests, two real sessions over dblink. |
+| `scripts/test-upgrade-browser-path-rules.sh` | New. Applies the migration over rows the older constraints accepted and the new rules refuse. |
+| `supabase/tests/deletion.sql`, `deletion_concurrency.sql` | One line each to switch deletion on (and off again in cleanup), because deletion ships switched off. |
+| `applications/web/src/types/database.ts` | Two functions added (`garden_capabilities`, `import_thought`). See "Types". |
+| `store/rules.ts` | Blank-character list, limits, capability parsing, the combination rule, import limits and messages, archived-place messages, SQLSTATE names. |
 | `store/queries.ts` | `readCapabilities`; `loadGardenWith` combines supplied flags with the database's answer. |
-| `store/import-rpc.ts` | New. `planImport`, `importThoughtWith`: the shared import call. |
-| `store/browser-store.ts`, `store/provider.tsx` | Use the above; flags are now optional. |
-| `store/*.test.ts` | Parity, rules and browser-store tests for all of it (287 web tests, up from 263). |
-| `applications/web/src/app/garden/import/actions.ts` | **Outside the files this work owned.** Three added lines: the server import now calls the same shared `importThoughtWith`, falling back to its existing call-by-call body when the RPC is absent. Without this the server import would break once the owner can no longer write `entries.created_at`. `actions.ts`, `data.ts`, `import-core.ts`, `workspace.tsx` and CSS were not edited. |
+| `store/import-rpc.ts` | New. `planImport`, `importThoughtWith`: the shared import call and its guarded fallback. |
+| `store/browser-store.ts`, `store/provider.tsx` | Use the above; flags are optional. |
+| `store/*.test.ts` | Parity, rules and browser-store tests (290 web tests, up from 263). |
+| `app/garden/import/actions.ts` | Outside the originally owned files. The server import calls the shared `importThoughtWith`. |
+| `app/garden/actions.ts` | Asked for by the review (finding 8). Two lines: failures are phrased by `rules.saveFailureMessage`, and an archived topic found by the pre-read raises the same coded error the database raises. |
+
+`data.ts`, `import-core.ts`, `validation.ts`, `workspace.tsx` and CSS were not edited.
 
 ## Design
 
-**The database is the authority; the web only refuses early.** Every rule below is
-enforced for any caller holding the person's own session, whichever path sent the request.
+**The database is the authority; the web only refuses early.** Every rule below holds for
+any caller with the person's own session, whichever path sent the request.
 
-**Blank means what `String.prototype.trim()` empties.** Postgres `btrim` strips spaces
-only, and `[[:space:]]` / `\s` do not match JavaScript either (measured on this stack:
-`\s` matches U+0085 and U+001C, which `trim()` keeps, and misses U+FEFF, which it
-removes). So `private.trim_text` uses an explicit list of the 25 characters: U+0009 to
-000D, 0020, 00A0, 1680, 2000 to 200A, 2028, 2029, 202F, 205F, 3000, FEFF.
-Zero-width space (U+200B), the joiners, U+2060, U+180E and U+0085 are **not** blank on
-the server path, so they are not blank in the database: this matches the server rule
-rather than improving on it. `rules.ts` carries the same list as `BLANK_CHARACTERS`;
-`rules.test.ts` checks it against `trim()` for every Unicode code point and against the
-literal in the migration file.
+**Existing rows are never rewritten, rejected or stranded.** Older constraints accepted
+text these rules refuse (a tab-only name, a newline-only body, a body over 20,000 UTF-16
+units). Revisions are immutable and the text is the person's own, so there is no
+acceptable repair. Therefore:
 
-**Lengths are UTF-16 code units,** as `String.length` counts them
-(`private.utf16_length`): an emoji costs two. The older code-point constraints stay.
+- Rules on text that can still be edited (names, titles, time zone) are **triggers that
+  fire only when that column is written**. No CHECK constraint is added to those tables:
+  a CHECK, even `NOT VALID`, is re-evaluated on every update of a row and would stop a
+  legacy garden from being archived or restored.
+- Rules on append-only text (revision bodies, bloom corrections) are CHECK constraints
+  left **`NOT VALID` permanently**: Postgres enforces them for every new row and never
+  looks at old ones. They must not be validated.
+- The migration cannot fail on existing data. It raises a NOTICE with counts only; the
+  Supabase CLI does not print notices, so use the query under "Hosted report" for the
+  numbers.
 
-**Names are trimmed by the database** (blocker 5's open decision). A `BEFORE` trigger
-refuses a blank or over-long name measured before trimming, as the web does, then stores
-it trimmed. Bodies and corrections are never trimmed. Existing padded names are left as
-they are and are trimmed the next time they are renamed.
+**Blank means what `String.prototype.trim()` empties.** `btrim` strips spaces only, and
+`[[:space:]]` / `\s` do not match JavaScript (measured here: `\s` matches U+0085 and U+001C,
+which `trim()` keeps, and misses U+FEFF, which it removes). `private.trim_text` uses an
+explicit list of the 25 characters: U+0009 to 000D, 0020, 00A0, 1680, 2000 to 200A, 2028,
+2029, 202F, 205F, 3000, FEFF. Zero-width space (U+200B), the joiners, U+2060, U+180E and
+U+0085 are **not** blank on the server path, so they are not blank in the database.
+`rules.ts` carries the list as `BLANK_CHARACTERS`; `rules.test.ts` checks it against
+`trim()` for every Unicode code point and against the literal in the migration.
+
+**Lengths are UTF-16 code units,** as `String.length` counts them (`private.utf16_length`).
+
+**Names are trimmed by the database.** The trigger refuses a blank or over-long name
+measured before trimming, as the web does, then stores it trimmed. Bodies and corrections
+are never trimmed.
 
 **Deployment switches: both must allow.**
 
 - `private.deployment_switches` is one row, `deletion_enabled` default false. Only the
-  operator and the service role can change it; no API role can read it. A missing row
-  reads as off. All six deletion RPCs call `private.require_deletion_enabled()` after the
-  sign-in check and refuse with SQLSTATE `SGA03`.
+  operator and the service role can change it; no API role can read it; a missing row
+  reads as off. All six deletion RPCs refuse with SQLSTATE `SGA03` while it is off.
 - `public.garden_capabilities()` returns `{"tending": bool, "deletion": bool}` for the
-  caller. `tending` is true only when `private.ai_runtime.enabled` and the caller is in
-  `private.ai_tenants`, so an account that is not allowlisted learns nothing about the
-  runtime or about anyone else.
-- A feature is available when the environment flag (`GARDEN_AI_ENABLED`,
-  `GARDEN_DELETION_ENABLED`) **and** the database allow it (`rules.availability`).
-  With no flags supplied (a static build has no server), the database decides alone.
-  Against a database that predates the RPC, only explicitly supplied flags count, which
-  is today's behaviour; with none, nothing is available, and the browser store asks the
-  database before any deletion call so an unguarded pre-switch RPC is never reached.
-- Consequence for deploy order: nothing becomes available by accident. Web first, then
-  migration: no change. After the migration, deletion is off until someone sets the
-  database switch, even with the environment flag on. **To turn deletion on the owner
-  now needs both** `update private.deployment_switches set deletion_enabled=true;` and
-  `GARDEN_DELETION_ENABLED=true` (this adds a step to item 2 of the delivery record's
-  pending list).
+  caller. `tending` is true only when the runtime is enabled and the caller is
+  allowlisted, so an account that is not learns nothing about the runtime or anyone else.
+- A feature is available when the environment flag **and** the database allow it
+  (`rules.availability`). With no flags supplied (a static build has no server), the
+  database decides alone. Against a database that predates the RPC, only explicitly
+  supplied flags count (today's behaviour); with none, nothing is available.
+- **To turn deletion on the owner now needs both**
+  `update private.deployment_switches set deletion_enabled=true;` and
+  `GARDEN_DELETION_ENABLED=true`.
 
-**Source dates belong to the database** (blocker 7). The owner's session loses the
-privilege to write `entries.created_at` and `seed_revisions.created_at` (column grants);
-both feed the tending watermark and the 28-day "change" tier. Archiving an entry is still
-an owner update. `seed_revisions.created_at` was not on the blocker list; it is the same
-hole. Left as they are: `revision_number` on a direct insert, and `created_at` on
-gardens, topics and thoughts.
+**Archived places take no new writing.** One SQLSTATE, `SGA02`, with a message naming
+what is archived (`this garden|topic|thought|entry is archived; restore it to write
+here`). Covered: a new thought, a thought moved to another topic, a new entry or revision
+(through `save_entry`, import, or a direct insert). Writing in an archived *garden* was
+allowed on the server path until now and is refused after this migration. A thought that
+is missing or another account's gets the same answer whatever its state (23503 from the
+foreign key on a direct insert, 42501 "seed unavailable" from `save_entry`).
 
-**Import is one bounded transaction** (blocker 6): `public.import_thought(p_plot_id,
-p_seed_id, p_title, p_entries)`. The caller sends the identifiers the web already derives,
-so a retry is a replay. Writing goes through `save_entry`, so replay, conflict and archive
-rules are those of an ordinary save. Security definer, keyed to `auth.uid()` throughout.
-What the server enforces today and what the RPC holds:
+**Writing and archiving serialise.** Every archive check takes `FOR SHARE` on the row it
+reads; an archive needs that row's lock. Lock order everywhere: `accounts` (pass
+preparation, deletion, import), then garden, topic, thought, entry. `save_entry` used to
+lock the thought first; it now takes the garden and topic share locks before it. Writers
+only ever take share locks on gardens and topics, so they do not block each other. One
+known exception: an owner update that *moves* a thought holds the thought's row lock
+before the trigger takes the share locks; it can only deadlock against a concurrent
+garden deletion, Postgres resolves that by aborting one of them (40P01, already phrased
+by the web), and the app has no move action.
+
+**Dates and revision numbers belong to the database.** The owner's session can no
+longer set or move `created_at` on gardens, topics, thoughts, entries or revisions, nor
+`updated_at`, nor a topic's `permission_version`: column grants name exactly what the
+web writes. No legitimate path needed the withdrawn columns except import, which now
+goes through the RPC. An API caller's `revision_number` is replaced with the next number
+for its thought (the existing scheme numbers per thought, not per entry).
+`accounts.created_at` is still owner-writable; nothing reads it.
+
+**Import is one bounded transaction:** `public.import_thought(p_plot_id, p_seed_id,
+p_title, p_entries)`.
 
 | Rule | Server today | Database now |
 |---|---|---|
-| Entries per import | 1 to 500 (`import-core.ts`) | same |
+| Entries | 1 to 500 per request | 1 to 500 **per call**; a thought may grow over several imports |
+| Entry shape | `{body, date}` | exactly `entry_id`, `revision_id`, `body`, optional `date`; any other key refused |
 | Title | not blank, at most 160 UTF-16 units after trimming | same |
 | Body | not blank, at most 20,000 UTF-16 units | same |
-| Date | null or a real `YYYY-MM-DD`, year 0100 or later | same |
-| Total size | 1 MB on the encoded request (Next's default `bodySizeLimit`) | 1,048,576 bytes of UTF-8, title plus bodies |
+| Date | null or a real `YYYY-MM-DD`, year 0100 or later | same, and no later than tomorrow's UTC date |
+| Size | 1 MB on the encoded request | title plus bodies at most 1,048,576 bytes, **and** the whole payload as text at most that plus 256 bytes per entry |
 
-The total-size figures are not byte-identical: the server measures the encoded request,
-the database measures the text inside it. The database is therefore never stricter than
-the server and is looser only by the encoding overhead. The shared web code applies the
-database's definition before calling.
+- The size figures are not byte-identical to the server's (it measures its own request
+  encoding). The whole-payload ceiling counts JSON escaping the way the request does, and
+  the 256 bytes per entry cover the identifiers and framing, so the database is never
+  stricter than the server for a payload the web builds.
+- **Dates are never in the future.** A date is accepted up to tomorrow in UTC, which is
+  today somewhere on earth (the "clock skew": at most one calendar day). The entry is
+  stored at noon UTC of that day, or at the moment of import if noon has not come yet.
+  This differs from the review's wording (refuse anything after now): refusing would
+  reject a note dated today when imported before noon UTC, which the web's own
+  validation accepts.
+- **An existing entry is never changed.** If the revision id exists, it must be the same
+  entry, thought and text (else 22023), it is counted as skipped, and nothing about it
+  changes, including its date. An entry id that exists under any other revision is
+  refused. An existing thought must be the caller's, in the topic named, and active, in an
+  active topic and garden; that is checked before anything is read or skipped.
+  Consequence: entries imported by the older call-by-call path keep whatever date they
+  have; a replay does not re-date them.
 
-**Archived places** (blocker 4). A new thought in an archived topic or garden is refused
-(`SGA02`, "choose an active topic"); the trigger takes `FOR SHARE` on the garden and
-topic rows so a thought cannot land during a concurrent archive. A new entry or revision
-in an archived thought, topic, garden or entry is refused with `save_entry`'s existing
-message and code (22023). User-facing messages are unchanged: a refused thought or save
-shows "Could not save. Your writing is still here; please retry."; a refused import shows
-"Choose an active topic.". **Behaviour change on the server path:** writing in an
-archived *garden* was allowed until now; it is refused after this migration. A missing
-or foreign parent is still refused by the composite foreign key (23503), as before.
+**Import fallback is guarded** (`store/import-rpc.ts`). "Function not found" is what a
+stale API schema cache says about a function that exists, and against the migrated
+database the call-by-call import would save entries and then be refused their dates. So
+it runs only on a positive signal that this is the older database: an update of
+`entries.created_at` that matches no row is *permitted* (privileges are checked by
+Postgres, not the cache). Otherwise the person is told import is unavailable and nothing
+was imported. The migration ends with `notify pgrst, 'reload schema'`. **If the API still
+answers "function not found" after applying, reload the schema cache by hand** (run
+`notify pgrst, 'reload schema';`, or restart the API from the dashboard).
 
-**Old web against the new database.** If the migration is applied before this web change
-is deployed, the old server import fails at its date update ("Could not import") after
-writing undated entries in separate transactions; re-running the import once the web is
-deployed sets the dates (a replay re-dates). Deploy the web first.
+Messages say what is known:
 
-## Rules and their tests
+| Situation | Message |
+|---|---|
+| The database refused the import (one transaction) | "Could not import. Nothing was saved; please retry." |
+| No readable answer came back | "Could not confirm the import. It may have been saved; run the same import again to check. Nothing will be saved twice." |
+| Call-by-call import (older database only) failed midway | "The import stopped partway. Some entries may have been saved; run the same import again to finish. Nothing will be saved twice." |
+| Function unreachable on a migrated database | "Import is not available right now. Nothing was imported; please try again in a minute." |
+| Writing refused because something is archived | "This garden is archived. Restore it to keep writing here; your draft is still here." (or topic, thought, entry) |
 
-All in `supabase/tests/browser_path_rules.sql` unless noted. "Before" is what the same
-statement did at migration `20261116023939`, run by hand on the local stack (see
-Executed).
+The archived message is built from the SQLSTATE and the one known word in the database's
+message; the database's text is never shown as is. `workspace.tsx` was not edited: it
+already displays the action's message.
 
-| # | Rule | Tests | Before |
+## Review findings
+
+| # | Finding | Resolution | Tests |
 |---|---|---|---|
-| 1 | `garden_capabilities()`: off by default; tending needs runtime and allowlist; another account learns nothing; two booleans only; anonymous and identity-less sessions refused | section 1 | no such function |
-| 1 | Deletion switch: default off; six RPCs refuse with `SGA03` and erase nothing; service role can flip it, cannot add or remove the row; users cannot read or flip it; a missing row reads as off | section 1, hygiene | deletion ran with no switch |
-| 2 | `correct` needs non-blank text; `keep` and `prune` carry none; text stored verbatim | section 2 | both accepted |
-| 3 | New thought in archived topic or garden refused, also through `create_seed` and import; new entry or revision in archived garden, topic, thought or entry refused, also by direct insert; restore reopens | section 3; concurrency file | all accepted (archived topic was refused only inside `save_entry`) |
-| 4 | Blank names, titles and bodies refused for each of the 25 characters; seven near-miss characters accepted; names stored trimmed; bodies verbatim; constraints hold with triggers disabled | helpers, section 4 | tab, NBSP and newline-only text accepted; padding stored |
-| 5 | Import: happy path, dates, order, replay, reused identifier rolls the whole import back, 501 entries, empty, malformed, blank, over-long, bad dates, exact size boundary (1,048,576 accepted, one more refused), bytes not characters, two-tenant negatives | section 5 | no such function |
-| 6 | Owner cannot set or move `entries.created_at` or `seed_revisions.created_at`; archive and ordinary saves still work; `create_seed` still works | section 6 | both accepted |
-| 8 | 120 / 160 / 20,000 in UTF-16 units, measured before trimming for names; time zone shape and 64 | section 4 | 61 emoji accepted as a name; `posix/...` zone accepted |
+| 1 | Import re-dated any existing entry, including to 9999 and in archived places | Replays change nothing; existing thought must be in the named topic, the caller's, active; future dates refused or clamped | `browser_path_rules.sql` "never re-dated" and "never in the future" blocks; REST transcript |
+| 2 | A pre-check hit aborted with no remedy | No abort path; triggers for editable text, permanent `NOT VALID` for append-only text | `scripts/test-upgrade-browser-path-rules.sh`; "legacy rows" block |
+| 3 | Thought could be moved into an archived topic; error code distinguished another tenant's thought | Trigger covers the move; tenant-scoped lookup | section 3 |
+| 4 | Unlocked archive check let writing land during an uncommitted archive | Confirmed real before the fix (the old check read without locking); share locks in the check and in `save_entry` | concurrency file, cases 3 to 5 |
+| 5 | Revision number 2147483647 broke the thought; other dates owner-writable | Database assigns the number for API callers; column grants on gardens, topics, thoughts | section 6 |
+| 6 | Import caps unclear; unknown keys uncounted | Per call, documented; unknown keys refused; whole payload counted | section 5 |
+| 7 | Stale cache read as "RPC absent"; false "unchanged" | Positive-signal fallback, truthful messages, schema reload | `parity.test.ts` import groups |
+| 8 | Archived refusal said only "please retry" | Specific message from SQLSTATE `SGA02` | `rules.test.ts`, `parity.test.ts` |
+| 9 | PostgREST layer never exercised | Run locally; transcript below | |
+
+Before the fixes, on the previously built local database, a hand-run probe confirmed
+findings 3 and 5 (move into an archived topic, a garden date moved, revision number
+2147483647 accepted and the next save failing with "integer out of range") and the new
+test file aborted at its legacy-row fixture because the old CHECK refused it (finding 2).
+Finding 1 is the reviewer's own execution; the old function is gone and was not re-run.
+
+Not repaired, by design: a thought whose highest revision number is already 2147483647
+(only possible through a past direct insert) still cannot take another save. The hosted
+report counts these.
+
+## PostgREST transcript (local)
+
+PostgREST v13.0.7 in its own container against the local database, with a test token
+signed locally with the local stack's development secret. This is PostgREST alone, not
+the Supabase gateway or auth service. Two synthetic accounts, removed afterwards. Status,
+route, what was attempted, and the code or a content-free summary of the answer:
+
+```
+401  POST  /rpc/garden_capabilities   capabilities, no token  ->  code=42501
+200  POST  /rpc/garden_capabilities   capabilities, signed in  ->  {"tending":false,"deletion":false}
+201  POST  /gardens                   create garden
+201  POST  /plots                     create topic
+200  GET   /gardens                   garden name stored trimmed  ->  {"trimmed":true}
+400  POST  /gardens                   create garden, tab-only name  ->  code=23514
+403  POST  /gardens                   create garden with a chosen date  ->  code=42501
+200  POST  /rpc/import_thought        import_thought  ->  {"created":2,"skipped":0}
+200  POST  /rpc/import_thought        import_thought replay, other dates  ->  {"created":0,"skipped":2}
+200  GET   /entries                   entry dates after replay  ->  {"first":"2019-03-04T12","secondIsToday":true}
+400  POST  /rpc/import_thought        import_thought, unknown key  ->  code=22023
+400  POST  /rpc/import_thought        import_thought, date in 9999  ->  code=22023
+400  POST  /rpc/import_thought        import_thought by another account  ->  code=SGA02
+200  GET   /seeds                     other account reads the thought  ->  {"rows":0}
+403  PATCH /entries                   move an entry date (the fallback probe)  ->  code=42501
+200  POST  /rpc/save_entry            save_entry  ->  {"returnedId":true}
+400  POST  /rpc/save_entry            save_entry, newline-only body  ->  code=23514
+400  POST  /rpc/deletion_preview      deletion_preview, switch off  ->  code=SGA03
+400  POST  /rpc/delete_entry          delete_entry, switch off  ->  code=SGA03
+204  PATCH /gardens                   archive the garden
+400  POST  /rpc/save_entry            save_entry in the archived garden  ->  code=SGA02
+     message carried to the client: "this garden is archived; restore it to write here"
+400  POST  /seeds                     new thought in the archived garden  ->  code=SGA02
+400  POST  /rpc/import_thought        import_thought in the archived garden  ->  code=SGA02
+200  POST  /rpc/garden_capabilities   capabilities, switch on  ->  {"tending":false,"deletion":true}
+200  POST  /rpc/delete_entry          delete_entry, switch on  ->  {"deleted":true}
+```
+
+The custom SQLSTATEs arrive as HTTP 400 with `code` intact, which is what the web maps.
+
+## Store tests, and what they do not prove
+
+`parity.test.ts` runs the server path and the browser path over **a fake Supabase client
+that checks nothing**: no RLS, no constraint, no trigger, no RPC body. It proves both
+paths send the same calls and phrase the same refusals when the fake is told to refuse.
+**Only the pgTAP files, the upgrade scripts and the transcript above exercise the real
+rules.** The browser store itself has still never run against a real Supabase or in a
+browser.
 
 Blocker 8 (session refresh and `Cache-Control: private, no-store`, the CSP and security
 headers, server redirects) has no SQL here. It belongs to the client stage: checklist
 items 9 and 10 of the client data layer record.
 
-Not mirrored, deliberately: the 2,000-character correction limit already exists in the
-database and the server adds nothing to it; a new topic in an archived garden is allowed
-on both paths today and stays allowed.
+## Hosted report
 
-### Store tests, and what they do not prove
-
-`parity.test.ts` gained two groups (import through the RPC; switches and refusals),
-`rules.test.ts` three, `browser-store.test.ts` four cases. They run the server path and
-the browser path over **a fake Supabase client that checks nothing**: no RLS, no
-constraint, no trigger, no RPC body. They prove both paths send the same calls and phrase
-the same refusals when the fake is told to refuse. **Only the pgTAP files exercise the
-real rules.** The browser path has still never run against a real Supabase, local or
-hosted, and `import_thought` and `garden_capabilities` have not been called through
-PostgREST (the local run was database-only).
-
-## Hosted pre-checks
-
-The migration runs its own pre-check first and stops, changing nothing, if any existing
-row would violate a new constraint; the error carries counts only. This was exercised
-locally with a blank-named garden and a blank body: the migration refused with the two
-counts and left no object behind.
-
-To know in advance, run this on the hosted database. It is read-only, needs nothing from
-the migration, and returns counts, never content. Every row above the two "informational"
-lines must be 0 except the three "padded" rows, which are allowed.
+Read-only, self-contained, counts only, never content. Nothing it finds blocks the
+migration or is changed by it; it tells the owner how much legacy text predates the rules.
 
 ```sql
 -- Counts only. Self-contained: needs nothing from the migration. Read-only.
+-- Informational: no count here stops the migration, and no row counted is changed by it.
 with ws as (select E'\u0009\u000A\u000B\u000C\u000D\u0020\u00A0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u2028\u2029\u202F\u205F\u3000\uFEFF' as c),
 u as (select '[^\U00010000-\U0010FFFF]' as bmp)
 select 'garden names: blank' as rule, count(*) from public.gardens, ws where btrim(name, ws.c)=''
@@ -180,114 +262,125 @@ union all select 'bloom responses: correct without text', count(*) from public.b
 union all select 'bloom responses: correction on keep or prune', count(*) from public.bloom_responses where response<>'correct' and correction is not null
 union all select 'time zones: shape or length the web refuses', count(*) from public.accounts where char_length(timezone)>64 or timezone !~ '^[A-Za-z][A-Za-z0-9_+-]*(/[A-Za-z0-9_+-]+){0,2}$'
 union all select 'thoughts in an archived topic or garden (informational; existing rows are untouched)', count(*) from public.seeds s join public.plots p on p.id=s.plot_id join public.gardens g on g.id=s.garden_id where s.status='active' and (p.archived_at is not null or g.status<>'active')
-union all select 'entries dated in the future (informational)', count(*) from public.entries where created_at>now();
+union all select 'entries dated in the future (informational)', count(*) from public.entries where created_at>now()
+union all select 'thoughts whose highest revision number is 2147483647 (their next save fails; not caused or repaired by this migration)', count(*) from (select seed_id from public.seed_revisions group by seed_id having max(revision_number)=2147483647) m;
 ```
 
-Then, in order: apply the four pending 20261116 migrations, apply this one, run advisors
-and the two-user canary (extend it with `garden_capabilities()` and one refused
-`delete_entry` while the switch is off).
+Then, in order: deploy the web change, apply the four pending 20261116 migrations, apply
+this one, confirm the API sees `garden_capabilities` (reload the schema cache if not),
+run advisors and the two-user canary (extend it with `garden_capabilities()` and one
+refused `delete_entry` while the switch is off).
+
+**Old web against the new database:** the old server import would save undated entries
+and then fail at its date update, and a later replay will not re-date them. Deploy the
+web first.
 
 ## Types
 
 `applications/web/src/types/database.ts` was edited by hand to add the two functions in
 the file's existing style. The local generator in this CLI (3.1.0) emits a different
 dialect from the committed file (quoted keys, `ComputedFields`, `NonNullable<Json>`,
-non-null view columns), which is unrelated to this migration and was not adopted. A
-token-level comparison of the committed file with the local generation shows only those
-dialect differences; the function lists match.
+non-null view columns), unrelated to this migration and not adopted. A token-level
+comparison shows only those dialect differences; the function lists match, and the
+revision after review changed no signature.
 
 ## Executed
 
-On the local stack (`supabase` CLI 3.1.0, Postgres 17, database-only), 2026-11-16:
+Local stack (`supabase` CLI 3.1.0, Postgres 17, database-only), 2026-11-16, after the
+review fixes:
 
 - `npx supabase db reset`: all 12 migrations apply.
-- `npx supabase test db`: 11 files, **637 tests**, pass; run twice. Before this work: 9
+- `npx supabase test db`: 11 files, **712 tests**, pass; run twice. Before this work: 9
   files, 409 tests.
-- Before/after: at `--version 20261116023939` the new test file aborts at its first
-  statement (the functions do not exist), and a hand-run probe confirmed each previously
-  permitted statement in the "Before" column succeeded. After: 228 new tests pass.
 - `npx supabase db lint --schema public,private --level warning --fail-on error`: no
   schema errors.
-- `scripts/test-upgrade.sh`: passes ("Upgrade preserves all 30 source revisions..."). Its
-  dedicated stack did not exist here; `.local-runtime/supabase/config.toml` (git-ignored)
-  was created from the main config with the project id and ports changed, and a PATH shim
-  mapped `supabase` to `npx supabase`. That stack was stopped afterwards.
+- `bash scripts/test-upgrade.sh`: passes. `bash scripts/test-upgrade-browser-path-rules.sh`:
+  passes (0 existing rows changed; legacy rows still archive, restore, revise and export;
+  new rows of the same kinds refused). Their dedicated stack did not exist here:
+  `.local-runtime/supabase/` (git-ignored) was created from the main config with the
+  project id and ports changed, and a PATH shim mapped `supabase` to `npx supabase`. It
+  was stopped afterwards.
+- PostgREST transcript above (image `postgrest/postgrest:v13.0.7` pulled for it; container
+  removed).
 - From `applications/web`: `npx tsc --noEmit` exit 0; `npx eslint` exit 0;
-  `npx vitest run` twice, 40 files, 287 tests, pass both times; `npm run test:node`, 88
+  `npx vitest run` twice, 40 files, 290 tests, pass both times; `npm run test:node`, 88
   pass.
 - The reversal below, inside a transaction that was rolled back: no error, no object left.
 
 ## Not executed, not verified
 
-- Anything hosted: the pre-check query, the migration, advisors, the canary.
-- The two RPCs through PostgREST or `supabase-js`; the browser store against a real
-  database or in a browser.
+- Anything hosted: the report query, the migration, advisors, the canary.
+- The Supabase gateway and auth service, `supabase-js`, and the browser store against a
+  real database or in a browser.
+- That a running PostgREST picks up the migration's `notify` (it was started after the
+  migration; a manual `notify` during the transcript did reload it).
+- The pre-fix behaviour of finding 1 (taken from the reviewer's run).
 - A production build, the web journey scripts, the local HTTP script.
-- `supabase gen types` output was compared, not adopted (see Types).
-- Performance of the constraints on large tables (two immutable function calls per row
-  written; a 20,000-character body runs one regular expression).
+- Cost of the rules on large tables (two immutable function calls per row written; a
+  20,000-character body runs one regular expression; each save takes three more row
+  share locks).
 
 ## Reversal
 
-Before applying to hosted: delete the migration file and the two test files, revert the
-two one-line test edits and the web changes. The web tolerates a database without the
-RPCs, so the order does not matter.
+Before applying to hosted: delete the migration, the two test files and the upgrade
+script, revert the two one-line test edits and the web changes. The web tolerates a
+database without the RPCs.
 
-After applying: the quick operational reversal for deletion is the switch itself
-(`update private.deployment_switches set deletion_enabled=true`). To remove the rules,
-ship a new migration with the statements below (the committed ledger stays the
-authority; do not run it ad hoc on hosted). No data is rewritten in either direction;
-names trimmed in the meantime stay trimmed, and entries dated by import keep their dates.
+After applying: the operational reversal for deletion is the switch itself. To remove
+the rules, ship a new migration with the statements below (the committed ledger stays
+the authority; do not run it ad hoc on hosted). No data is rewritten in either
+direction; names trimmed in the meantime stay trimmed, and entries dated by import keep
+their dates.
 
 ```sql
 begin;
--- 1. Deletion RPCs back to their bodies in 20261116010931_in_app_deletion.sql (no switch).
--- (run here, as `create or replace function`, the six definitions of deletion_preview, delete_entry,
---  delete_seed, delete_plot, delete_garden and delete_account exactly as written in that file)
+-- 1. Functions back to their earlier bodies: the six deletion RPCs as in
+--    20261116010931_in_app_deletion.sql, save_entry as in 20260907003913_web_thinking_garden.sql.
+-- (run those seven definitions here, each as `create or replace function`, exactly as written in those files)
 drop function private.require_deletion_enabled();
 drop function public.garden_capabilities();
 drop table private.deployment_switches;
--- 2. Import RPC and the owner's date privileges.
 drop function public.import_thought(uuid,uuid,text,jsonb);
-revoke insert,update on public.entries from authenticated;
-grant insert,update on public.entries to authenticated;
+-- 2. The owner's earlier table privileges.
+revoke insert,update on public.gardens,public.plots,public.seeds,public.entries from authenticated;
+grant insert,update on public.gardens,public.plots,public.seeds,public.entries to authenticated;
 revoke insert on public.seed_revisions from authenticated;
 grant insert on public.seed_revisions to authenticated;
--- 3. Archived-place triggers.
+-- 3. Triggers and their functions.
+drop trigger revisions_sequence on public.seed_revisions;
 drop trigger revisions_refuse_archived on public.seed_revisions;
 drop trigger seeds_refuse_archived_parent on public.seeds;
-drop function private.refuse_archived_writing();
-drop function private.refuse_archived_parent();
--- 4. Constraints, name triggers and helpers.
-alter table public.bloom_responses drop constraint bloom_responses_correction_rule;
-alter table public.accounts drop constraint accounts_timezone_shape;
-alter table public.seed_revisions drop constraint seed_revisions_body_rule;
-alter table public.seeds drop constraint seeds_title_rule;
-alter table public.plots drop constraint plots_name_rule;
-alter table public.gardens drop constraint gardens_name_rule;
+drop trigger accounts_timezone_shape on public.accounts;
 drop trigger seeds_clean_title on public.seeds;
 drop trigger plots_clean_name on public.plots;
 drop trigger gardens_clean_name on public.gardens;
+drop function private.assign_revision_number();
+drop function private.refuse_archived_writing();
+drop function private.refuse_archived_parent();
+drop function private.check_timezone_shape();
 drop function private.clean_seed_title();
 drop function private.clean_area_name();
+-- 4. Constraints and helpers.
+alter table public.bloom_responses drop constraint bloom_responses_correction_rule;
+alter table public.seed_revisions drop constraint seed_revisions_body_rule;
 drop function private.is_calendar_date(text);
 drop function private.utf16_length(text);
 drop function private.trim_text(text);
+notify pgrst, 'reload schema';
 commit;
 ```
 
-Revert or keep the web change as preferred: with the RPCs gone it falls back to the
-call-by-call import and to environment flags alone.
-
 ## Needed in files this work did not own
 
-- `documents/DECISION_LOG.md`: record (a) both-must-allow for deployment switches and
-  the new database deletion switch, (b) the database trims names, (c) blank and length
-  follow JavaScript's definitions, (d) source dates are not owner-writable and import is
-  an RPC, (e) writing in an archived garden is refused.
+- `documents/DECISION_LOG.md`: record (a) both-must-allow and the database deletion
+  switch, (b) the database trims names, (c) blank and length follow JavaScript, (d) dates
+  and revision numbers are the database's and import is an RPC that never changes an
+  existing entry, (e) writing in an archived garden is refused, (f) legacy text is never
+  validated against new rules.
 - `documents/operations/DELIVERY_2026-11-16.md` and `DELETION_2026-11-16.md`: turning
-  deletion on now also needs the database switch; five migrations are pending, not four.
-- `documents/operations/README.md`: link this record.
+  deletion on also needs the database switch; five migrations are pending.
+- `documents/operations/README.md`: link this record. `README.md`: mention the second
+  upgrade script.
 - `scripts/hosted-canary.sql`: add the capability and switch checks.
-- `import-core.ts`: `runImport` is now reached only against a database without
-  `import_thought`; it and the adapters can be deleted once the migration is applied.
+- `import-core.ts`: `runImport` is reached only against a database without
+  `import_thought`; it and the adapters can go once the migration is applied.

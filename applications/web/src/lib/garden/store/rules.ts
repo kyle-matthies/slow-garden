@@ -7,6 +7,7 @@
  * rules only refuse early and phrase refusals the same way on both paths.
  */
 import type { ActionResult } from "../types";
+import { saveErrorMessage } from "../validation";
 
 export type AreaKind = "garden" | "plot" | "seed";
 export type ArchivableKind = AreaKind | "entry";
@@ -105,6 +106,42 @@ export function rpcMissing(error: unknown): boolean {
   return code === "PGRST202" || code === "42883";
 }
 
+/* ---------- archived places ---------- */
+
+/**
+ * SQLSTATE the database raises when writing is aimed at something archived
+ * (a garden, topic, thought or entry), with a message that names which.
+ */
+export const ARCHIVED_PLACE = "SGA02";
+
+/**
+ * What to tell the person, built from the database's own wording but never
+ * passing it through: only the four known subjects are recognised.
+ */
+export function archivedMessage(error: unknown): string {
+  const text = (error as { message?: unknown } | null)?.message;
+  const what =
+    typeof text === "string"
+      ? /^this (garden|topic|thought|entry) is archived\b/.exec(text)?.[1]
+      : undefined;
+  return `This ${what ?? "place"} is archived. Restore it to keep writing here; your draft is still here.`;
+}
+
+/** The error the stores raise themselves when they read a topic and find it archived. */
+export function archivedTopicError(): { code: string; message: string } {
+  return {
+    code: ARCHIVED_PLACE,
+    message: "this topic is archived; restore it to write here",
+  };
+}
+
+/** A failed save, create or archive: say what is archived when that is why. */
+export function saveFailureMessage(error: unknown): string {
+  return (error as { code?: string } | null)?.code === ARCHIVED_PLACE
+    ? archivedMessage(error)
+    : saveErrorMessage(error);
+}
+
 /* ---------- areas and archiving ---------- */
 
 export function areaTable(kind: AreaKind): "gardens" | "plots" | "seeds" {
@@ -196,8 +233,19 @@ export const IMPORT_FAILED =
   "Could not import. Your files are unchanged; please retry.";
 export const IMPORT_CHECK_INPUT = "Check the topic and entries, then retry.";
 export const IMPORT_TOPIC_UNAVAILABLE = "Choose an active topic.";
-/** SQLSTATE raised when a thought or import targets a missing or archived topic or garden. */
-export const TOPIC_UNAVAILABLE = "SGA02";
+/** An atomic import the database refused: it wrote nothing. */
+export const IMPORT_NOT_SAVED = "Could not import. Nothing was saved; please retry.";
+/** No answer came back, so whether the import was saved is unknown. */
+export const IMPORT_UNCERTAIN =
+  "Could not confirm the import. It may have been saved; run the same import again to check. Nothing will be saved twice.";
+/** The call-by-call import failed after it may have written. */
+export const IMPORT_INTERRUPTED =
+  "The import stopped partway. Some entries may have been saved; run the same import again to finish. Nothing will be saved twice.";
+/** The import function could not be reached and the older path is not safe to use. */
+export const IMPORT_UNAVAILABLE =
+  "Import is not available right now. Nothing was imported; please try again in a minute.";
+/** An id no row has: the probe that asks whether the owner may still write entry dates. */
+export const NO_ROW = "00000000-0000-0000-0000-000000000000";
 /** One import: at most this many entries (also enforced by `import_thought`). */
 export const IMPORT_MAX_ENTRIES = 500;
 /**

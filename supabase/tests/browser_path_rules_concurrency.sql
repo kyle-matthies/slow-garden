@@ -37,7 +37,7 @@ select dblink_exec('archiver','commit');
 select pg_sleep(1);
 select is(dblink_is_busy('writer'),0,'and is answered once the archive commits');
 select count(*) as answered from dblink_get_result('writer',false) as t(r text) \gset
-select ok(dblink_error_message('writer') like 'ERROR:  choose an active topic%','with the archived-topic refusal');
+select ok(dblink_error_message('writer') like 'ERROR:  this topic is archived; restore it to write here%','with the archived-topic refusal');
 select count(*) as drained from dblink_get_result('writer',false) as t(r text) \gset
 select is((select count(*) from public.seeds where id='6ccccccc-cccc-4ccc-8ccc-ccccccccccc1'),0::bigint,'no thought landed in the archived topic');
 
@@ -56,6 +56,54 @@ select ok(dblink_error_message('writer') like 'ERROR:  choose an active topic%',
 select count(*) as drained from dblink_get_result('writer',false) as t(r text) \gset
 select is((select count(*) from public.seeds where garden_id='6aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1'),0::bigint,'nothing landed in the archived garden');
 select is((select count(*) from public.entries where garden_id='6aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1'),0::bigint,'and no entry');
+
+-- 3. An existing thought, a garden archive in flight, and new writing (review finding 4).
+select dblink_exec('setup',$q$
+  update public.gardens set status='active',archived_at=null where id='6aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1';
+  insert into public.seeds(id,tenant_id,garden_id,plot_id,title) values('6ccccccc-cccc-4ccc-8ccc-ccccccccccc3','66666666-6666-4666-8666-666666666666','6aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1','6bbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2','Existing thought');
+$q$);
+select dblink_exec('archiver','begin');
+select dblink_exec('archiver',$q$update public.gardens set status='archived',archived_at=now() where id='6aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1'$q$);
+select is(dblink_send_query('writer',$q$select public.save_entry('6ccccccc-cccc-4ccc-8ccc-ccccccccccc3','6ddddddd-dddd-4ddd-8ddd-ddddddddddd3','6eeeeeee-eeee-4eee-8eee-eeeeeeeeeee3','Synthetic writing during an archive.')$q$),1,'a save on an existing thought is sent while its garden''s archive is uncommitted');
+select pg_sleep(1);
+select is(dblink_is_busy('writer'),1,'the save waits for the archive instead of reading the garden as active');
+select dblink_exec('archiver','commit');
+select pg_sleep(1);
+select is(dblink_is_busy('writer'),0,'and is answered once the archive commits');
+select count(*) as answered from dblink_get_result('writer',false) as t(r text) \gset
+select ok(dblink_error_message('writer') like 'ERROR:  this garden is archived; restore it to write here%','with the archived-garden refusal');
+select count(*) as drained from dblink_get_result('writer',false) as t(r text) \gset
+select is((select count(*) from public.seed_revisions where seed_id='6ccccccc-cccc-4ccc-8ccc-ccccccccccc3'),0::bigint,'no writing landed in the archived garden');
+
+-- 4. The same through a direct revision insert, which does not go through save_entry.
+select dblink_exec('setup',$q$update public.gardens set status='active',archived_at=null where id='6aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1'$q$);
+select dblink_exec('archiver','begin');
+select dblink_exec('archiver',$q$update public.plots set archived_at=now() where id='6bbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2'$q$);
+select is(dblink_send_query('writer',$q$insert into public.seed_revisions(tenant_id,garden_id,seed_id,revision_number,body,created_by)
+  values('66666666-6666-4666-8666-666666666666','6aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1','6ccccccc-cccc-4ccc-8ccc-ccccccccccc3',1,'Synthetic direct insert during an archive.','66666666-6666-4666-8666-666666666666')$q$),1,'a direct revision insert is sent while its topic''s archive is uncommitted');
+select pg_sleep(1);
+select is(dblink_is_busy('writer'),1,'it waits for the archive');
+select dblink_exec('archiver','commit');
+select pg_sleep(1);
+select count(*) as answered from dblink_get_result('writer',false) as t(r text) \gset
+select ok(dblink_error_message('writer') like 'ERROR:  this topic is archived; restore it to write here%','and is refused once the archive commits');
+select count(*) as drained from dblink_get_result('writer',false) as t(r text) \gset
+
+-- 5. The other way round: writing in flight, then an archive. Both finish; the archive waited.
+select dblink_exec('setup',$q$update public.plots set archived_at=null where id='6bbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2'$q$);
+select dblink_exec('writer','begin');
+select count(*) as saved from dblink('writer',$q$select public.save_entry('6ccccccc-cccc-4ccc-8ccc-ccccccccccc3','6ddddddd-dddd-4ddd-8ddd-ddddddddddd5','6eeeeeee-eeee-4eee-8eee-eeeeeeeeeee5','Synthetic writing before an archive.')$q$) as t(r uuid) \gset
+select is(dblink_send_query('archiver',$q$update public.gardens set status='archived',archived_at=now() where id='6aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1'$q$),1,'an archive is sent while a save is uncommitted');
+select pg_sleep(1);
+select is(dblink_is_busy('archiver'),1,'the archive waits for the save');
+select dblink_exec('writer','commit');
+select pg_sleep(1);
+select is(dblink_is_busy('archiver'),0,'and completes after it: neither deadlocks');
+select count(*) as drained from dblink_get_result('archiver',false) as t(r text) \gset
+select is(dblink_error_message('archiver'),'OK','without error');
+select count(*) as drained from dblink_get_result('archiver',false) as t(r text) \gset
+select is((select count(*) from public.seed_revisions where id='6eeeeeee-eeee-4eee-8eee-eeeeeeeeeee5'),1::bigint,'the save that came first is kept');
+select is((select status::text from public.gardens where id='6aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1'),'archived','and the garden is archived');
 
 select pg_temp.cleanup();
 select is((select count(*) from auth.users where id='66666666-6666-4666-8666-666666666666'),0::bigint,'the committed fixtures are removed');

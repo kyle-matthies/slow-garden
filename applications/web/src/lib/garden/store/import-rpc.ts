@@ -2,10 +2,10 @@
  * Import through `public.import_thought`, shared by the server action and the
  * browser data layer so both send exactly the same call.
  *
- * The RPC is one transaction and holds the limits itself (500 entries,
- * 1,048,576 bytes, blank and length rules, archived topics) and is the only
- * way an entry's date can be set once the owner can no longer write
- * `entries.created_at`. Identifiers are derived here exactly as
+ * The RPC is one transaction and holds the limits itself (500 entries per
+ * call, 1,048,576 bytes, blank and length rules, archived topics) and is the
+ * only way an entry's date can be set once the owner can no longer write
+ * `entries.created_at`. It never changes an entry that already exists. Identifiers are derived here exactly as
  * `runImport` derives them, so a retry is a replay and notes imported before
  * the RPC existed are skipped, not duplicated.
  *
@@ -71,10 +71,19 @@ export async function planImport(
 }
 
 /**
- * Validate, then import in one database transaction. `legacy` is the
- * call-by-call import used before the RPC existed; it runs only when the
- * database answers that `import_thought` is not installed. Throws on any other
- * database failure, for the caller to report as it always has.
+ * Validate, then import in one database transaction.
+ *
+ * `legacy` is the call-by-call import used before the RPC existed. An error
+ * saying the function is missing is not enough to use it: a stale API schema
+ * cache says the same about a function that exists, and against the migrated
+ * database the call-by-call path would save entries and then be refused their
+ * dates. So it runs only on a positive signal that this is the older database:
+ * the owner may still write `entries.created_at` (asked with an update that
+ * matches no row; privileges are checked by Postgres itself, not the cache).
+ *
+ * Messages say what is known: an import the database refused saved nothing
+ * (one transaction); a call that never answered, or a call-by-call import that
+ * failed midway, may have saved something.
  */
 export async function importThoughtWith(
   db: Db,
@@ -86,17 +95,41 @@ export async function importThoughtWith(
   if (invalid) return { ok: false, message: invalid };
   if (rules.importBytes(input) > rules.IMPORT_MAX_BYTES)
     return { ok: false, message: rules.IMPORT_CHECK_INPUT };
-  const { data, error } = await db.rpc(
-    "import_thought",
-    await planImport(tenantId, input),
-  );
+  const plan = await planImport(tenantId, input);
+  let answer: { data: unknown; error: unknown };
+  try {
+    answer = await db.rpc("import_thought", plan);
+  } catch {
+    return { ok: false, message: rules.IMPORT_UNCERTAIN };
+  }
+  const { data, error } = answer;
   if (error) {
-    if (rules.rpcMissing(error)) return legacy();
-    if ((error as { code?: string }).code === rules.TOPIC_UNAVAILABLE)
-      return { ok: false, message: rules.IMPORT_TOPIC_UNAVAILABLE };
-    throw error;
+    const code = (error as { code?: string }).code;
+    if (rules.rpcMissing(error)) {
+      const probe = await db
+        .from("entries")
+        .update({ created_at: new Date(0).toISOString() })
+        .eq("id", rules.NO_ROW);
+      if (probe.error) return { ok: false, message: rules.IMPORT_UNAVAILABLE };
+      try {
+        return await legacy();
+      } catch {
+        return { ok: false, message: rules.IMPORT_INTERRUPTED };
+      }
+    }
+    if (code === rules.ARCHIVED_PLACE)
+      return {
+        ok: false,
+        message: /^this thought is archived\b/.test(
+          String((error as { message?: unknown }).message ?? ""),
+        )
+          ? rules.archivedMessage(error)
+          : rules.IMPORT_TOPIC_UNAVAILABLE,
+      };
+    if (code === "22023") return { ok: false, message: rules.IMPORT_CHECK_INPUT };
+    return { ok: false, message: rules.IMPORT_NOT_SAVED };
   }
   const receipt = rules.importReceipt(data);
-  if (!receipt) throw new Error("Unexpected import result");
+  if (!receipt) return { ok: false, message: rules.IMPORT_UNCERTAIN };
   return { ok: true, ...receipt };
 }

@@ -196,13 +196,14 @@ describe("blank text and length: the same definition on the server path and in t
   });
 
   it("states the same numbers as the migration", () => {
-    expect(MIGRATION).toContain(`private.utf16_length(name)<=${rules.TEXT_LIMITS.gardenName}) not valid`);
-    expect(MIGRATION).toContain(`private.utf16_length(title)<=${rules.TEXT_LIMITS.thoughtTitle}) not valid`);
+    expect(MIGRATION).toContain(`private.utf16_length(new.name)>${rules.TEXT_LIMITS.gardenName} then`);
+    expect(MIGRATION).toContain(`private.utf16_length(new.title)>${rules.TEXT_LIMITS.thoughtTitle} then`);
     expect(MIGRATION).toContain(`private.utf16_length(body)<=${rules.TEXT_LIMITS.entryBody}) not valid`);
-    expect(MIGRATION).toContain(`char_length(timezone)<=${rules.TEXT_LIMITS.timezone}`);
+    expect(MIGRATION).toContain(`char_length(new.timezone)>${rules.TEXT_LIMITS.timezone}`);
+    expect(MIGRATION).not.toMatch(/validate constraint/i);
     expect(MIGRATION).toContain(`jsonb_array_length(p_entries) not between 1 and ${rules.IMPORT_MAX_ENTRIES}`);
     expect(MIGRATION).toContain(`octet_length(p_title)>${rules.IMPORT_MAX_BYTES}`);
-    expect(MIGRATION).toContain(`errcode='${rules.TOPIC_UNAVAILABLE}'`);
+    expect(MIGRATION).toContain(`errcode='${rules.ARCHIVED_PLACE}'`);
     expect(MIGRATION).toContain(`errcode='${rules.DELETION_SWITCHED_OFF}'`);
   });
 });
@@ -264,5 +265,31 @@ describe("import limits", () => {
     expect(rules.importReceipt({ id: ID, created: 2, skipped: 1, extra: true })).toEqual({ id: ID, created: 2, skipped: 1 });
     for (const odd of [null, "x", {}, { id: ID }, { id: 7, created: 1, skipped: 0 }, { id: ID, created: "1", skipped: 0 }])
       expect(rules.importReceipt(odd)).toBeNull();
+  });
+});
+
+describe("archived places", () => {
+  it("names what is archived, from the database's four known messages only", () => {
+    for (const what of ["garden", "topic", "thought", "entry"]) {
+      const error = { code: "SGA02", message: `this ${what} is archived; restore it to write here` };
+      expect(MIGRATION).toContain(`raise exception '${error.message}' using errcode='SGA02'`);
+      expect(rules.saveFailureMessage(error)).toBe(
+        `This ${what} is archived. Restore it to keep writing here; your draft is still here.`,
+      );
+    }
+    expect(rules.saveFailureMessage({ code: "SGA02", message: "this <script> is archived" })).toBe(
+      "This place is archived. Restore it to keep writing here; your draft is still here.",
+    );
+    expect(rules.saveFailureMessage({ code: "SGA02" })).toContain("This place is archived.");
+    expect(rules.saveFailureMessage(rules.archivedTopicError())).toContain("This topic is archived.");
+  });
+  it("leaves every other failure as it was", () => {
+    expect(rules.saveFailureMessage({ code: "40001" })).toBe(
+      "This entry changed elsewhere. Reload to review it; your draft is still here.",
+    );
+    expect(rules.saveFailureMessage({ code: "23514", message: "this garden is archived" })).toBe(
+      "Could not save. Your writing is still here; please retry.",
+    );
+    expect(rules.saveFailureMessage(null)).toBe("Could not save. Your writing is still here; please retry.");
   });
 });

@@ -428,7 +428,7 @@ describe("gardens, topics, thoughts and entries", () => {
       { ok: false, message: "Please choose a short name." },
       { ok: false, message: "Please choose a short name." },
       { ok: false, message: "Please choose a short name." },
-      { ok: false, message: "Could not save. Your writing is still here; please retry." },
+      { ok: false, message: "This topic is archived. Restore it to keep writing here; your draft is still here." },
       { ok: false, message: "Could not save. Your writing is still here; please retry." },
     ]);
     expect(run.world.tables.seeds).toHaveLength(1);
@@ -621,7 +621,9 @@ describe("import", () => {
     expect(second).toMatchObject({ ok: true, id: first.id, created: 0, skipped: 2 });
     expect(run.world.tables.seeds.at(-1)).toEqual({ id: first.id, tenant_id: T, garden_id: G1, plot_id: P1, title: "Imported notes" });
     const dated = run.calls.filter((c) => c.target === "from:entries");
-    expect(dated[0].steps[0]).toEqual(["update", { created_at: "2026-01-05T12:00:00.000Z" }]);
+    // First the probe that matches no row (may this owner still write entry dates?), then the real date.
+    expect(dated[0].steps).toEqual([["update", { created_at: "1970-01-01T00:00:00.000Z" }], ["eq", "id", "00000000-0000-0000-0000-000000000000"]]);
+    expect(dated[1].steps[0]).toEqual(["update", { created_at: "2026-01-05T12:00:00.000Z" }]);
     expect(run.calls.filter((c) => c.target === "rpc:save_entry")[0].steps[0][1]).not.toHaveProperty("p_expected_revision_id");
   });
 
@@ -644,7 +646,26 @@ describe("import", () => {
     const failed = await both((s) => [() => s.importThought(input)], {
       arrange: (w) => (w.fail["rpc.save_entry"] = { code: "57014" }),
     });
-    expect(values(failed)).toEqual([{ ok: false, message: "Could not import. Your files are unchanged; please retry." }]);
+    // The call-by-call import is not one transaction: say that something may have been saved.
+    expect(values(failed)).toEqual([
+      { ok: false, message: "The import stopped partway. Some entries may have been saved; run the same import again to finish. Nothing will be saved twice." },
+    ]);
+    expect(failed.world.tables.seeds).toHaveLength(2);
+  });
+
+  it("does not use the call-by-call import when a missing function is only a stale schema cache", async () => {
+    // import_thought answers "not found" (PGRST202) but the owner can no longer write entry dates:
+    // this is the migrated database behind a stale API cache, where the old path would save
+    // entries and then be refused their dates.
+    const run = await both((s) => [() => s.importThought(input)], {
+      arrange: (w) => (w.fail["entries.update"] = { code: "42501" }),
+    });
+    expect(values(run)).toEqual([
+      { ok: false, message: "Import is not available right now. Nothing was imported; please try again in a minute." },
+    ]);
+    expect(targets(run)).toEqual(["auth:getClaims", "rpc:import_thought", "from:entries"]);
+    expect(run.world.tables.seeds).toHaveLength(1);
+    expect(run.world.tables.seed_revisions).toHaveLength(2);
   });
 });
 
@@ -694,17 +715,40 @@ describe("import through import_thought (migration 20261116041903)", () => {
       arrange: (w) => (w.fail["rpc.import_thought"] = { code: "SGA02" }),
     });
     expect(values(topic)).toEqual([{ ok: false, message: "Choose an active topic." }]);
-    for (const code of ["22023", "40001", "42501", "23514"]) {
+    const thought = await both((s) => [() => s.importThought(input)], {
+      arrange: (w) => (w.fail["rpc.import_thought"] = { code: "SGA02", message: "this thought is archived; restore it to write here" }),
+    });
+    expect(values(thought)).toEqual([
+      { ok: false, message: "This thought is archived. Restore it to keep writing here; your draft is still here." },
+    ]);
+    const input22023 = await both((s) => [() => s.importThought(input)], {
+      arrange: (w) => (w.fail["rpc.import_thought"] = { code: "22023" }),
+    });
+    expect(values(input22023)).toEqual([{ ok: false, message: "Check the topic and entries, then retry." }]);
+    // One transaction: a refusal from the database saved nothing, and says so.
+    for (const code of ["40001", "42501", "23514", "40P01"]) {
       const refused = await both((s) => [() => s.importThought(input)], {
         arrange: (w) => (w.fail["rpc.import_thought"] = { code }),
       });
-      expect(values(refused), code).toEqual([{ ok: false, message: "Could not import. Your files are unchanged; please retry." }]);
+      expect(values(refused), code).toEqual([{ ok: false, message: "Could not import. Nothing was saved; please retry." }]);
       expect(targets(refused), code).toEqual(["auth:getClaims", "rpc:import_thought"]);
     }
+    // No readable answer: do not claim either way.
+    const uncertain = {
+      ok: false,
+      message: "Could not confirm the import. It may have been saved; run the same import again to check. Nothing will be saved twice.",
+    };
     const odd = await both((s) => [() => s.importThought(input)], {
       arrange: (w) => (w.rpc.import_thought = () => ({ data: { id: 7 }, error: null })),
     });
-    expect(values(odd)).toEqual([{ ok: false, message: "Could not import. Your files are unchanged; please retry." }]);
+    expect(values(odd)).toEqual([uncertain]);
+    const dropped = await both((s) => [() => s.importThought(input)], {
+      arrange: (w) =>
+        (w.rpc.import_thought = () => {
+          throw new Error("network");
+        }),
+    });
+    expect(values(dropped)).toEqual([uncertain]);
   });
 
   it("refuses more than 1,048,576 bytes of text before any import call", async () => {
@@ -775,11 +819,23 @@ describe("database switches and refusals (migration 20261116041903)", () => {
     expect(run.world.claims).not.toBeNull();
   });
 
-  it("reports a thought the database refuses for an archived topic or garden like any failed save", async () => {
-    const run = await both((s) => [() => s.createArea("seed", "Late thought", P1, NEW(31))], {
-      arrange: (w) => (w.fail["seeds.insert"] = { code: "SGA02" }),
-    });
-    expect(values(run)).toEqual([{ ok: false, message: "Could not save. Your writing is still here; please retry." }]);
+  it("says what is archived when the database refuses a thought or a save for that reason", async () => {
+    const run = await both(
+      (s) => [
+        () => s.createArea("seed", "Late thought", P1, NEW(31)),
+        () => s.saveEntry({ seedId: S1, entryId: NEW(36), revisionId: NEW(37), body: "written in another tab", expectedRevisionId: null }),
+      ],
+      {
+        arrange: (w) => {
+          w.fail["seeds.insert"] = { code: "SGA02", message: "this garden is archived; restore it to write here" };
+          w.fail["rpc.save_entry"] = { code: "SGA02", message: "this thought is archived; restore it to write here" };
+        },
+      },
+    );
+    expect(values(run)).toEqual([
+      { ok: false, message: "This garden is archived. Restore it to keep writing here; your draft is still here." },
+      { ok: false, message: "This thought is archived. Restore it to keep writing here; your draft is still here." },
+    ]);
   });
 
   it("reports a blank name, a blank body or a correction the database refuses like any failed save", async () => {

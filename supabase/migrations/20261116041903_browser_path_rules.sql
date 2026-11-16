@@ -8,20 +8,38 @@
 --      is off (SQLSTATE SGA03).
 --   2. A bloom response of 'correct' carries a non-blank correction; any other
 --      response carries none.
---   3. No new thought in an archived topic or garden (SQLSTATE SGA02), and no
---      new writing in an archived thought, topic, garden or entry (22023).
+--   3. Archived places take no new writing (SQLSTATE SGA02, with a message that
+--      names what is archived): no new or moved thought in an archived topic or
+--      garden, no new entry or revision in an archived garden, topic, thought
+--      or entry. Writing and archiving serialise on row locks.
 --   4. Names, titles and bodies are never blank, where "blank" is exactly what
 --      JavaScript's String.prototype.trim() empties (private.trim_text). Names
 --      and titles are stored trimmed.
 --   5. Lengths are counted the way the web counts them: UTF-16 code units
 --      (private.utf16_length). Time zone names keep the web's shape and length.
---   6. public.import_thought: one transaction, at most 500 entries and
---      1,048,576 bytes of text, and the only way a person can date an entry.
---   7. entries.created_at and seed_revisions.created_at are no longer writable
---      by the owner (column grants); import_thought sets an entry's date.
--- Existing rows are checked first: if any would violate a new constraint the
--- migration stops before changing anything and reports counts only.
--- Additive for data: no existing row is rewritten.
+--   6. public.import_thought: one transaction, bounded, and the only way a
+--      person can date an entry; it never changes an entry that already exists.
+--   7. created_at on gardens, topics, thoughts, entries and revisions, and
+--      revision numbers, are set by the database, not by the owner's session.
+--
+-- EXISTING ROWS ARE NEVER REWRITTEN, REJECTED OR MADE UNUSABLE. Older
+-- constraints accepted text these rules refuse (a tab-only name, a
+-- newline-only body, a body over 20,000 UTF-16 units). Source text is the
+-- person's own and revisions are immutable, so there is no acceptable repair:
+--   * rules on text that can still be edited (names, titles, time zone) are
+--     triggers that fire only when that column is written, so a legacy row
+--     can still be archived, restored or otherwise updated as it is;
+--   * rules on append-only text (revision bodies, bloom corrections) are CHECK
+--     constraints left NOT VALID on purpose and never validated: Postgres
+--     enforces them for every new row and does not look at old ones.
+-- The migration therefore cannot fail on existing data. It reports, as a
+-- NOTICE with counts only, how many existing rows the new rules would refuse.
+--
+-- Lock order for writing, archiving and deleting, everywhere:
+--   public.accounts (pass preparation, deletion, import), then gardens, then
+--   plots, then seeds, then entries; private.pass_inputs before garden_passes
+--   as before. save_entry used to lock the thought first; it now takes the
+--   garden and topic share locks before it.
 begin;
 
 -- ---------------------------------------------------------------------------
@@ -56,7 +74,8 @@ revoke all on function private.trim_text(text),private.utf16_length(text),privat
 grant execute on function private.trim_text(text),private.utf16_length(text) to authenticated,service_role;
 
 -- ---------------------------------------------------------------------------
--- Pre-check. Counts only; no content is read into the message.
+-- Report. Counts only; no content is read into the message, and nothing here
+-- can stop the migration. These rows stay exactly as they are.
 -- ---------------------------------------------------------------------------
 do $$
 declare n_gardens bigint; n_plots bigint; n_seeds bigint; n_bodies bigint; n_responses bigint; n_zones bigint;
@@ -69,10 +88,8 @@ begin
     where case when response='correct' then correction is null or private.trim_text(correction)='' else correction is not null end;
   select count(*) into n_zones from public.accounts
     where char_length(timezone)>64 or timezone !~ '^[A-Za-z][A-Za-z0-9_+-]*(/[A-Za-z0-9_+-]+){0,2}$';
-  if n_gardens+n_plots+n_seeds+n_bodies+n_responses+n_zones>0 then
-    raise exception 'browser_path_rules pre-check: existing rows would violate the new rules (garden names %, topic names %, thought titles %, bodies %, bloom responses %, time zones %); nothing was changed',
-      n_gardens,n_plots,n_seeds,n_bodies,n_responses,n_zones using errcode='23514';
-  end if;
+  raise notice 'browser_path_rules report: existing rows the new rules would refuse if written today, all left unchanged (garden names %, topic names %, thought titles %, bodies %, bloom responses %, time zones %)',
+    n_gardens,n_plots,n_seeds,n_bodies,n_responses,n_zones;
 end $$;
 
 -- ---------------------------------------------------------------------------
@@ -80,8 +97,11 @@ end $$;
 -- The web refuses a name that trim() empties or that is longer than the limit
 -- before trimming, then stores it trimmed. The triggers do the same for any
 -- writer (SECURITY DEFINER only so they can reach the private helpers; they
--- touch nothing but the new row); the constraints state the stored-row rule and were validated against
--- every existing row. The older btrim-based constraints stay.
+-- touch nothing but the new row). They fire on INSERT and on an UPDATE that
+-- writes the column, never on an update of something else, so a legacy row
+-- keeps working. No CHECK constraint is added to these tables: a CHECK, even
+-- NOT VALID, is re-evaluated on every update of a row and would stop a legacy
+-- garden from being archived or restored.
 -- ---------------------------------------------------------------------------
 create function private.clean_area_name() returns trigger language plpgsql security definer set search_path='' as $$
 begin
@@ -111,80 +131,155 @@ create trigger plots_clean_name before insert or update of name on public.plots
 create trigger seeds_clean_title before insert or update of title on public.seeds
   for each row execute function private.clean_seed_title();
 
-alter table public.gardens add constraint gardens_name_rule
-  check (private.trim_text(name)<>'' and private.utf16_length(name)<=120) not valid;
-alter table public.plots add constraint plots_name_rule
-  check (private.trim_text(name)<>'' and private.utf16_length(name)<=120) not valid;
-alter table public.seeds add constraint seeds_title_rule
-  check (private.trim_text(title)<>'' and private.utf16_length(title)<=160) not valid;
+-- The web's validateTimezone (shape and length). private.check_account_timezone
+-- still requires a real zone; same SQLSTATE and message, so the web says the same.
+create function private.check_timezone_shape() returns trigger language plpgsql set search_path='' as $$
+begin
+  if char_length(new.timezone)>64 or new.timezone !~ '^[A-Za-z][A-Za-z0-9_+-]*(/[A-Za-z0-9_+-]+){0,2}$' then
+    raise exception 'unknown time zone' using errcode='22023';
+  end if;
+  return new;
+end $$;
+create trigger accounts_timezone_shape before insert or update of timezone on public.accounts
+  for each row execute function private.check_timezone_shape();
+revoke all on function private.check_timezone_shape() from public,anon,authenticated;
+
+-- Append-only text. NOT VALID is permanent and deliberate: new rows are
+-- checked, existing rows are never examined. Do not VALIDATE these.
 alter table public.seed_revisions add constraint seed_revisions_body_rule
   check (private.trim_text(body)<>'' and private.utf16_length(body)<=20000) not valid;
--- The web's validateTimezone; private.check_account_timezone still requires a real zone.
-alter table public.accounts add constraint accounts_timezone_shape
-  check (char_length(timezone)<=64 and timezone ~ '^[A-Za-z][A-Za-z0-9_+-]*(/[A-Za-z0-9_+-]+){0,2}$') not valid;
-
--- ---------------------------------------------------------------------------
 -- Blocker 3: a correction is text the next pass's model is given, so it must be
 -- there when the response says so and absent otherwise.
--- ---------------------------------------------------------------------------
 alter table public.bloom_responses add constraint bloom_responses_correction_rule
   check (case when response='correct' then correction is not null and private.trim_text(correction)<>'' else correction is null end) not valid;
 
-alter table public.gardens validate constraint gardens_name_rule;
-alter table public.plots validate constraint plots_name_rule;
-alter table public.seeds validate constraint seeds_title_rule;
-alter table public.seed_revisions validate constraint seed_revisions_body_rule;
-alter table public.accounts validate constraint accounts_timezone_shape;
-alter table public.bloom_responses validate constraint bloom_responses_correction_rule;
-
 -- ---------------------------------------------------------------------------
 -- Blocker 4: archived places take no new writing.
--- SECURITY DEFINER so the check reads the true rows whoever inserts.
+-- One SQLSTATE (SGA02) and a message that names what is archived, so the web
+-- can tell the person what to restore. SECURITY DEFINER so the checks read and
+-- lock the true rows whoever writes. Every check takes FOR SHARE on the row it
+-- reads: archiving needs that row's lock, so writing and archiving wait for
+-- each other and a write can never land in a place archived at the same moment.
+-- Lock order: garden, topic, thought, entry.
 -- ---------------------------------------------------------------------------
--- A new thought. FOR SHARE waits for an archive in progress (an archive needs
--- the row lock), so a thought cannot land in a topic archived at the same
--- moment. Lock order: garden, then topic. Named to fire after seeds_default_plot.
--- A parent that is missing or another tenant's is left to the composite foreign
--- key, which refuses it as before (23503).
+-- A new thought, or a thought moved to another topic or garden. A parent that
+-- is missing or another tenant's is left to the composite foreign key, which
+-- refuses both alike (23503). Named to fire after seeds_default_plot.
 create function private.refuse_archived_parent() returns trigger language plpgsql security definer set search_path='' as $$
 declare v_status public.garden_status; v_archived timestamptz;
 begin
+  if tg_op='UPDATE' and new.plot_id is not distinct from old.plot_id and new.garden_id is not distinct from old.garden_id
+      and new.tenant_id is not distinct from old.tenant_id then
+    return new;
+  end if;
   select g.status into v_status from public.gardens g where g.id=new.garden_id and g.tenant_id=new.tenant_id for share;
-  if found and v_status<>'active' then raise exception 'choose an active topic' using errcode='SGA02'; end if;
+  if found and v_status<>'active' then raise exception 'this garden is archived; restore it to write here' using errcode='SGA02'; end if;
   select p.archived_at into v_archived from public.plots p where p.id=new.plot_id and p.tenant_id=new.tenant_id and p.garden_id=new.garden_id for share;
-  if found and v_archived is not null then raise exception 'choose an active topic' using errcode='SGA02'; end if;
+  if found and v_archived is not null then raise exception 'this topic is archived; restore it to write here' using errcode='SGA02'; end if;
   return new;
 end $$;
-create trigger seeds_refuse_archived_parent before insert on public.seeds
+create trigger seeds_refuse_archived_parent before insert or update of plot_id,garden_id,tenant_id on public.seeds
   for each row execute function private.refuse_archived_parent();
 revoke all on function private.refuse_archived_parent() from public,anon,authenticated;
 
--- A new entry or revision, by save_entry, import or a direct insert. Same
--- message and SQLSTATE as save_entry's own refusal; adds the garden, and covers
--- inserts that do not go through save_entry. Named to fire after revisions_default_entry.
+-- A new entry or revision, by save_entry, import or a direct insert. The
+-- thought is looked up within the writer's own tenant: one that is missing or
+-- another tenant's is not found here and is refused by the composite foreign
+-- key (23503) whatever its state, so the answer says nothing about another
+-- tenant's rows. Named to fire after revisions_default_entry.
 create function private.refuse_archived_writing() returns trigger language plpgsql security definer set search_path='' as $$
+declare v_garden uuid; v_plot uuid; v_garden_status public.garden_status; v_seed_status public.seed_status; v_archived timestamptz;
 begin
-  if not exists(select 1 from public.seeds s join public.plots p on p.id=s.plot_id join public.gardens g on g.id=s.garden_id
-        where s.id=new.seed_id and s.status='active' and p.archived_at is null and g.status='active')
-      or exists(select 1 from public.entries e where e.id=new.entry_id and e.archived_at is not null) then
-    raise exception 'restore this thought before writing' using errcode='22023';
-  end if;
+  select s.garden_id,s.plot_id into v_garden,v_plot from public.seeds s where s.id=new.seed_id and s.tenant_id=new.tenant_id;
+  if not found then return new; end if;
+  select g.status into v_garden_status from public.gardens g where g.id=v_garden for share;
+  if v_garden_status is distinct from 'active' then raise exception 'this garden is archived; restore it to write here' using errcode='SGA02'; end if;
+  select p.archived_at into v_archived from public.plots p where p.id=v_plot for share;
+  if v_archived is not null then raise exception 'this topic is archived; restore it to write here' using errcode='SGA02'; end if;
+  select s.status into v_seed_status from public.seeds s where s.id=new.seed_id for share;
+  if v_seed_status is distinct from 'active' then raise exception 'this thought is archived; restore it to write here' using errcode='SGA02'; end if;
+  select e.archived_at into v_archived from public.entries e where e.id=new.entry_id and e.tenant_id=new.tenant_id for share;
+  if found and v_archived is not null then raise exception 'this entry is archived; restore it to write here' using errcode='SGA02'; end if;
   return new;
 end $$;
 create trigger revisions_refuse_archived before insert on public.seed_revisions
   for each row execute function private.refuse_archived_writing();
 revoke all on function private.refuse_archived_writing() from public,anon,authenticated;
 
+-- save_entry: the garden and topic share locks are taken before the thought's
+-- lock (the order above), its own archive refusal now includes the garden and
+-- uses SGA02 with the specific message, and a caller that cannot see the
+-- thought is refused before any lock. Otherwise as in web_thinking_garden.
+create or replace function public.save_entry(p_seed_id uuid, p_entry_id uuid, p_revision_id uuid,
+  p_body text, p_expected_revision_id uuid default null)
+returns uuid language plpgsql security invoker set search_path = '' as $$
+declare s public.seeds; r public.seed_revisions; head_id uuid; n integer; v_garden uuid; v_plot uuid;
+begin
+  select garden_id,plot_id into v_garden,v_plot from public.seeds where id=p_seed_id and tenant_id=auth.uid();
+  if not found then raise exception 'seed unavailable' using errcode='42501'; end if;
+  perform 1 from public.gardens where id=v_garden for share;
+  perform 1 from public.plots where id=v_plot for share;
+  select * into s from public.seeds where id = p_seed_id for update;
+  if s.id is null or s.tenant_id <> auth.uid() then raise exception 'seed unavailable' using errcode='42501'; end if;
+  if s.garden_id<>v_garden or s.plot_id<>v_plot then raise exception 'entry changed; review latest version before saving' using errcode='40001'; end if;
+  select * into r from public.seed_revisions where id = p_revision_id;
+  if r.id is not null then
+    if r.entry_id <> p_entry_id or r.seed_id <> p_seed_id or r.body <> p_body then
+      raise exception 'request identifier already used' using errcode='22023';
+    end if;
+    return r.id;
+  end if;
+  if not exists(select 1 from public.gardens where id=s.garden_id and status='active')
+    then raise exception 'this garden is archived; restore it to write here' using errcode='SGA02'; end if;
+  if exists(select 1 from public.plots where id=s.plot_id and archived_at is not null)
+    then raise exception 'this topic is archived; restore it to write here' using errcode='SGA02'; end if;
+  if s.status <> 'active' then raise exception 'this thought is archived; restore it to write here' using errcode='SGA02'; end if;
+  select id into head_id from public.seed_revisions where entry_id=p_entry_id order by revision_number desc limit 1;
+  if head_id is distinct from p_expected_revision_id then raise exception 'entry changed; review latest version before saving' using errcode='40001'; end if;
+  insert into public.entries(id, tenant_id, garden_id, seed_id)
+    values(p_entry_id, s.tenant_id, s.garden_id, s.id) on conflict(id) do nothing;
+  if not exists(select 1 from public.entries where id=p_entry_id and seed_id=s.id and archived_at is null)
+    then raise exception 'entry unavailable' using errcode='42501'; end if;
+  select coalesce(max(revision_number), 0)+1 into n from public.seed_revisions where seed_id=s.id;
+  insert into public.seed_revisions(id, tenant_id, garden_id, seed_id, entry_id, revision_number, body, created_by)
+    values(p_revision_id, s.tenant_id, s.garden_id, s.id, p_entry_id, n, p_body, auth.uid());
+  return p_revision_id;
+end $$;
+
 -- ---------------------------------------------------------------------------
--- Blocker 7: source dates belong to the database. A person's own session can
--- no longer set or move entries.created_at or seed_revisions.created_at; both
--- feed the tending watermark and the "change over time" tier. Archiving an
--- entry is still an owner update. Import dates go through import_thought.
+-- Blocker 7: dates and revision numbers belong to the database.
+-- A person's own session can no longer set or move created_at on a garden,
+-- topic, thought, entry or revision (entry and revision dates feed the tending
+-- watermark and the "change over time" tier), nor updated_at, nor a topic's
+-- permission_version. Column grants name exactly what the web writes; every
+-- other column takes its default or is set by a trigger. No legitimate path
+-- needed the withdrawn columns: the only one that wrote a date was import,
+-- which now goes through import_thought.
 -- ---------------------------------------------------------------------------
-revoke insert,update on public.entries from authenticated;
+revoke insert,update on public.gardens,public.plots,public.seeds,public.entries from authenticated;
+grant insert(id,tenant_id,name),update(name,status,archived_at) on public.gardens to authenticated;
+grant insert(id,tenant_id,garden_id,name,ai_enabled,cross_pollinate),update(name,ai_enabled,cross_pollinate,archived_at) on public.plots to authenticated;
+grant insert(id,tenant_id,garden_id,plot_id,title,position_x,position_y),update(plot_id,title,status,archived_at,position_x,position_y) on public.seeds to authenticated;
 grant insert(id,tenant_id,garden_id,seed_id),update(archived_at) on public.entries to authenticated;
 revoke insert on public.seed_revisions from authenticated;
 grant insert(id,tenant_id,garden_id,seed_id,entry_id,revision_number,body,created_by) on public.seed_revisions to authenticated;
+
+-- A revision's number is the next one for its thought, whatever an API caller
+-- sends: a direct insert of 2147483647 used to succeed and made every later
+-- save on that thought fail. SECURITY INVOKER on purpose: current_user is the
+-- role running the insert, so privileged code (import_thought, an operator)
+-- keeps the number it computed. Named to fire after revisions_refuse_archived,
+-- which holds the thought's lock.
+create function private.assign_revision_number() returns trigger language plpgsql set search_path='' as $$
+begin
+  if current_user in('authenticated','anon') then
+    select coalesce(max(revision_number),0)+1 into new.revision_number from public.seed_revisions where seed_id=new.seed_id;
+  end if;
+  return new;
+end $$;
+create trigger revisions_sequence before insert on public.seed_revisions
+  for each row execute function private.assign_revision_number();
+revoke all on function private.assign_revision_number() from public,anon,authenticated;
 
 -- ---------------------------------------------------------------------------
 -- Blockers 1 and 2: deployment switches the database owns.
@@ -342,23 +437,37 @@ end $$;
 -- ---------------------------------------------------------------------------
 -- Blocker 6: import as one bounded transaction.
 -- The caller sends the identifiers the web already derives (deterministic, so
--- a retry is a replay). Limits, matching import-core.ts and the 1 MB request
--- ceiling a server action has:
+-- a retry is a replay). Limits are per call, like the server's per-request
+-- limits they replace; a thought may grow over several imports:
 --   * title: not blank and at most 160 UTF-16 units after trimming;
---   * 1 to 500 entries; each body not blank and at most 20,000 UTF-16 units;
---   * each date null or a calendar date;
---   * title plus bodies at most 1,048,576 bytes of UTF-8.
--- Writing goes through save_entry, so replay, conflict and archive rules are
--- the same as an ordinary save. Like the web import, a replayed entry is
--- counted as skipped and its date is set again.
--- SECURITY DEFINER because the owner can no longer write entries.created_at;
--- every statement is keyed to auth.uid().
--- Refusals: 22023 (input), SGA02 (topic missing, not the caller's, or archived).
+--   * 1 to 500 entries, each an object with exactly entry_id, revision_id,
+--     body and optionally date; any other key is refused;
+--   * each body not blank and at most 20,000 UTF-16 units;
+--   * each date null or a calendar date no later than tomorrow's date in UTC
+--     (today's date somewhere on earth is at most that);
+--   * title plus bodies at most 1,048,576 bytes of UTF-8, and the whole
+--     payload as text at most that plus 256 bytes per entry for identifiers
+--     and framing (a server action's request is capped at 1 MB).
+-- What it will and will not do:
+--   * The thought, if it exists, must be the caller's, in p_plot_id, and
+--     active; its topic and garden must be active. Otherwise SGA02 or 42501.
+--   * A NEW entry is created with its date: noon UTC of its day, or now if
+--     that is still in the future, so no entry is ever dated after the moment
+--     it was imported. Its text goes through save_entry.
+--   * An entry whose revision already exists is a replay: it must be the same
+--     entry, thought and text (else 22023), it is counted as skipped, and
+--     NOTHING about it changes, including its date. An entry id that already
+--     exists under any other revision is refused (22023). So this function
+--     cannot move the date of, or add to, an entry it is not creating.
+-- SECURITY DEFINER because the owner cannot write entries.created_at; every
+-- statement is keyed to auth.uid().
+-- Lock order: accounts, garden, topic, thought (then entries, in save_entry).
 -- ---------------------------------------------------------------------------
 create function public.import_thought(p_plot_id uuid,p_seed_id uuid,p_title text,p_entries jsonb) returns jsonb
 language plpgsql security definer set search_path='' as $$
-declare v_tenant uuid:=auth.uid(); v_title text:=private.trim_text(p_title); p public.plots; s public.seeds; e record;
-  v_entry uuid; v_revision uuid; v_created integer:=0; v_skipped integer:=0;
+declare v_tenant uuid:=auth.uid(); v_title text:=private.trim_text(p_title); p public.plots; s public.seeds; r public.seed_revisions; e record;
+  v_entry uuid; v_revision uuid; v_at timestamptz; v_created integer:=0; v_skipped integer:=0;
+  v_garden_status public.garden_status; v_archived timestamptz;
   uuid_shape constant text:='^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$';
 begin
   if v_tenant is null then raise exception 'authentication required' using errcode='28000'; end if;
@@ -366,48 +475,70 @@ begin
       or p_entries is null or jsonb_typeof(p_entries)<>'array' or jsonb_array_length(p_entries) not between 1 and 500 then
     raise exception 'check the topic and entries' using errcode='22023';
   end if;
-  if exists(select 1 from jsonb_array_elements(p_entries) x where (
-        jsonb_typeof(x) is distinct from 'object'
+  if exists(select 1 from jsonb_array_elements(p_entries) x where (case when jsonb_typeof(x) is distinct from 'object' then true else
+        (x-'entry_id'-'revision_id'-'body'-'date')<>'{}'::jsonb
         or jsonb_typeof(x->'body') is distinct from 'string'
         or private.trim_text(x->>'body')='' or private.utf16_length(x->>'body')>20000
         or jsonb_typeof(x->'entry_id') is distinct from 'string' or (x->>'entry_id') !~ uuid_shape
         or jsonb_typeof(x->'revision_id') is distinct from 'string' or (x->>'revision_id') !~ uuid_shape
         or coalesce(jsonb_typeof(x->'date'),'null') not in('null','string')
-        or (coalesce(jsonb_typeof(x->'date'),'null')='string' and not private.is_calendar_date(x->>'date'))) is not false) then
+        or (coalesce(jsonb_typeof(x->'date'),'null')='string' and not private.is_calendar_date(x->>'date')) end) is not false) then
     raise exception 'check the topic and entries' using errcode='22023';
   end if;
-  if (select coalesce(sum(octet_length(x->>'body')),0) from jsonb_array_elements(p_entries) x)+octet_length(p_title)>1048576 then
+  if exists(select 1 from jsonb_array_elements(p_entries) x
+      where x->>'date' is not null and (x->>'date')::date>(now() at time zone 'UTC')::date+1) then
+    raise exception 'check the topic and entries' using errcode='22023';
+  end if;
+  if (select coalesce(sum(octet_length(x->>'body')),0) from jsonb_array_elements(p_entries) x)+octet_length(p_title)>1048576
+      or octet_length(p_entries::text)+octet_length(p_title)>1048576+256*jsonb_array_length(p_entries) then
     raise exception 'import too large' using errcode='22023';
   end if;
   -- Serialise with pass preparation and deletion, which take this lock first.
   perform 1 from public.accounts where id=v_tenant for update;
-  select * into p from public.plots where id=p_plot_id and tenant_id=v_tenant for share;
-  if p.id is null or p.archived_at is not null
-      or not exists(select 1 from public.gardens g where g.id=p.garden_id and g.tenant_id=v_tenant and g.status='active') then
+  select * into p from public.plots where id=p_plot_id and tenant_id=v_tenant;
+  if p.id is null then raise exception 'choose an active topic' using errcode='SGA02'; end if;
+  select g.status into v_garden_status from public.gardens g where g.id=p.garden_id and g.tenant_id=v_tenant for share;
+  select pl.archived_at into v_archived from public.plots pl where pl.id=p_plot_id for share;
+  if v_garden_status is distinct from 'active' or v_archived is not null then
     raise exception 'choose an active topic' using errcode='SGA02';
   end if;
   select * into s from public.seeds where id=p_seed_id for update;
   if s.id is null then
     insert into public.seeds(id,tenant_id,garden_id,plot_id,title) values(p_seed_id,v_tenant,p.garden_id,p_plot_id,v_title);
-  elsif s.tenant_id<>v_tenant then
+  elsif s.tenant_id<>v_tenant or s.plot_id<>p_plot_id then
     raise exception 'seed unavailable' using errcode='42501';
+  elsif s.status<>'active' then
+    raise exception 'this thought is archived; restore it to write here' using errcode='SGA02';
   end if;
   for e in select x->>'entry_id' as entry_id,x->>'revision_id' as revision_id,x->>'body' as body,x->>'date' as day
       from jsonb_array_elements(p_entries) with ordinality t(x,i) order by i loop
     v_entry:=e.entry_id::uuid;
     v_revision:=e.revision_id::uuid;
-    if exists(select 1 from public.seed_revisions where id=v_revision and tenant_id=v_tenant) then v_skipped:=v_skipped+1; else v_created:=v_created+1; end if;
-    -- save_entry checks the thought is the caller's, refuses a reused identifier
-    -- with different text, and refuses archived places.
-    perform public.save_entry(p_seed_id,v_entry,v_revision,e.body);
-    if e.day is not null then
-      update public.entries set created_at=(e.day||'T12:00:00Z')::timestamptz
-        where id=v_entry and tenant_id=v_tenant and seed_id=p_seed_id;
+    select * into r from public.seed_revisions where id=v_revision;
+    if r.id is not null then
+      -- A replay. Same entry, thought and text, or it is refused; nothing changes.
+      if r.tenant_id<>v_tenant or r.entry_id<>v_entry or r.seed_id<>p_seed_id or r.body<>e.body then
+        raise exception 'request identifier already used' using errcode='22023';
+      end if;
+      v_skipped:=v_skipped+1;
+      continue;
     end if;
+    -- Only an entry this call creates is written or dated.
+    if exists(select 1 from public.entries where id=v_entry) then
+      raise exception 'request identifier already used' using errcode='22023';
+    end if;
+    v_at:=case when e.day is null then now() else least((e.day||'T12:00:00Z')::timestamptz,now()) end;
+    insert into public.entries(id,tenant_id,garden_id,seed_id,created_at) values(v_entry,v_tenant,p.garden_id,p_seed_id,v_at);
+    perform public.save_entry(p_seed_id,v_entry,v_revision,e.body);
+    v_created:=v_created+1;
   end loop;
   return jsonb_build_object('id',p_seed_id,'created',v_created,'skipped',v_skipped);
 end $$;
 revoke all on function public.import_thought(uuid,uuid,text,jsonb) from public,anon;
 grant execute on function public.import_thought(uuid,uuid,text,jsonb) to authenticated;
+
+-- New functions and privileges reach the API only once PostgREST reloads its
+-- schema cache. Delivered when this transaction commits.
+notify pgrst, 'reload schema';
 
 commit;

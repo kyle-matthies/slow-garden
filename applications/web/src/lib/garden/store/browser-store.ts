@@ -10,7 +10,6 @@
  * action: boundaries.test.ts enforces that for every `browser*` module.
  */
 import {
-  saveErrorMessage,
   validateAreaName,
   validateBloomResponse,
   validateEntryBody,
@@ -75,7 +74,7 @@ export function createBrowserStore(options: BrowserStoreOptions): GardenStore {
     return { db, tenantId: found.sub };
   }
   function failure(error: unknown): ActionResult {
-    return { ok: false, message: saveErrorMessage(error) };
+    return { ok: false, message: rules.saveFailureMessage(error) };
   }
 
   return {
@@ -206,7 +205,7 @@ export function createBrowserStore(options: BrowserStoreOptions): GardenStore {
               .select("garden_id,archived_at")
               .eq("id", parentId)
               .single();
-            if (pe || plot.archived_at) throw pe ?? new Error("Archived");
+            if (pe || plot.archived_at) throw pe ?? rules.archivedTopicError();
             const { error } = await db.from("seeds").insert({
               id,
               tenant_id: tenantId,
