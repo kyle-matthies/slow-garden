@@ -10,7 +10,7 @@
  */
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { Fragment, useEffect, useMemo, useState, type ReactNode } from "react";
+import { Fragment, useLayoutEffect, useMemo, useState, type ReactNode } from "react";
 import Loading from "@/app/loading";
 import ErrorPage from "@/app/error";
 import { LoginScreen } from "@/app/login/login-screen";
@@ -47,9 +47,12 @@ function GardenGate({ children }: { children: (data: GardenData) => ReactNode })
   const base = useGardenStore();
   // What is on screen now (null while no garden is shown), told to the guard
   // after every render so a write is checked against what the person sees.
+  // A layout effect, so the guard is told in the same commit that puts the
+  // page in the document: a passive effect runs later, and a click or a
+  // child's first read in between was refused as "no longer on screen".
   const [guard] = useState(createGuardView);
   const showing = status === "signed-out" ? null : (data ?? null);
-  useEffect(() => {
+  useLayoutEffect(() => {
     // Another account's session is not followed automatically: the page
     // stays as it is, refuses to write, and says to reload.
     guard.show(showing, () => {});

@@ -657,6 +657,27 @@ describe("browser mode: what is on screen is the garden the address names", () =
     expect(w.tables.entries[0].archived_at).toBeNull();
   });
 
+  it("a write made the moment the garden appears is checked against the garden that appeared", async () => {
+    const w = world(true);
+    // Click as soon as the control is in the document, before anything else
+    // runs: the page on screen is already the garden, so the write goes through.
+    const clicked = new Promise<void>((done) => {
+      const seen = new MutationObserver(() => {
+        const archive = screen.queryByRole("button", { name: "Archive entry" });
+        if (!archive) return;
+        seen.disconnect();
+        fireEvent.click(archive);
+        done();
+      });
+      seen.observe(document.body, { childList: true, subtree: true });
+    });
+    start("browser", w, thoughtPath);
+    await clicked;
+    await notice("entry archived. Find it in Archive; your writing was not deleted.");
+    expect(screen.queryByText(/no longer the garden on screen/)).toBeNull();
+    expect(w.tables.entries[0].archived_at).toEqual(expect.any(String));
+  });
+
   it("a garden that no longer exists: the nearest garden is shown, said to be so, and new writing goes to the garden shown", async () => {
     const w = twoGardens();
     const gone = "99999999-9999-4999-8999-999999999999";
