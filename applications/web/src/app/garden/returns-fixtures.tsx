@@ -405,6 +405,13 @@ export type FixtureScene = {
 };
 export const fixtureScenes: FixtureScene[] = [
   {
+    slug: "morning",
+    title: "Morning return",
+    description:
+      "The reveal shown at the top of a garden while there are unseen blooms. Dismissing it marks them seen; it then renders nothing.",
+    passIds: [],
+  },
+  {
     slug: "all",
     title: "Every state at once",
     description: "All pass states and all bloom states, including restore-needed sources.",

@@ -12,7 +12,7 @@ import {
 } from "./tending";
 
 export const MAX_PLANTS_PER_BED = 24;
-/** Narrow screens show fewer plants per bed; the rest stay in List and search. */
+/** Narrow screens show fewer plants per bed; the rest stay in Pages and search. */
 export const PHONE_PLANTS_PER_BED = 14;
 
 export type ScenePlantModel = {
@@ -39,7 +39,7 @@ export type SceneBedModel = {
  * Build the beds for one garden. Placement includes archived thoughts so a
  * restored plant returns to its own slot. Only active thoughts render, and a
  * full bed shows its most recently tended plants. The rest stay reachable
- * through the list view and search.
+ * through Pages and search.
  */
 export function buildBeds(
   plots: readonly Plot[],

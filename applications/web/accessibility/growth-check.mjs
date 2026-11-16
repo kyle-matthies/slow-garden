@@ -8,14 +8,17 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const receipt = process.env.GROWTH_RECEIPTS || "/tmp/slow-garden-growth-20261104";
 const env = { ...process.env, GARDEN_AXE_FIXTURES: "1" };
 for (const key of Object.keys(env)) if (/SUPABASE|GARDEN_AI|OPENAI/i.test(key)) delete env[key];
-const base = "http://127.0.0.1:3214";
-const server = spawn("npx", ["next", "start", "-p", "3214"], { cwd: path.resolve(here, ".."), env, detached: true, stdio: "ignore" });
+// GROWTH_BASE runs the journeys against a fixture server that is already up
+// (GARDEN_AXE_FIXTURES=1) instead of starting the production build on :3214.
+const external = process.env.GROWTH_BASE?.replace(/\/$/, "");
+const base = external || "http://127.0.0.1:3214";
+const server = external ? null : spawn("npx", ["next", "start", "-p", "3214"], { cwd: path.resolve(here, ".."), env, detached: true, stdio: "ignore" });
 let browser;
 const results = [];
 try {
   for (let attempt = 0; attempt < 80; attempt++) {
     try { if ((await fetch(base)).ok) break; } catch {}
-    if (attempt === 79) throw Error("Production fixture server did not start");
+    if (attempt === 79) throw Error(`No fixture server answered at ${base}`);
     await new Promise((resolve) => setTimeout(resolve, 250));
   }
   browser = await chromium.launch(process.env.AXE_CHROMIUM ? { executablePath: process.env.AXE_CHROMIUM } : {});
@@ -108,17 +111,48 @@ try {
     }, interrupted);
     await page.goto(`${base}/dev/axe-fixtures`, { waitUntil: "networkidle" });
     await expect(page.getByLabel("Write a first entry", { exact: true })).toHaveValue("Synthetic unfinished first entry.");
-    await expect(page.locator(".first-run-step")).toContainText("Step 4 of 4");
+    // Recovery resumes at the entry: garden, topic and thought show as saved.
+    await expect(page.locator(".first-run-model li[data-saved]")).toHaveCount(3);
+    await expect(page.locator(".first-run-model li").last()).not.toHaveAttribute("data-saved");
+    await expect(gardenName).toBeDisabled();
     await page.screenshot({ path: path.join(receipt, `recovery-${width}-${colorScheme}.png`), fullPage: true });
     expect(writes).toBe(1);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    // The morning reveal: announced once, and a dismissal outlives a reload.
+    // Setup recovery above left a first-run draft; a tended garden ignores it only
+    // once that draft is gone, as it is after finishing or signing out.
+    await page.evaluate(() => new Promise((resolve, reject) => {
+      const request = indexedDB.deleteDatabase("slow-garden-drafts");
+      request.onsuccess = request.onblocked = () => resolve();
+      request.onerror = () => reject(request.error);
+    }));
+    for (const view of ["", "&view=list"]) {
+      await page.evaluate(() => { for (const key of Object.keys(localStorage)) if (key.startsWith("slow-garden:seen-blooms:")) localStorage.removeItem(key); });
+      await page.goto(`${base}/dev/axe-fixtures?state=scale&thoughts=100${view}`, { waitUntil: "networkidle" });
+      const reveal = page.getByRole("region", { name: "Overnight, the garden noticed…" });
+      const returnsLink = page.getByRole("navigation", { name: "Garden tools" }).getByRole("button", { name: /^Returns/ });
+      await expect(reveal).toBeVisible();
+      await expect(reveal.getByRole("listitem")).not.toHaveCount(0);
+      expect(await reveal.getByRole("listitem").count()).toBeLessThanOrEqual(3);
+      await expect(returnsLink).toContainText("new bloom");
+      await expect(page.getByText(/new blooms? in Returns/)).toHaveCount(0);
+      if (!view) await page.screenshot({ path: path.join(receipt, `reveal-${width}-${colorScheme}.png`) });
+      await reveal.getByRole("button", { name: "Dismiss and mark as seen" }).click();
+      await expect(reveal).toHaveCount(0);
+      await expect(returnsLink).not.toContainText("new bloom");
+      await page.reload({ waitUntil: "networkidle" });
+      await expect(page.getByRole("button", { name: "More", exact: true })).toBeVisible();
+      await expect(reveal).toHaveCount(0);
+      await expect(returnsLink).not.toContainText("new bloom");
+    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     expect(errors).toEqual([]);
-    results.push({ width, colorScheme, exact_entry_resume: true, tending_history: true, preview_no_write: true, failed_import_retry: true, setup_reload: true, setup_partial_garden_recovery: true, overflow: false, page_errors: 0 });
+    results.push({ width, colorScheme, exact_entry_resume: true, tending_history: true, preview_no_write: true, failed_import_retry: true, setup_reload: true, setup_partial_garden_recovery: true, morning_reveal_dismissal: true, overflow: false, page_errors: 0 });
     await context.close();
   }
   writeFileSync(path.join(receipt, "journeys.json"), JSON.stringify({ synthetic_only: true, results, ok: true }, null, 2));
   console.log(JSON.stringify({ ok: true, profiles: results.length, receipt }));
 } finally {
   await browser?.close();
-  try { process.kill(-server.pid, "SIGTERM"); } catch { server.kill("SIGTERM"); }
+  if (server) try { process.kill(-server.pid, "SIGTERM"); } catch { server.kill("SIGTERM"); }
 }

@@ -1,0 +1,327 @@
+/*
+ * The morning reveal. Gold is the material of AI-returned things and is used
+ * for nothing else; the person's thoughts appear as plain paper chips.
+ */
+.morning-return {
+  --mr-gold: var(--return-gold, #b8862f);
+  --mr-gold-ink: #7a5610;
+  --mr-gold-wash: rgba(184, 134, 47, 0.13);
+  --mr-paper: var(--cabinet-bg, #fffaf0);
+  --mr-chip: #fffef9;
+  --mr-edge: rgba(122, 86, 16, 0.28);
+  --mr-rule: rgba(36, 79, 66, 0.16);
+  --mr-ink: var(--ink, #173c32);
+  --mr-muted: var(--ink-muted, #49665d);
+  position: relative;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 44rem;
+  margin: 0 auto 20px;
+  padding: 22px 26px 18px;
+  overflow: hidden;
+  color: var(--mr-ink);
+  background:
+    radial-gradient(120% 90% at 0% 0%, var(--mr-gold-wash), transparent 60%),
+    var(--mr-paper);
+  border: 1px solid var(--mr-edge);
+  border-radius: 18px;
+  box-shadow: 0 14px 40px rgba(60, 50, 20, 0.12);
+  line-height: 1.5;
+}
+.morning-return::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 3px;
+  background: linear-gradient(90deg, var(--mr-gold), transparent 85%);
+}
+.morning-return p,
+.morning-return h2 {
+  margin: 0;
+}
+.morning-return-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.morning-return-sun {
+  flex: none;
+  color: var(--mr-gold);
+}
+.morning-return-kicker,
+.morning-return-kind {
+  font-family: var(--font-geist-sans), sans-serif;
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--mr-gold-ink);
+}
+.morning-return h2 {
+  font-family: var(--font-editorial), serif;
+  font-size: 1.75rem;
+  font-weight: 500;
+  line-height: 1.2;
+}
+.morning-return-blooms {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+}
+.morning-return-bloom {
+  display: flex;
+  gap: 14px;
+  padding: 14px 0;
+  border-top: 1px solid var(--mr-rule);
+}
+.morning-return-glyph {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--mr-gold-wash);
+  box-shadow: inset 0 0 0 1px var(--mr-gold);
+  color: var(--mr-gold-ink);
+}
+.morning-return-body {
+  min-width: 0;
+  flex: 1;
+}
+.morning-return-line {
+  margin-top: 2px !important;
+  font-family: var(--font-editorial), serif;
+  font-size: 1.22rem;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.morning-return-touches {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  margin-top: 8px !important;
+}
+.morning-return-touches-label {
+  font-size: 0.82rem;
+  color: var(--mr-muted);
+}
+.morning-return-thought {
+  max-width: 100%;
+  min-height: 32px;
+  padding: 4px 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-editorial), serif;
+  font-size: 1rem;
+  color: var(--mr-ink);
+  background: var(--mr-chip);
+  border: 1px solid var(--mr-rule);
+  border-radius: 3px;
+  cursor: pointer;
+}
+.morning-return-thought:hover {
+  border-color: var(--moss, #2f6653);
+}
+.morning-return-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px 12px;
+  padding-top: 14px;
+  border-top: 1px solid var(--mr-rule);
+}
+.morning-return-more {
+  margin-right: auto !important;
+  font-size: 0.88rem;
+  color: var(--mr-muted);
+}
+.morning-return-open,
+.morning-return-dismiss {
+  min-height: 44px;
+  padding: 0 20px;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.morning-return-open {
+  order: 2;
+  color: var(--button-ink, #fffef7);
+  background: var(--moss-deep, #224d40);
+  border: 1px solid var(--moss-deep, #224d40);
+}
+.morning-return-open:hover {
+  background: var(--moss-hover, #183f34);
+}
+.morning-return-dismiss {
+  order: 1;
+  color: var(--moss-deep, #224d40);
+  background: transparent;
+  border: 1px solid transparent;
+}
+.morning-return-dismiss:hover {
+  border-color: var(--mr-rule);
+}
+.morning-return button:focus-visible {
+  outline: 2px solid var(--moss, #2f6653);
+  outline-offset: 2px;
+}
+
+/*
+ * Meadow: the reveal floats over the scene instead of pushing it down, so the
+ * garden keeps its full height behind it. It stays clear of the scene's own
+ * controls: inside the turn arrows at either edge, and above the topic dock
+ * (the workspace measures the dock and title card into the two properties).
+ * When the room is short it scrolls inside itself.
+ */
+.scene-host > .morning-return {
+  --reveal-gutter: 76px;
+  --reveal-top: 16px;
+  position: absolute;
+  top: var(--reveal-top);
+  right: var(--reveal-gutter);
+  z-index: 6;
+  width: min(30rem, calc(100% - 2 * var(--reveal-gutter)));
+  max-height: calc(var(--scene-dock-top, 100% - 180px) - var(--reveal-top) - 12px);
+  margin: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.scene-host > .morning-return h2 {
+  font-size: 1.45rem;
+}
+.scene-host > .morning-return .morning-return-line {
+  font-size: 1.08rem;
+}
+/* Narrower than a desktop: under the garden's title card, between the arrows. */
+@media (max-width: 900px) {
+  .scene-host > .morning-return {
+    --reveal-top: calc(var(--scene-title-bottom, 96px) + 10px);
+    right: auto;
+    left: 50%;
+    transform: translateX(-50%);
+    animation: none;
+  }
+}
+/* Phone: compact. The thoughts behind each bloom are one tap away in Returns. */
+@media (max-width: 560px) {
+  .scene-host > .morning-return {
+    --reveal-gutter: 58px;
+    padding: 14px 14px 10px;
+  }
+  .scene-host > .morning-return .morning-return-header {
+    gap: 10px;
+  }
+  .scene-host > .morning-return .morning-return-sun,
+  .scene-host > .morning-return .morning-return-glyph,
+  .scene-host > .morning-return .morning-return-touches {
+    display: none;
+  }
+  .scene-host > .morning-return h2 {
+    font-size: 1.2rem;
+  }
+  .scene-host > .morning-return .morning-return-blooms {
+    margin-top: 10px;
+  }
+  .scene-host > .morning-return .morning-return-bloom {
+    padding: 10px 0;
+  }
+  .scene-host > .morning-return .morning-return-line {
+    font-size: 1rem;
+    line-height: 1.35;
+  }
+  .scene-host > .morning-return .morning-return-footer {
+    gap: 6px;
+    padding-top: 10px;
+  }
+  .scene-host > .morning-return .morning-return-open,
+  .scene-host > .morning-return .morning-return-dismiss {
+    flex: 1 1 100%;
+  }
+  .scene-host > .morning-return .morning-return-open {
+    order: 1;
+  }
+  .scene-host > .morning-return .morning-return-dismiss {
+    order: 2;
+  }
+}
+
+@media (max-width: 560px) {
+  .morning-return {
+    padding: 18px 16px 14px;
+    border-radius: 14px;
+  }
+  .morning-return-header {
+    gap: 12px;
+  }
+  .morning-return-sun {
+    width: 36px;
+    height: 21px;
+  }
+  .morning-return h2 {
+    font-size: 1.4rem;
+  }
+  .morning-return-bloom {
+    gap: 12px;
+  }
+  .morning-return-glyph {
+    width: 36px;
+    height: 36px;
+  }
+  .morning-return-line {
+    font-size: 1.12rem;
+  }
+  .morning-return-thought {
+    min-height: 44px;
+  }
+  .morning-return-open,
+  .morning-return-dismiss {
+    flex: 1 1 0;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .morning-return {
+    animation: morning-return-rise 700ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+  .morning-return-bloom {
+    animation: morning-return-rise 600ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+  .morning-return-bloom:nth-child(1) {
+    animation-delay: 180ms;
+  }
+  .morning-return-bloom:nth-child(2) {
+    animation-delay: 300ms;
+  }
+  .morning-return-bloom:nth-child(3) {
+    animation-delay: 420ms;
+  }
+  @keyframes morning-return-rise {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  .morning-return {
+    --mr-gold: var(--return-gold, #d2a24c);
+    --mr-gold-ink: #e6bd72;
+    --mr-gold-wash: rgba(210, 162, 76, 0.14);
+    --mr-paper: var(--cabinet-bg, #1d251e);
+    --mr-chip: #1a231e;
+    --mr-edge: rgba(230, 189, 114, 0.35);
+    --mr-rule: rgba(200, 230, 210, 0.18);
+    box-shadow: 0 14px 40px rgba(0, 0, 0, 0.35);
+  }
+}

@@ -1,34 +1,34 @@
 :root {
-  --ink: #173c32;
-  --ink-muted: #49665d;
-  --moss: #2f6653;
-  --moss-deep: #224d40;
-  --moss-hover: #183f34;
-  --paper: #fbf8ef;
-  --line: rgba(36, 79, 66, 0.18);
+  --ink: #1c392e;
+  --ink-muted: #4a5f55;
+  --moss: #2f6350;
+  --moss-deep: #1f4a3c;
+  --moss-hover: #163a2f;
+  --paper: #f7f2e6;
+  --line: rgba(58, 66, 40, 0.2);
   --shadow: 0 24px 70px rgba(33, 77, 63, 0.16);
   --button-ink: #fffef7;
   --button-shadow: 0 10px 30px rgba(34, 77, 64, 0.2);
-  --surface: rgba(255, 253, 246, 0.88);
-  --surface-solid: #fffdf7;
-  --surface-muted: #f1eee3;
-  --input-bg: #fffef6;
-  --cabinet-bg: #fffaf0;
-  --card-bg: rgba(255, 253, 244, 0.92);
+  --surface: rgba(253, 250, 241, 0.9);
+  --surface-solid: #fdfaf1;
+  --surface-muted: #efe9d9;
+  --input-bg: #fffdf6;
+  --cabinet-bg: #fbf5e6;
+  --card-bg: rgba(253, 250, 240, 0.94);
   --card-accent-bg: rgba(223, 239, 230, 0.96);
   --card-ink: #2c5146;
   --card-shadow: 0 12px 36px rgba(38, 86, 68, 0.14);
   --pill-shadow: 0 6px 22px rgba(39, 83, 68, 0.08);
-  --garden-bg: #f7f7ee;
-  --garden-ink: #24483b;
-  --rail-bg: #f0f2e8;
-  --rail-active: #e0e8d9;
-  --garden-line: #dbe2d5;
-  --garden-muted: #526752;
-  --placeholder: #66755f;
-  --thought-bg: #faf9f1;
-  --plant: #507257;
-  --accent-warm: #a47a55;
+  --garden-bg: #f4efe1;
+  --garden-ink: #1f3d31;
+  --rail-bg: #ece7d6;
+  --rail-active: #dfe3cf;
+  --garden-line: #d8d1bc;
+  --garden-muted: #4f614e;
+  --placeholder: #5c6a56;
+  --thought-bg: #f8f4e8;
+  --plant: #4d6f55;
+  --accent-warm: #8f6442;
   --error: #9b3f38;
   --accent-color: #3a644c;
   --glass-line: rgba(255, 255, 255, 0.78);
@@ -51,12 +51,7 @@
     transparent 0 36%,
     rgba(32, 91, 72, 0.08) 100%
   );
-  --meadow-bg: radial-gradient(
-      ellipse at 70% 35%,
-      #e6efdf 0,
-      transparent 65%
-    ),
-    linear-gradient(#f8f9ef, #e9efdf);
+  --meadow-bg: linear-gradient(#f6f1e4, #f1ecdc);
   /* Living garden paper and tending materials (D-022). */
   --sheet: #fbf7ec;
   --sheet-ink: #26392f;
@@ -67,6 +62,47 @@
   --vellum-ink: #333f39;
   --tend: #9e4632;
   --scene-scrim: rgba(18, 28, 22, 0.32);
+  /* Field-journal system (market readiness plan). Gold is reserved for
+     AI-returned material: blooms, marks and the Returns surface. */
+  --return-gold: #b8871c;
+  --return-gold-ink: #74530a;
+  --return-gold-soft: #f5e9c8;
+  --return-gold-line: rgba(184, 135, 28, 0.45);
+  --earth: #7b5b3e;
+  --earth-soft: #e7dcc6;
+  --soil: #5a4331;
+  --soil-light: #8a6b4e;
+  --sky-wash: #e4ebe0;
+  --hill-far: #c5d3bd;
+  --hill-mid: #a3bb9c;
+  --hill-near: #7fa07d;
+  --rule: rgba(72, 96, 110, 0.2);
+  --margin-rule: rgba(160, 96, 72, 0.4);
+  /* Type scale */
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.375rem;
+  --text-2xl: 1.75rem;
+  --text-3xl: 2.25rem;
+  --text-4xl: 3rem;
+  --text-display: clamp(2.5rem, 5vw, 4.25rem);
+  --leading-tight: 1.1;
+  --leading-body: 1.6;
+  --tracking-eyebrow: 0.14em;
+  /* Shape, edge and depth */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 14px;
+  --radius-pill: 999px;
+  --border: 1px solid var(--garden-line);
+  --border-strong: 1px solid rgba(58, 66, 40, 0.34);
+  --shadow-sm: 0 1px 2px rgba(48, 44, 24, 0.08);
+  --shadow-md: 0 6px 18px rgba(48, 44, 24, 0.1);
+  --shadow-page: 0 1px 1px rgba(48, 44, 24, 0.1), 0 8px 22px rgba(48, 44, 24, 0.08);
+  --focus-ring: 3px solid var(--moss);
+  --focus-offset: 3px;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -128,6 +164,24 @@
     --vellum-ink: #dee6df;
     --tend: #f2a990;
     --scene-scrim: rgba(0, 0, 0, 0.48);
+    --return-gold: #e0b450;
+    --return-gold-ink: #f0d28a;
+    --return-gold-soft: #362c14;
+    --return-gold-line: rgba(224, 180, 80, 0.45);
+    --earth: #c9a57f;
+    --earth-soft: #2b251c;
+    --soil: #3a2c20;
+    --soil-light: #6b523c;
+    --sky-wash: #18231e;
+    --hill-far: #22332b;
+    --hill-mid: #2b4337;
+    --hill-near: #365443;
+    --rule: rgba(170, 200, 210, 0.14);
+    --margin-rule: rgba(220, 150, 120, 0.3);
+    --border-strong: 1px solid rgba(180, 210, 195, 0.34);
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-md: 0 6px 18px rgba(0, 0, 0, 0.4);
+    --shadow-page: 0 1px 1px rgba(0, 0, 0, 0.4), 0 8px 22px rgba(0, 0, 0, 0.35);
   }
 }
 
@@ -161,8 +215,8 @@ a {
   text-decoration: none;
 }
 :focus-visible {
-  outline: 3px solid var(--moss);
-  outline-offset: 3px;
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
 }
 
 .landing-shell {
@@ -680,96 +734,100 @@ a {
 }
 .garden-top nav {
   display: flex;
-  gap: 24px;
-  flex-wrap: wrap;
+  gap: 18px;
+  flex-wrap: nowrap;
   align-items: center;
 }
-/* Secondary tools sit inline until the phone header folds them away. */
-.tools-menu,
-.tools-secondary {
-  display: contents;
+/* Places to go, then one menu for everything about the account. */
+.top-link {
+  position: relative;
+  min-height: 44px;
+  padding: 0 4px;
+  white-space: nowrap;
+}
+.top-link[aria-current="page"] {
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 8px;
+}
+.returns-link[aria-current="page"] {
+  text-decoration-color: var(--return-gold);
+}
+/* A gold dot: the garden has returned something not yet seen. */
+.returns-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  margin-left: 6px;
+  border-radius: 50%;
+  background: var(--return-gold);
+  box-shadow: 0 0 0 3px var(--return-gold-soft);
+  vertical-align: 0.05em;
+}
+.tools-menu {
+  position: relative;
 }
 .tools-more {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 14px;
+  border: var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface-solid);
+}
+.tools-menu[data-open] .tools-more {
+  background: var(--rail-active);
+}
+.tools-more-caret {
+  font-size: 0.7rem;
+}
+.tools-secondary {
   display: none;
 }
+.tools-menu[data-open] .tools-secondary {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  min-width: 14rem;
+  padding: 6px;
+  border: 1px solid var(--sheet-edge);
+  border-radius: var(--radius-md);
+  background: var(--sheet);
+  box-shadow: var(--sheet-shadow);
+}
+.tools-secondary .plain-button {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 12px;
+  border-radius: var(--radius-sm);
+  color: var(--sheet-ink);
+  font-size: 0.95rem;
+  text-align: left;
+}
+.tools-secondary .plain-button:hover {
+  background: var(--vellum);
+}
 .wordmark-dot {
-  color: var(--accent-warm);
+  color: var(--moss);
   margin-left: 10px;
   font-size: 1.1rem;
 }
 .garden-frame {
   max-width: 1440px;
-  display: grid;
-  grid-template-columns: 240px minmax(0, 1fr);
   margin: auto;
-  min-height: calc(100vh - 155px);
-}
-.plot-rail {
-  padding: 36px 24px;
-  border-right: 1px solid var(--garden-line);
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  background: var(--rail-bg);
-}
-.plot-rail select {
-  width: 100%;
-  border: 0;
-  background: transparent;
-  font-family: var(--font-editorial), serif;
-  color: inherit;
-  font-size: 1.5rem;
-  padding: 8px 0;
-}
-.rail-link {
-  text-align: left;
-  color: inherit;
-  padding: 12px;
-  border: 0;
-  background: transparent;
-  border-radius: 8px;
-  cursor: pointer;
-  line-height: 1.5;
-}
-.rail-link[aria-current="page"] {
-  background: var(--rail-active);
-}
-.rail-link small {
-  display: block;
-  margin-top: 3px;
-  color: var(--garden-muted);
-  font-size: 0.72rem;
-}
-.plot-rail .secondary-button {
-  font-size: 0.8rem;
-  background: transparent;
-}
-.more-gardens {
-  margin-top: 30px;
-  font-size: 0.8rem;
-}
-.more-gardens summary {
-  cursor: pointer;
-  padding: 10px 0;
+  min-height: calc(100vh - 211px);
 }
 .meadow-page,
 .thought-page {
   padding: 28px clamp(22px, 5vw, 80px) 70px;
   min-width: 0;
   background: var(--meadow-bg);
-}
-.garden-breadcrumb {
-  display: flex;
-  justify-content: space-between;
-  gap: 20px;
-  font-size: 0.65rem;
-  letter-spacing: 0.1em;
-  color: var(--garden-muted);
-}
-.garden-breadcrumb span + span {
-  font-style: italic;
-  letter-spacing: 0;
-  text-transform: none;
 }
 .meadow-heading {
   margin: 65px 0 32px;
@@ -1061,96 +1119,59 @@ a {
   border: 0;
 }
 @media (max-width: 760px) {
-  /* One compact row: wordmark, Garden | List, and More. */
+  /* One compact row: wordmark, Meadow | Pages, Returns and More.
+     All gardens is the first step of the depth trail just below. */
   .garden-top {
-    padding: 8px 12px;
-    gap: 8px;
+    padding: 6px 10px;
+    gap: 6px;
   }
   .garden-top .wordmark {
-    font-size: 1.3rem;
+    font-size: 1.15rem;
+    white-space: nowrap;
+  }
+  /* The mark alone: the name stays for screen readers. */
+  .garden-top .wordmark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .garden-top .wordmark-text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
     white-space: nowrap;
   }
   .garden-top .wordmark-dot {
-    margin-left: 6px;
-    font-size: 0.9rem;
+    margin-left: 0;
+    font-size: 1.5rem;
   }
   .garden-top nav {
-    gap: 6px;
-    flex-wrap: nowrap;
+    gap: 4px;
     font-size: 0.85rem;
     justify-content: flex-end;
   }
   .garden-top .plain-button {
     min-height: 44px;
   }
-  .tools-menu {
-    display: block;
-    position: relative;
+  .garden-top .gardens-button {
+    display: none;
+  }
+  .garden-top .view-toggle button {
+    min-height: 44px;
   }
   .tools-more {
-    display: inline-flex;
-    align-items: center;
-    min-width: 44px;
-    padding-inline: 0.6rem;
-  }
-  .tools-secondary {
-    display: none;
-  }
-  .tools-menu[data-open] .tools-secondary {
-    position: absolute;
-    top: calc(100% + 6px);
-    right: 0;
-    z-index: 40;
-    display: flex;
-    flex-direction: column;
-    min-width: 13rem;
-    padding: 0.4rem;
-    border: 1px solid var(--sheet-edge);
-    border-radius: 8px;
-    background: var(--sheet);
-    box-shadow: var(--sheet-shadow);
-  }
-  .tools-secondary .plain-button {
-    padding-inline: 0.75rem;
-    font-size: 0.95rem;
-    text-align: left;
+    padding: 0 10px;
   }
   .garden-frame {
-    grid-template-columns: 1fr;
-  }
-  .plot-rail {
-    border-right: 0;
-    border-bottom: 1px solid var(--garden-line);
-    padding: 18px;
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 10px;
-  }
-  .plot-rail select {
-    max-width: 180px;
-    min-width: 0;
-    font-size: 1.1rem;
-  }
-  .plot-rail > .panel-kicker {
-    display: none;
-  }
-  .rail-link {
-    font-size: 0.78rem;
-  }
-  .rail-link small {
-    display: none;
-  }
-  .more-gardens {
-    margin: 0;
+    min-height: calc(100vh - 180px);
   }
   .meadow-page,
   .thought-page {
     padding: 24px 22px 45px;
-  }
-  .garden-breadcrumb span + span {
-    display: none;
   }
   .meadow-heading {
     margin-top: 38px;
@@ -1237,33 +1258,6 @@ a {
 }
 
 /* Clear hierarchy and writing history, independent of the future botanical redesign. */
-.garden-breadcrumb {
-  justify-content: flex-start;
-  flex-wrap: wrap;
-  align-items: center;
-  font-size: 0.85rem;
-  letter-spacing: 0;
-  gap: 10px;
-}
-.garden-breadcrumb button {
-  border: 0;
-  background: transparent;
-  color: inherit;
-  text-decoration: underline;
-  cursor: pointer;
-  padding: 8px 0;
-}
-.garden-breadcrumb span + span {
-  font-style: normal;
-}
-.plot-rail > .panel-kicker {
-  display: block;
-  margin: 16px 0 0;
-}
-.more-gardens {
-  padding-top: 20px;
-  border-top: 1px solid var(--line);
-}
 .meadow-heading {
   margin-top: 36px;
 }
@@ -1334,22 +1328,6 @@ button:disabled {
   opacity: 0.55;
 }
 @media (max-width: 760px) {
-  .garden-breadcrumb span + span {
-    display: inline;
-  }
-  .plot-rail {
-    align-items: stretch;
-  }
-  .plot-rail > .panel-kicker {
-    flex-basis: 100%;
-  }
-  .rail-link small {
-    display: block;
-  }
-  .more-gardens {
-    margin-top: 12px;
-    width: 100%;
-  }
   .journal-entry {
     padding: 18px;
   }

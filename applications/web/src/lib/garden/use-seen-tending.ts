@@ -33,6 +33,16 @@ function subscribe(notify: () => void) {
   };
 }
 
+const noSubscription = () => () => {};
+/**
+ * False on the server and during hydration. Receipts live in this browser, so
+ * anything that announces "new" must wait for it or a dismissed reveal would
+ * flash on every reload.
+ */
+export function useSeenReceiptsReady() {
+  return useSyncExternalStore(noSubscription, () => true, () => false);
+}
+
 /** First-view receipts contain only bloom IDs, scoped to this account/browser. */
 export function useSeenTending(tenantId: string, source: Tending = EMPTY_TENDING) {
   const key = `slow-garden:seen-blooms:${tenantId}`;

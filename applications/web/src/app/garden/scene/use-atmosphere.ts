@@ -21,6 +21,8 @@ export function useAtmosphere({
   theta,
   width,
   height,
+  zoom,
+  thetaScale = 1,
 }: {
   far: React.RefObject<HTMLCanvasElement | null>;
   back: React.RefObject<HTMLCanvasElement | null>;
@@ -33,8 +35,17 @@ export function useAtmosphere({
   theta: MotionValue<number>;
   width: number;
   height: number;
+  /** Camera closeness; the ground scales with it. */
+  zoom?: MotionValue<number>;
+  /** Grass degrees per camera degree, so grass and beds travel together. */
+  thetaScale?: number;
 }) {
   const engine = useRef<GardenAtmosphere | null>(null);
+  const scale = useRef(thetaScale);
+  useEffect(() => {
+    scale.current = thetaScale;
+    engine.current?.update({});
+  }, [thetaScale]);
   const ready = width > 0 && height > 0;
 
   useEffect(() => {
@@ -45,13 +56,16 @@ export function useAtmosphere({
       horizon,
       fov,
       still,
-      getTheta: () => theta.get(),
+      getTheta: () => theta.get() * scale.current,
+      getZoom: () => zoom?.get() ?? 1,
     });
     engine.current = atmosphere;
     atmosphere.resize(width, height);
     const unsubscribe = theta.on("change", () => atmosphere.redraw());
+    const unsubscribeZoom = zoom?.on("change", () => atmosphere.redraw());
     return () => {
       unsubscribe();
+      unsubscribeZoom?.();
       atmosphere.destroy();
       engine.current = null;
     };

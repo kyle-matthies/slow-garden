@@ -14,20 +14,31 @@ npx playwright install chromium
 npm run axe
 ```
 
-Checks, per page state (landing, login, error, loading, garden
-overview/topic/thought/archive):
+Checks, per page state (landing, login, error, loading, first run, import; the
+Meadow at garden, topic and focus level; Pages at garden, topic and thought
+level; the thought page over the Meadow; Returns with blooms, empty, and with the
+full record open; the morning reveal over the Meadow and in Pages; archive, the
+ring of all gardens, the More menu, settings and topic settings):
 
 - axe-core (`wcag2a`, `wcag2aa`, `wcag21aa`, `best-practice`) in light and dark
   `prefers-color-scheme`, at 390x844 (mobile, dsf 2) and 1280x800.
 - No horizontal overflow at 390px.
-- 200% zoom proxy (640x400 CSS px) for landing, login, garden-thought: no
-  overflow, h1 and primary action visible.
+- 200% zoom proxy (640x400 CSS px) for landing, login, the thought page, Returns
+  and the morning reveal: no overflow, h1 and primary action visible.
 - WCAG contrast ratios for key text selectors, written to
   `documents/initiatives/receipts/08/contrast.json`.
 
 Exits non-zero on any serious/critical violation, overflow, or AA contrast
 failure. Screenshots land in `documents/initiatives/receipts/08/`.
 
+Entrance animations are allowed to finish before colours are measured, and each
+contrast state runs in a fresh browser profile so first-view receipts from one
+state cannot hide the morning reveal in another.
+
+`AXE_BASE=http://localhost:3147` checks a fixture server that is already running
+(`GARDEN_AXE_FIXTURES=1`) instead of booting one on :3211, and
+`AXE_STATES=garden-ring,morning-reveal` reruns only the named states (a partial
+run does not rewrite `contrast.json`).
 `AXE_CHROMIUM` points at a preinstalled Chromium when Playwright's own is absent, and
 `AXE_RECEIPTS` writes the receipt set elsewhere (the living garden's receipts live in
 `documents/initiatives/receipts/living-garden/`).
@@ -41,10 +52,13 @@ cd accessibility && npm ci && npm run growth
 
 The production-build journey check covers keyboard entry navigation from Continue
 writing, tending history, import preview without a server write, failed-import
-retry, and onboarding recovery. It uses fictional fixtures at 390 and 1280 in
+retry, onboarding recovery, and the morning reveal (shown once over the Meadow
+and in Pages, at most three blooms, and still dismissed after a reload). It uses fictional fixtures at 390 and 1280 in
 light and dark mode. Hosted credentials are removed from the server environment.
 Screenshots and `journeys.json` go to `/tmp/slow-garden-growth-20261104` by default;
 set `GROWTH_RECEIPTS` to choose a different directory. `AXE_CHROMIUM` also applies.
+`GROWTH_BASE=http://localhost:3147` runs the same journeys against a fixture
+server that is already up instead of starting the production build.
 
 ## Performance
 

@@ -75,6 +75,19 @@ const rows = [
 ];
 let context;
 const profile = `.local-runtime/browser-${Date.now()}`;
+let page;
+// The top bar: Meadow / Pages, Returns, All gardens, and the More menu.
+const tools = () => page.getByRole("navigation", { name: "Garden tools" });
+async function fromMore(name) {
+  await tools().getByRole("button", { name: "More", exact: true }).click();
+  await tools().getByRole("button", { name, exact: true }).click();
+}
+// Pages: topics are bed cards at garden level, thoughts are specimen cards.
+const openTopic = (name) =>
+  page.locator(".bed-card").filter({ hasText: name }).click();
+const openThought = (title) =>
+  page.locator(".specimen-card").filter({ hasText: title }).click();
+const ring = () => page.getByRole("region", { name: "All your gardens" });
 await mkdir(profile, { recursive: true });
 try {
   const fixture = createClient(config.API_URL, config.PUBLISHABLE_KEY, {
@@ -97,11 +110,11 @@ try {
     viewport: { width: 1280, height: 900 },
   });
   context.setDefaultTimeout(15000);
-  let page = context.pages()[0];
+  page = context.pages()[0];
   page.on("dialog", (dialog) => dialog.accept());
   await page.goto(`${base}/login`);
   await page.getByLabel("Email address").fill(email);
-  await page.getByRole("button", { name: "Send private sign-in code" }).click();
+  await page.getByRole("button", { name: "Email me a sign-in code" }).click();
   // Read the newest local OTP via admin without delivering external mail.
   await expect(page.getByLabel("Six-digit code")).toBeVisible();
   const fresh = await admin.auth.admin.generateLink({
@@ -138,8 +151,10 @@ try {
   console.log(
     "PASS: OTP, authenticated entry redirects, persistent cookies, browser restart",
   );
-  await page.locator(".rail-link").filter({ hasText: "Reading" }).click();
-  await page.getByRole("button", { name: /Thought A question/ }).click();
+  // Pages is the structured view; choosing it is remembered for later visits.
+  await tools().getByRole("button", { name: "Pages", exact: true }).click();
+  await openTopic("Reading");
+  await openThought("A question");
   await expect(page).toHaveURL(new RegExp(`thought=${ids.thought}`));
   await page
     .getByRole("textbox", { name: "New entry", exact: true })
@@ -193,7 +208,8 @@ try {
   await expect(
     page.getByRole("heading", { name: "Test Garden", exact: true }),
   ).toBeVisible();
-  await page.locator(".recent-entry").first().click();
+  await page.locator(".recent-writing > summary").click();
+  await page.locator(".recent-writing li button").first().click();
   await expect(page.locator(".journal-entry").first()).toBeVisible();
   console.log(
     "PASS: topic/thought location, reload, Back, draft recovery, recent entry link, timestamp",
@@ -204,20 +220,17 @@ try {
     .getByRole("button", { name: "Archive entry", exact: true })
     .click();
   await expect(page.locator(".journal-entry")).toHaveCount(1);
-  await page
-    .getByRole("navigation", { name: "Garden tools" })
-    .getByRole("button", { name: "Archive", exact: true })
-    .click();
-  await page.getByRole("button", { name: /Thought A question/ }).click();
+  await fromMore("Archive");
+  await openTopic("Reading");
+  await openThought("A question");
   await expect(page.locator(".journal-entry")).toHaveCount(1);
   await page
     .getByRole("button", { name: "Restore entry", exact: true })
     .click();
   await expect(page.locator(".journal-entry")).toHaveCount(0);
-  await page
-    .getByRole("button", { name: "Back to garden", exact: true })
-    .click();
-  await page.getByRole("button", { name: /Thought A question/ }).click();
+  await fromMore("Leave archive");
+  await openTopic("Reading");
+  await openThought("A question");
   await expect(page.locator(".journal-entry")).toHaveCount(2);
   await page
     .getByRole("button", { name: "Archive thought", exact: true })
@@ -225,22 +238,16 @@ try {
   await expect(
     page.getByRole("button", { name: "Restore this thought" }),
   ).toBeVisible();
-  await page
-    .getByRole("navigation", { name: "Garden tools" })
-    .getByRole("button", { name: "Archive", exact: true })
-    .click();
-  await page
-    .getByRole("button", { name: /Thought · archived A question/ })
-    .click();
+  await fromMore("Archive");
+  await openTopic("Reading");
+  await openThought("A question");
   await expect(page.locator(".journal-entry")).toHaveCount(2);
   await page.getByRole("button", { name: "Restore this thought" }).click();
   await expect(
     page.getByRole("button", { name: "Archive thought" }),
   ).toBeVisible();
-  await page
-    .getByRole("button", { name: "Back to garden", exact: true })
-    .click();
-  await page.locator(".rail-link").filter({ hasText: "Reading" }).click();
+  await fromMore("Leave archive");
+  await openTopic("Reading");
   await page.getByText("Topic settings ·", { exact: false }).click();
   await page
     .getByRole("button", { name: "Archive topic", exact: true })
@@ -248,11 +255,9 @@ try {
   await expect(
     page.getByRole("button", { name: "Restore topic", exact: true }).first(),
   ).toBeVisible();
-  await page
-    .getByRole("navigation", { name: "Garden tools" })
-    .getByRole("button", { name: "Archive", exact: true })
-    .click();
-  await page.getByRole("button", { name: /Thought A question/ }).click();
+  await fromMore("Archive");
+  await openTopic("Reading");
+  await openThought("A question");
   await expect(
     page.getByRole("button", { name: "Archive thought", exact: true }),
   ).toBeDisabled();
@@ -260,17 +265,17 @@ try {
   await page
     .getByRole("button", { name: "Restore topic", exact: true })
     .click();
+  await fromMore("Leave archive");
+  await openTopic("Reading");
+  // Returns is a top-level place; the full record opens inside it.
+  await tools().getByRole("button", { name: /^Returns/ }).click();
   await page
-    .getByRole("button", { name: "Back to garden", exact: true })
-    .click();
-  await page.locator(".rail-link").filter({ hasText: "Reading" }).click();
-  await page
-    .getByRole("button", { name: "AI reflections", exact: true })
+    .getByRole("button", { name: "Open the full record", exact: true })
     .click();
   await expect(
     page
       .getByText(
-        /AI reflections are not available yet. Your permissions are saved/,
+        /Tending is not active for this account yet\. Your tending choices are saved/,
       )
       .first(),
   ).toBeVisible();
@@ -280,32 +285,43 @@ try {
   // Optional second instance tests service-enabled UI without dispatching any AI job.
   if (process.env.TEST_AI_UI === "true") {
     await page.goto(
-      `http://localhost:3149/garden?garden=${ids.garden}&topic=${ids.topic}`,
+      `http://localhost:3149/garden?garden=${ids.garden}&topic=${ids.topic}&view=returns`,
     );
     await page
-      .getByRole("button", { name: "AI reflections", exact: true })
+      .getByRole("button", { name: "Open the full record", exact: true })
       .click();
     await expect(
       page.getByRole("button", { name: "Invite a reflection", exact: true }),
     ).toBeVisible();
-    await page.locator(".rail-link").filter({ hasText: "Making" }).click();
+    await page.goto(
+      `http://localhost:3149/garden?garden=${ids.garden}&topic=${ids.topic2}&view=returns`,
+    );
     await page
-      .getByRole("button", { name: "AI reflections", exact: true })
+      .getByRole("button", { name: "Open the full record", exact: true })
       .click();
     await expect(
-      page.getByText(/AI permission is off for this topic/),
+      page.getByText(/Tending is off for this topic/),
     ).toBeVisible();
-    await page.goto(`${base}/garden?garden=${ids.garden}`);
     console.log(
       "PASS: service-enabled consent on/off states, without a provider request",
     );
   }
 
+  await page.goto(`${base}/garden?garden=${ids.garden}&view=list`);
+  // New gardens are planted from the ring of all gardens. Its cards overlap, so
+  // they are brought forward from the keyboard, as the ring's own arrows do.
+  await tools().getByRole("button", { name: /^All gardens/ }).click();
+  await ring()
+    .getByRole("button", { name: "Bring forward", exact: true })
+    .press("Enter");
   await page
     .getByRole("button", { name: "＋ New garden", exact: true })
     .click();
   await expect(page.getByLabel("Name your garden")).toBeVisible();
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await ring()
+    .getByRole("button", { name: "Back to this garden", exact: true })
+    .click();
   await page.getByRole("button", { name: "＋ New topic", exact: true }).click();
   await page.getByLabel("Name your topic").fill("New topic fixture");
   await page.getByRole("button", { name: "Create", exact: true }).click();
@@ -320,7 +336,11 @@ try {
   await expect(
     page.getByRole("heading", { name: "New thought fixture", exact: true }),
   ).toBeVisible();
-  await page.getByLabel("Your garden", { exact: true }).selectOption(ids.other);
+  await tools().getByRole("button", { name: /^All gardens/ }).click();
+  await ring().getByRole("button", { name: /^Other Garden/ }).press("Enter");
+  await ring()
+    .getByRole("button", { name: "Enter Other Garden", exact: true })
+    .click();
   await expect(
     page.getByRole("heading", { name: "Other Garden", exact: true }),
   ).toBeVisible();
@@ -347,10 +367,7 @@ try {
   console.log(
     "PASS: one-click creation, garden switch, stale location, mobile width, keyboard entry",
   );
-  await page.getByRole("button", { name: "Settings & export" }).click();
-  await page
-    .getByRole("button", { name: "Sign out on this device", exact: true })
-    .click();
+  await fromMore("Sign out");
   await expect(page).toHaveURL(/\/login/);
   await page.goto(base + "/garden");
   await expect(page).toHaveURL(/\/login/);

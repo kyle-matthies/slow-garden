@@ -1,0 +1,197 @@
+/* The depth trail: one breadcrumb for Meadow and Pages. Imported by level-trail.tsx. */
+.level-trail-bar {
+  position: relative;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+  min-height: 56px;
+  padding: 6px clamp(14px, 2.6vw, 38px);
+  border-bottom: var(--border);
+  background: var(--surface-solid);
+  color: var(--garden-ink);
+}
+.level-trail {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  flex: 1 1 auto;
+  /* Overrides the retired text breadcrumb this nav replaces. */
+  font-size: var(--text-sm);
+  letter-spacing: 0;
+  gap: 0;
+  flex-wrap: nowrap;
+}
+.level-trail ol {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.level-trail-step {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  flex: 0 1 auto;
+}
+/* The path between levels. */
+.level-trail-step + .level-trail-step::before {
+  content: "";
+  flex: none;
+  width: 18px;
+  height: 1px;
+  margin-inline: 4px;
+  background: currentColor;
+  opacity: 0.35;
+}
+.level-trail-step.level-trail-below::before {
+  width: 10px;
+  opacity: 0.2;
+}
+.level-trail-step button,
+.level-trail-here {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 6px 0 0;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+}
+.level-trail-step button {
+  cursor: pointer;
+  color: var(--garden-muted);
+}
+.level-trail-step button:hover {
+  color: var(--garden-ink);
+}
+.level-trail-step button:hover .level-trail-name {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.level-trail .level-glyph {
+  flex: none;
+  box-sizing: content-box;
+  padding: 5px;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+}
+.level-trail-step button .level-glyph {
+  border-color: var(--garden-line);
+  background: var(--paper);
+}
+.level-trail-step[data-current] .level-glyph {
+  border-color: var(--moss-deep);
+  background: var(--moss-deep);
+  color: var(--button-ink);
+}
+.level-trail-step[data-returns] .level-glyph {
+  border-color: var(--return-gold);
+  background: var(--return-gold-soft);
+  color: var(--return-gold-ink);
+}
+.level-trail-below .level-glyph {
+  padding: 4px;
+  width: 16px;
+  height: 16px;
+  border-style: dashed;
+  opacity: 0.38;
+}
+.level-trail-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.15;
+}
+.level-trail-level {
+  color: var(--moss);
+  font-size: 0.66rem;
+  font-weight: 750;
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+}
+.level-trail-name {
+  overflow: hidden;
+  max-width: 22ch;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.level-trail-here .level-trail-name {
+  max-width: 34ch;
+  color: var(--garden-ink);
+  font-weight: 700;
+}
+.level-trail-back {
+  display: none;
+}
+.level-trail-aside {
+  position: relative;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+@media (max-width: 760px) {
+  .level-trail-bar {
+    min-height: 52px;
+    padding: 4px 8px;
+    gap: 6px;
+  }
+  .level-trail-back {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    margin-right: 2px;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--garden-ink);
+    font-size: 1.7rem;
+    line-height: 1;
+    cursor: pointer;
+  }
+  /* Earlier levels fold to their glyphs; the current level keeps its name. */
+  .level-trail-step button {
+    width: 44px;
+    justify-content: center;
+    padding: 0;
+    gap: 0;
+  }
+  .level-trail-step button .level-trail-name {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+  .level-trail-step + .level-trail-step::before {
+    width: 6px;
+    margin-inline: 0;
+  }
+  .level-trail-step[data-current] {
+    flex: 1 1 auto;
+  }
+  .level-trail-step[data-current]::before {
+    margin-right: 6px;
+  }
+  .level-trail-here .level-trail-name {
+    max-width: none;
+  }
+  .level-trail-below {
+    display: none;
+  }
+}

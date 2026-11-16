@@ -485,7 +485,7 @@ export function EntryEditor({
             aria-pressed={quietPage}
             onClick={() => onQuietPageChange(!quietPage)}
           >
-            {quietPage ? "Show garden rail" : "Quiet page"}
+            {quietPage ? "Show thought details" : "Quiet page"}
           </button>
         )}
       </div>

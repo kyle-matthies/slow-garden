@@ -1,12 +1,17 @@
 /* Living garden scene (ADR-007). All legible text sits on opaque paper. */
 
 .garden-scene {
+  --scene-gold: #e2b24a;
+  --scene-gold-glow: rgba(255, 205, 104, 0.6);
+  --scene-gold-deep: var(--return-gold, #b8871c);
   position: relative;
   height: calc(100svh - var(--garden-top-height, 74px));
   min-height: 34rem;
   overflow: hidden;
+  /* clip, unlike hidden, cannot be scrolled by focus or scrollIntoView. */
+  overflow: clip;
   isolation: isolate;
-  background: linear-gradient(var(--sky-top), var(--sky-horizon) var(--horizon));
+  background: var(--sky-horizon);
   color: var(--sheet-ink);
   user-select: none;
   -webkit-user-select: none;
@@ -20,12 +25,15 @@
   position: absolute;
   inset: 0;
 }
+/* A painted sky: deep overhead, paling down to a band of light at the horizon. */
 .scene-sky {
-  background: linear-gradient(var(--sky-top), var(--sky-horizon) var(--horizon));
+  background: linear-gradient(
+    var(--sky-zenith) 0,
+    var(--sky-top) calc(var(--horizon) * 0.4),
+    var(--sky-horizon) calc(var(--horizon) * 0.84),
+    var(--horizon-glow) var(--horizon)
+  );
   overflow: hidden;
-}
-.scene-world {
-  will-change: transform;
 }
 .scene-canvas {
   width: 100%;
@@ -33,42 +41,90 @@
   pointer-events: none;
 }
 
+/* Sun or moon: a small bright disc inside a wide, soft glow. */
 .scene-light {
   position: absolute;
-  left: -90px;
-  top: -90px;
-  width: 180px;
-  height: 180px;
-  border-radius: 50%;
-  background: radial-gradient(circle, var(--light) 0 17%, var(--light-glow) 32%, transparent 70%);
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
   will-change: transform;
 }
-.scene-light.is-moon {
-  background: radial-gradient(circle, var(--light) 0 11%, var(--light-glow) 18%, transparent 52%);
+.scene-light-halo,
+.scene-light-disc {
+  position: absolute;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+}
+.scene-light-halo {
+  width: min(120vh, 62rem);
+  height: min(120vh, 62rem);
+  background: radial-gradient(
+    circle closest-side,
+    var(--light-glow) 0,
+    color-mix(in srgb, var(--light-glow) 55%, transparent) 22%,
+    color-mix(in srgb, var(--light-glow) 22%, transparent) 48%,
+    transparent 100%
+  );
+}
+.scene-light-disc {
+  width: 4.4rem;
+  height: 4.4rem;
+  background: radial-gradient(
+    circle closest-side,
+    #fff 0,
+    var(--light) 46%,
+    color-mix(in srgb, var(--light) 70%, transparent) 72%,
+    transparent 100%
+  );
+}
+/* Light spilling across the land beneath the sun. */
+.scene-light-wash {
+  position: absolute;
+  width: min(150vh, 80rem);
+  height: min(90vh, 46rem);
+  border-radius: 50%;
+  transform: translate(-50%, -38%);
+  background: radial-gradient(
+    ellipse closest-side,
+    color-mix(in srgb, var(--light-glow) 46%, transparent) 0,
+    color-mix(in srgb, var(--light-glow) 20%, transparent) 45%,
+    transparent 100%
+  );
+}
+.scene-light.is-moon .scene-light-wash {
+  opacity: 0.4;
+}
+.scene-light.is-moon .scene-light-halo {
+  width: min(70vh, 34rem);
+  height: min(70vh, 34rem);
+}
+.scene-light.is-moon .scene-light-disc {
+  width: 3rem;
+  height: 3rem;
+  background:
+    radial-gradient(circle at 64% 38%, transparent 0 52%, rgba(120, 138, 160, 0.3) 78%),
+    radial-gradient(circle closest-side, var(--light) 0 88%, transparent 100%);
 }
 
 .scene-clouds {
   position: absolute;
-  inset: 4% -25% auto;
-  height: 30%;
-  opacity: 0.7;
-  background:
-    radial-gradient(ellipse 9% 22% at 18% 52%, rgba(255, 255, 255, 0.75), transparent 70%),
-    radial-gradient(ellipse 14% 26% at 24% 58%, rgba(255, 255, 255, 0.55), transparent 72%),
-    radial-gradient(ellipse 12% 18% at 58% 34%, rgba(255, 255, 255, 0.6), transparent 70%),
-    radial-gradient(ellipse 18% 22% at 66% 40%, rgba(255, 255, 255, 0.42), transparent 74%),
-    radial-gradient(ellipse 10% 16% at 88% 62%, rgba(255, 255, 255, 0.5), transparent 70%);
-  animation: scene-clouds 140s ease-in-out infinite alternate;
+  left: -12%;
+  top: 0;
+  width: 124%;
+  height: var(--horizon);
+  opacity: 0.92;
+  animation: scene-clouds 160s ease-in-out infinite alternate;
 }
 .palette-night .scene-clouds {
-  opacity: 0.12;
+  opacity: 0.5;
 }
 @keyframes scene-clouds {
   from {
-    transform: translateX(-5%);
+    transform: translateX(-3%);
   }
   to {
-    transform: translateX(5%);
+    transform: translateX(3%);
   }
 }
 .scene-stars {
@@ -89,6 +145,66 @@
   background-size: 640px 360px;
 }
 
+/* Mist lying along the horizon, over the feet of the hills. */
+.scene-haze {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(var(--horizon) - 5%);
+  height: 10%;
+  pointer-events: none;
+  background: linear-gradient(
+    transparent,
+    color-mix(in srgb, var(--mist) 42%, transparent) 46%,
+    color-mix(in srgb, var(--mist) 16%, transparent) 64%,
+    transparent
+  );
+}
+/* A pool of light on the bed the camera faces. */
+.scene-pool {
+  position: absolute;
+  left: 50%;
+  top: calc(var(--bed-top) - (var(--bed-bottom) - var(--bed-top)) * 0.9);
+  width: calc(var(--bed-width) * 1.3);
+  height: calc((var(--bed-bottom) - var(--bed-top)) * 2.8);
+  pointer-events: none;
+  transform: translateX(-50%);
+  background: radial-gradient(
+    ellipse closest-side,
+    color-mix(in srgb, var(--light) 22%, transparent) 0,
+    color-mix(in srgb, var(--light) 9%, transparent) 55%,
+    transparent 100%
+  );
+}
+/* A mown path leads from where you stand to the bed you face. */
+.scene-path {
+  position: absolute;
+  left: calc(50% - var(--bed-width) * 0.42);
+  top: calc(var(--bed-bottom) + (var(--bed-bottom) - var(--bed-top)) * 0.16);
+  width: calc(var(--bed-width) * 0.84);
+  height: calc(100% - var(--bed-bottom));
+  pointer-events: none;
+  transition: opacity 500ms ease;
+}
+.scene-path.is-near {
+  opacity: 0;
+}
+.palette-night .scene-path {
+  opacity: 0.3;
+}
+.palette-night .scene-pool {
+  opacity: 0.35;
+}
+/* The plate darkens gently toward its corners. */
+.scene-vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 78% 74% at 50% 46%, transparent 62%, rgba(24, 30, 22, 0.3) 100%),
+    linear-gradient(transparent 72%, rgba(18, 26, 16, 0.26));
+}
+
 /* Beds and plants */
 .scene-band {
   position: absolute;
@@ -98,16 +214,102 @@
   height: 0;
   will-change: transform;
 }
-.bed-clearing {
+.scene-bed {
+  transform-origin: 0 0;
+}
+.bed-ground {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1px;
+  height: 1px;
+  overflow: visible;
+  pointer-events: none;
+}
+/* Haze over a bed the camera is not facing; its opacity follows the camera. */
+.bed-veil {
+  position: absolute;
+  z-index: 3000;
+  opacity: 0;
+  pointer-events: none;
+  will-change: opacity;
+}
+/* Every plant stands in its own small mound of worked soil. */
+.plant-mound {
+  position: absolute;
+  bottom: 0;
+  border-radius: 50%;
+  pointer-events: none;
+  transform: translate(-50%, 18%);
+  background: radial-gradient(
+    ellipse closest-side,
+    rgba(30, 20, 12, 0.42) 0,
+    rgba(30, 20, 12, 0.22) 55%,
+    transparent 100%
+  );
+}
+/* A seed or sprout is marked with a small wooden label, as a gardener would. */
+.plant-marker {
+  position: absolute;
+  bottom: 0;
+  border-radius: 30% 30% 0 0;
+  pointer-events: none;
+  transform: translate(-50%, -6%) rotate(7deg);
+  /* A broad label on a narrow stake pushed into the soil. */
+  clip-path: polygon(0 0, 100% 0, 100% 52%, 66% 62%, 58% 100%, 42% 100%, 34% 62%, 0 52%);
+  background:
+    linear-gradient(transparent 16%, rgba(90, 74, 44, 0.5) 16% 22%, transparent 22% 30%, rgba(90, 74, 44, 0.4) 30% 35%, transparent 35%),
+    linear-gradient(100deg, #fbf3dc, #e6d6ae 70%, #c2ad80);
+}
+/* The freshly worked soil round a seed or sprout is paler and raised. */
+.plant-mound.is-young {
+  background: radial-gradient(
+    ellipse closest-side,
+    rgba(120, 88, 58, 0.9) 0,
+    rgba(96, 68, 44, 0.7) 52%,
+    rgba(30, 20, 12, 0.28) 78%,
+    transparent 100%
+  );
+}
+.palette-night .plant-mound.is-young {
+  opacity: 0.5;
+}
+.palette-night .plant-marker {
+  background: linear-gradient(100deg, #8d8672, #6d6756);
+}
+/*
+ * What tending returned is light, never growth: a warm gold glow behind a
+ * plant with a bloom, and gold light pooled at its foot.
+ */
+.bloom-light,
+.bloom-pool {
   position: absolute;
   border-radius: 50%;
   pointer-events: none;
-  background:
-    radial-gradient(ellipse at 50% 58%, rgba(84, 64, 34, 0.24), rgba(84, 64, 34, 0.1) 48%, transparent 70%),
-    radial-gradient(ellipse at 50% 40%, rgba(255, 250, 225, 0.1), transparent 60%);
 }
-.palette-night .bed-clearing {
-  background: radial-gradient(ellipse at 50% 55%, rgba(0, 0, 0, 0.25), transparent 70%);
+.bloom-light {
+  transform: translate(-50%, -50%);
+  background: radial-gradient(
+    circle closest-side,
+    rgba(255, 228, 150, 0.86) 0,
+    rgba(255, 205, 104, 0.7) 30%,
+    rgba(255, 198, 92, 0.3) 62%,
+    transparent 100%
+  );
+}
+.bloom-pool {
+  bottom: 0;
+  transform: translate(-50%, 34%);
+  background: radial-gradient(
+    ellipse closest-side,
+    rgba(255, 214, 120, 0.8) 0,
+    rgba(255, 200, 96, 0.36) 58%,
+    transparent 100%
+  );
+}
+.palette-night .bloom-light,
+.palette-night .bloom-pool {
+  opacity: 0.6;
 }
 .scene-plant {
   position: absolute;
@@ -215,9 +417,9 @@
   top: 6%;
   left: 58%;
   width: 1px;
-  height: 22px;
+  height: 20px;
   background: var(--tend);
-  opacity: 0.85;
+  opacity: 0.9;
   pointer-events: none;
   transform-origin: 50% 0;
   transform: rotate(-14deg);
@@ -225,35 +427,50 @@
 .plant-tend span {
   position: absolute;
   top: 100%;
-  left: -9px;
+  left: -8px;
   display: grid;
   place-items: center;
-  width: 18px;
-  height: 22px;
+  width: 16px;
+  height: 20px;
   border: 1px solid var(--sheet-edge);
   border-radius: 2px 2px 3px 3px;
   background: var(--vellum);
   color: var(--tend);
-  font-size: 11px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+  font-size: 10px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.22);
 }
-.has-new-bloom .plant-art::before {
-  content: "";
-  position: absolute;
-  inset: 4% 18% 50%;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(255, 244, 214, 0.75), transparent 68%);
+.plant-tend.is-bloom {
+  background: var(--scene-gold-deep);
+}
+.plant-tend.is-bloom {
+  height: 24px;
+}
+.plant-tend.is-bloom span {
+  left: -10px;
+  width: 20px;
+  height: 25px;
+  font-size: 13px;
+  box-shadow:
+    0 0 0 1px var(--scene-gold),
+    0 0 10px var(--scene-gold-glow),
+    0 2px 5px rgba(0, 0, 0, 0.22);
+  border-color: var(--scene-gold-deep);
+  color: var(--return-gold-ink, #74530a);
+  background: var(--return-gold-soft, #f5e9c8);
+}
+.has-new-bloom .bloom-light {
   animation: bloom-glow 3.6s ease-in-out infinite alternate;
 }
 @keyframes bloom-glow {
   from {
-    opacity: 0.45;
+    opacity: 0.55;
   }
   to {
     opacity: 1;
   }
 }
 
+/* Threads between plants a bloom connects: fine gold gossamer, lying still. */
 .scene-threads {
   position: absolute;
   left: 0;
@@ -266,40 +483,60 @@
 }
 .scene-thread path {
   fill: none;
-  stroke: var(--tend);
-  stroke-width: 1.8;
-  stroke-dasharray: 5 7;
   stroke-linecap: round;
-  opacity: 0.9;
-  animation: thread-drift 6s linear infinite;
+}
+.thread-under {
+  stroke: rgba(255, 250, 232, 0.5);
+  stroke-width: 3.4;
+}
+.thread-line {
+  stroke: var(--scene-gold);
+  stroke-width: 1.5;
+  stroke-dasharray: 1 5;
 }
 .scene-thread circle {
-  fill: var(--tend);
+  fill: var(--scene-gold);
+  stroke: rgba(255, 250, 232, 0.75);
+  stroke-width: 1;
 }
-@keyframes thread-drift {
-  to {
-    stroke-dashoffset: -48;
-  }
+.palette-night .thread-under {
+  stroke: rgba(10, 16, 20, 0.5);
 }
 
 /* Bed signs: paper tags on stakes at the front of each bed */
 .bed-sign-post {
   position: absolute;
   left: 0;
+  bottom: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
+  width: max-content;
   transform: translateX(-50%);
 }
 .bed-sign-post::after {
   content: "";
   width: 4px;
-  height: 46px;
+  height: 16px;
   margin-top: -3px;
   border-radius: 2px;
   background: linear-gradient(90deg, #6b5539, #9a7d57 45%, #5c4830);
 }
+.bed-sign-wrap {
+  position: relative;
+  display: block;
+}
+/* A bed that holds something tending returned carries a small gold mark. */
+.bed-sign-bloom {
+  position: absolute;
+  top: 0.2rem;
+  right: 0.4rem;
+  color: var(--scene-gold-deep);
+  font-size: 0.85rem;
+  line-height: 1;
+}
 .bed-sign {
+  position: relative;
   display: grid;
   gap: 2px;
   min-width: 9.5rem;
@@ -329,6 +566,16 @@
     0 0 0 2px var(--moss),
     var(--sheet-shadow);
 }
+/* A ribbon in the bed's own flower hue. */
+.bed-sign-hue {
+  position: absolute;
+  top: -1px;
+  left: 0.9rem;
+  width: 0.7rem;
+  height: 1.05rem;
+  border-radius: 0 0 2px 2px;
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 78%, 0 100%);
+}
 .bed-sign-name {
   font-family: var(--font-editorial), Georgia, serif;
   font-size: 1.22rem;
@@ -339,10 +586,12 @@
   color: var(--sheet-muted);
   font-size: 0.78rem;
 }
-/* A small slip under the sign when some thoughts rest in the list. */
+/* A small slip under the sign when some thoughts rest in Pages. */
 .bed-sign-more {
+  position: absolute;
+  left: calc(100% + 4px);
+  bottom: 0;
   min-height: 32px;
-  margin-top: 4px;
   padding: 0.2rem 0.6rem;
   border: 1px solid var(--sheet-edge);
   border-radius: 3px;
@@ -434,7 +683,8 @@
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  width: min(54rem, calc(100% - 2rem));
+  width: max-content;
+  max-width: min(76rem, calc(100% - 2rem));
   max-height: 42%;
   overflow: auto;
   padding: 0.55rem 0.75rem;
@@ -456,14 +706,24 @@
   list-style: none;
 }
 .dock-chip {
-  min-height: 44px;
-  padding: 0.45rem 0.95rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 40px;
+  padding: 0.35rem 0.9rem;
   border: 1px solid var(--sheet-edge);
   border-radius: 999px;
   background: transparent;
   color: var(--sheet-ink);
   font: inherit;
   cursor: pointer;
+}
+.dock-chip-hue {
+  flex: none;
+  box-shadow: 0 0 0 1px rgba(40, 40, 30, 0.16);
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
 }
 .dock-chip:hover {
   background: var(--vellum);
@@ -502,8 +762,8 @@
   right: 1rem;
   bottom: 1rem;
   display: grid;
-  grid-template-columns: 12rem minmax(0, 1fr);
-  width: min(44rem, calc(100% - 2rem));
+  grid-template-columns: minmax(15rem, 21rem) minmax(0, 1fr);
+  width: min(60rem, calc(100% - 2rem));
   overflow: auto;
   border: 1px solid var(--sheet-edge);
   border-radius: 6px;
@@ -512,29 +772,82 @@
   box-shadow: 0 30px 80px rgba(0, 0, 0, 0.32);
   user-select: text;
 }
+/* The plant as a specimen: large, centred, mounted on its own sheet. */
 .focus-specimen {
   position: sticky;
   top: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: flex-end;
+  display: grid;
+  place-items: center;
   align-self: start;
   min-height: 100%;
-  padding: 1rem 0.5rem 1.2rem;
+  padding: 1.5rem 1.25rem;
   border-right: 1px dashed var(--sheet-edge);
+  background:
+    radial-gradient(ellipse 80% 60% at 50% 42%, color-mix(in srgb, var(--vellum) 70%, transparent), transparent 100%);
 }
-.focus-specimen svg {
+.specimen-plate {
+  position: relative;
+  display: grid;
+  justify-items: center;
   width: 100%;
-  height: 18rem;
+  padding: 1.5rem 1rem 1.05rem;
+  border: 1px solid var(--sheet-edge);
+  border-radius: 2px;
+  background: var(--surface-solid);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.5) inset,
+    0 14px 30px rgba(30, 40, 20, 0.16);
+  transform: rotate(-0.7deg);
+}
+.specimen-plate::before {
+  content: "";
+  position: absolute;
+  inset: 0.45rem;
+  border: 1px solid var(--sheet-edge);
+  pointer-events: none;
+}
+.specimen-tape {
+  position: absolute;
+  top: -0.55rem;
+  left: 50%;
+  width: 4.2rem;
+  height: 1.15rem;
+  background: color-mix(in srgb, var(--vellum) 82%, transparent);
+  border: 1px solid var(--sheet-edge);
+  transform: translateX(-50%) rotate(1.5deg);
+}
+.specimen-plant {
+  width: 100%;
+  height: clamp(13rem, 46vh, 25rem);
+}
+.specimen-plant svg {
+  display: block;
+  width: 100%;
+  height: 100%;
   overflow: visible;
 }
+.specimen-rule {
+  width: 62%;
+  height: 1px;
+  margin-top: 0.5rem;
+  background: var(--sheet-edge);
+}
 .focus-latin {
-  margin: 0.4rem 0 0;
-  color: var(--sheet-muted);
+  margin: 0.55rem 0 0;
+  color: var(--sheet-ink);
   font-family: var(--font-editorial), Georgia, serif;
-  font-size: 0.95rem;
+  font-size: 1.15rem;
   font-style: italic;
+  text-align: center;
+}
+.specimen-note {
+  margin: 0.1rem 0 0;
+  color: var(--sheet-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  text-align: center;
 }
 .focus-body {
   padding: 1.3rem 1.5rem 1.5rem;
@@ -705,7 +1018,25 @@
     scrollbar-width: none;
   }
   .dock-chip {
+    min-height: 44px;
     white-space: nowrap;
+  }
+  .scene-dock {
+    width: calc(100% - 1rem);
+    max-width: none;
+  }
+  .dock-topic .dock-actions {
+    flex-wrap: nowrap;
+    gap: 0.25rem;
+  }
+  .dock-topic .dock-actions > * {
+    flex: 0 1 auto;
+    white-space: nowrap;
+  }
+  .dock-topic .dock-actions button {
+    min-height: 44px;
+    padding-inline: 0.55rem;
+    font-size: 0.86rem;
   }
   .plant-focus {
     top: auto;
@@ -719,16 +1050,16 @@
   .focus-specimen {
     position: static;
     min-height: 0;
-    flex-direction: row;
-    gap: 0.75rem;
-    justify-content: flex-start;
-    padding: 0.6rem 1rem 0;
+    padding: 1.1rem 1rem 0.9rem;
     border-right: 0;
     border-bottom: 1px dashed var(--sheet-edge);
   }
-  .focus-specimen svg {
-    width: 5rem;
-    height: 7rem;
+  .specimen-plate {
+    width: min(100%, 17rem);
+    padding: 1.1rem 0.8rem 0.8rem;
+  }
+  .specimen-plant {
+    height: clamp(7rem, 19vh, 10rem);
   }
   .focus-body {
     padding: 1rem 1.1rem 1.2rem;
@@ -742,8 +1073,7 @@
 @media (prefers-reduced-motion: reduce) {
   .scene-clouds,
   .plant-art > svg,
-  .scene-thread path,
-  .has-new-bloom .plant-art::before {
+  .has-new-bloom .bloom-light {
     animation: none;
   }
   .plant-art {
@@ -937,13 +1267,19 @@
   flex: 1 1 auto;
   min-height: 34rem;
   overflow: hidden;
+  overflow: clip;
   background:
-    radial-gradient(ellipse 70% 18% at 50% 64%, rgba(0, 0, 0, 0.16), transparent 70%),
+    radial-gradient(ellipse 46% 12% at 50% 73%, rgba(10, 18, 10, 0.34), transparent 72%),
+    radial-gradient(ellipse 90% 80% at 50% 44%, transparent 58%, rgba(22, 28, 20, 0.34) 100%),
+    radial-gradient(ellipse 60% 34% at 50% 56%, var(--light-glow), transparent 70%),
+    linear-gradient(transparent 50%, color-mix(in srgb, var(--mist) 60%, transparent) 56%, transparent 64%),
     linear-gradient(
-      var(--sky-top),
-      var(--sky-horizon) 56%,
+      var(--sky-zenith),
+      var(--sky-top) 24%,
+      var(--sky-horizon) 48%,
+      var(--horizon-glow) 56%,
       var(--far) 56%,
-      var(--ground-top) 60%,
+      var(--ground-top) 66%,
       var(--ground-bottom)
     );
   user-select: none;
@@ -985,19 +1321,23 @@
   top: calc(min(26rem, 62vw) * -0.32);
   left: calc(min(26rem, 62vw) / -2);
   width: min(26rem, 62vw);
-  aspect-ratio: 16 / 10.5;
+  aspect-ratio: 16 / 12;
 }
+/* Each garden is a framed plate: a painted vista in a paper mount, captioned. */
 .ring-garden {
   position: relative;
-  display: block;
+  display: flex;
+  flex-direction: column;
   width: 100%;
   height: 100%;
-  padding: 0;
+  padding: 0.6rem 0.6rem 0;
   overflow: hidden;
-  border: 6px solid var(--sheet);
-  border-radius: 4px;
+  border: 1px solid var(--sheet-edge);
+  border-radius: 3px;
   background: var(--sheet);
-  box-shadow: 0 18px 40px rgba(20, 30, 20, 0.28);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.4) inset,
+    0 22px 44px rgba(16, 24, 16, 0.34);
   color: var(--sheet-ink);
   font: inherit;
   cursor: pointer;
@@ -1005,11 +1345,27 @@
 .ring-card.is-selected .ring-garden {
   box-shadow:
     0 0 0 2px var(--moss),
-    0 26px 60px rgba(20, 30, 20, 0.34);
+    0 30px 64px rgba(16, 24, 16, 0.42);
 }
 .ring-garden:focus-visible {
   outline: 3px solid var(--moss-deep);
   outline-offset: 4px;
+}
+.ring-plate {
+  position: relative;
+  display: block;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  border-radius: 1px;
+  box-shadow: 0 0 0 1px var(--sheet-edge);
+}
+.ring-plate::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  box-shadow: inset 0 0 26px rgba(20, 26, 16, 0.28);
+  pointer-events: none;
 }
 .ring-vista {
   display: block;
@@ -1020,28 +1376,28 @@
   animation: scene-clouds 60s ease-in-out infinite alternate;
 }
 .ring-label {
-  position: absolute;
-  left: 0.75rem;
-  bottom: 0.75rem;
-  display: grid;
-  gap: 1px;
-  max-width: calc(100% - 1.5rem);
-  padding: 0.4rem 0.75rem 0.45rem;
-  border: 1px solid var(--sheet-edge);
-  border-radius: 3px;
-  background: var(--sheet);
+  display: flex;
+  flex: none;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-height: 2.7rem;
+  padding: 0.45rem 0.25rem 0.5rem;
   text-align: left;
-  transform: rotate(-1deg);
 }
 .ring-name {
   font-family: var(--font-editorial), Georgia, serif;
-  font-size: 1.2rem;
+  font-size: 1.3rem;
   line-height: 1.15;
   overflow-wrap: anywhere;
 }
 .ring-meta {
+  flex: none;
   color: var(--sheet-muted);
-  font-size: 0.75rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
 }
 .ring-new {
   display: grid;
@@ -1049,10 +1405,29 @@
   justify-items: center;
   gap: 0.5rem;
   padding: 1rem 1.25rem;
+  border-style: dashed;
   background: var(--sheet);
   text-align: center;
   cursor: default;
   overflow: auto;
+}
+/*
+ * Waiting to one side, the new-garden card is partly behind its neighbour:
+ * its words and button keep to the outer part that shows.
+ */
+.ring-new.is-aside {
+  align-content: end;
+  justify-items: end;
+  padding: 1rem 0.7rem 1.1rem 60%;
+}
+.ring-new.is-aside .ring-new-copy {
+  display: none;
+}
+.ring-new.is-aside .plain-button {
+  min-width: 44px;
+  padding: 0.6rem 0.3rem;
+  white-space: nowrap;
+  writing-mode: vertical-rl;
 }
 .ring-new-mark {
   font-size: 2rem;

@@ -317,19 +317,12 @@ export function ChronologyLens({
   const total = days.reduce((n, d) => n + d.entries.length, 0);
   return (
     <div className="lens-timeline">
-      <button
-        type="button"
-        className="plain-button back-link"
-        onClick={() => onNavigate(plotId, "", archived ? "archive" : "")}
-      >
-        ← Back to {plot ? plot.name : "garden overview"}
-      </button>
       <div className="meadow-heading">
         <p className="panel-kicker">Timeline · {plot ? "topic" : "garden"}</p>
         <h1>{plot?.name ?? garden?.name}</h1>
         <p>
           Your saved entries by day, newest first. A quieter way to see where a
-          thought has been. The garden overview remains the main view.
+          thought has been. Use the trail above to go back to the {plot ? "topic" : "garden"}.
         </p>
       </div>
       <div className="lens-search-row">

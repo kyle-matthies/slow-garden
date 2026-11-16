@@ -29,7 +29,7 @@ export function TendingActivity({ history, tending }: { history?: TendingHistory
         </ol>
       )}
       {!!tending && (
-        <p>{marks} catalogue {marks === 1 ? "mark" : "marks"} and {blooms} {blooms === 1 ? "reflection" : "reflections"} available in this garden. Catalogue marks appear with their thoughts; reflections appear in the Cabinet. A completed pass can return no new reflection.</p>
+        <p>{marks} {marks === 1 ? "mark" : "marks"} and {blooms} {blooms === 1 ? "bloom" : "blooms"} available in this garden. Marks appear beside their thoughts; blooms appear in Returns. A completed pass can return no new bloom.</p>
       )}
     </section>
   );

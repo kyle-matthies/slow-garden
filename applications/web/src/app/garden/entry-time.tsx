@@ -4,7 +4,14 @@ import { useSyncExternalStore } from "react";
 
 const subscribeToClock = () => () => {};
 
-export function EntryTime({ value }: { value: string }) {
+export function EntryTime({
+  value,
+  format = "full",
+}: {
+  value: string;
+  /** "date" drops the clock time for compact labels. */
+  format?: "full" | "date";
+}) {
   const hydrated = useSyncExternalStore(
     subscribeToClock,
     () => true,
@@ -12,7 +19,14 @@ export function EntryTime({ value }: { value: string }) {
   );
   return (
     <time dateTime={value}>
-      {new Date(value).toLocaleString(undefined, {
+      {format === "date"
+        ? new Date(value).toLocaleDateString(undefined, {
+            year: "numeric",
+            month: "short",
+            day: "numeric",
+            timeZone: hydrated ? undefined : "UTC",
+          })
+        : new Date(value).toLocaleString(undefined, {
         year: "numeric",
         month: "short",
         day: "numeric",

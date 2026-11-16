@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { createArea, saveEntry } from "./actions";
 import { draftsClearedSince, ensureTabIdentity, openDraftStore, subscribeDraftsCleared, type DraftBackend } from "@/lib/garden/drafts";
-import { emptyOnboardingDraft, loadOnboardingDraft, onboardingRecord, type OnboardingDraft } from "@/lib/garden/onboarding-draft";
+import { DEFAULT_GARDEN_NAME, DEFAULT_TOPIC_NAME, emptyOnboardingDraft, loadOnboardingDraft, onboardingRecord, titleFromFirstLine, type OnboardingDraft } from "@/lib/garden/onboarding-draft";
 import "./first-run.css";
 
 type FirstRunLocation = {
@@ -13,8 +13,26 @@ type FirstRunLocation = {
   entryId?: string;
 };
 
-const starterNames = ["Reading", "Work", "Questions"];
-const stepLabels = ["Garden", "Topic", "Thought", "Write"];
+/** Growth drawn in four small stages: seed, sprout, leaf, bud. */
+function Sprout({ stage }: { stage: 0 | 1 | 2 | 3 }) {
+  return (
+    <svg viewBox="0 0 28 34" width="28" height="34" aria-hidden="true" focusable="false">
+      <path className="sprout-soil" d="M2 29.5c5-1.6 19-1.6 24 0" />
+      {stage === 0 && <ellipse className="sprout-fill" cx="14" cy="26" rx="3.4" ry="2.3" />}
+      {stage >= 1 && <path className="sprout-stem" d={stage === 1 ? "M14 29V21" : stage === 2 ? "M14 29V15" : "M14 29V10"} />}
+      {stage >= 1 && <path className="sprout-fill" d={stage === 1 ? "M14 22c0-4 3-6 6-6 0 4-3 6-6 6z" : "M14 22c0-4 3.4-6.4 7.4-6.4 0 4.4-3.4 6.4-7.4 6.4z"} />}
+      {stage >= 2 && <path className="sprout-fill" d="M14 19c0-4-3.4-6.4-7.4-6.4 0 4.4 3.4 6.4 7.4 6.4z" />}
+      {stage === 3 && <path className="sprout-fill" d="M14 11c-2.6-2-2.6-5.6 0-8 2.6 2.4 2.6 6 0 8z" />}
+    </svg>
+  );
+}
+
+const levels = [
+  { key: "garden", name: "Garden", gloss: "a place of your own" },
+  { key: "topic", name: "Topic", gloss: "a bed of related thoughts" },
+  { key: "thought", name: "Thought", gloss: "a thread you return to" },
+  { key: "entry", name: "Entry", gloss: "one dated page of writing" },
+] as const;
 
 export function FirstRun({
   tenantId,
@@ -31,7 +49,7 @@ function FirstRunSession({ tenantId, onDone }: {
   onDone: (location: FirstRunLocation) => void;
 }) {
   const [draft, setDraft] = useState(emptyOnboardingDraft);
-  const { step, gardenId, topicId, thoughtId, gardenName, topicName, thoughtTitle, body, starters } = draft;
+  const { gardenId, topicId, thoughtId, gardenName, topicName, thoughtTitle, body } = draft;
   const current = useRef(draft);
   const [ready, setReady] = useState(false);
   const [signedOut, setSignedOut] = useState(false);
@@ -129,8 +147,8 @@ function FirstRunSession({ tenantId, onDone }: {
     if (!invalidated.current) onDone(location);
   }
 
-  function begin(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  function begin(event?: FormEvent<HTMLFormElement>) {
+    event?.preventDefault();
     if (!ready || busy.current || invalidated.current) return false;
     busy.current = true;
     setPending(true);
@@ -141,8 +159,9 @@ function FirstRunSession({ tenantId, onDone }: {
   function end() { busy.current = false; setPending(false); }
 
   useEffect(() => {
-    if (ready) root.current?.querySelector<HTMLInputElement | HTMLTextAreaElement>("form input:not([type=checkbox]), form textarea")?.focus();
-  }, [ready, step]);
+    // The shortest path to a first word: the page is ready to be written on.
+    if (ready) root.current?.querySelector<HTMLTextAreaElement>("form textarea")?.focus();
+  }, [ready]);
 
   useEffect(() => {
     if (!tenantId || !body) return;
@@ -154,23 +173,59 @@ function FirstRunSession({ tenantId, onDone }: {
     return () => window.removeEventListener("beforeunload", protect);
   }, [tenantId, body]);
 
-  async function submitGarden(event: FormEvent<HTMLFormElement>) {
-    if (!begin(event)) return;
-    const next = updateDraft({ gardenRequestId: current.current.gardenRequestId || crypto.randomUUID() });
+  /**
+   * Save whatever is still missing, in order. Every id is persisted before its
+   * request, so a failure or reload replays the same idempotent calls.
+   */
+  async function plant(upTo: "topic" | "entry") {
+    let d = current.current;
+    d = updateDraft({
+      gardenRequestId: d.gardenRequestId || crypto.randomUUID(),
+      topicRequestId: d.topicRequestId || crypto.randomUUID(),
+      topicName: d.topicName.trim() ? d.topicName : DEFAULT_TOPIC_NAME,
+      ...(upTo === "entry" ? {
+        thoughtRequestId: d.thoughtRequestId || crypto.randomUUID(),
+        thoughtTitle: d.thoughtTitle.trim() ? d.thoughtTitle : titleFromFirstLine(d.body),
+        entryId: d.entryId || crypto.randomUUID(),
+        revisionId: d.revisionId || crypto.randomUUID(),
+      } : {}),
+    });
     await queue.current;
-    if (invalidated.current) { end(); return; }
+    if (invalidated.current) return;
+    if (!d.gardenId) {
+      const result = await createArea("garden", d.gardenName, "", d.gardenRequestId);
+      if (!result.ok) { setError(result.message); return; }
+      d = updateDraft({ gardenId: result.id!, step: 2 });
+    }
+    if (!d.topicId) {
+      const result = await createArea("plot", d.topicName, d.gardenId, d.topicRequestId);
+      if (!result.ok) { setError(result.message); return; }
+      d = updateDraft({ topicId: result.id!, step: 3 });
+    }
+    if (upTo === "topic") {
+      await finish({ gardenId: d.gardenId, topicId: d.topicId, thoughtId: d.thoughtId });
+      return;
+    }
+    if (!d.thoughtId) {
+      const result = await createArea("seed", d.thoughtTitle, d.topicId, d.thoughtRequestId);
+      if (!result.ok) { setError(result.message); return; }
+      d = updateDraft({ thoughtId: result.id!, step: 4 });
+    }
+    const result = await saveEntry({
+      seedId: d.thoughtId,
+      entryId: d.entryId,
+      revisionId: d.revisionId,
+      body: d.body,
+      expectedRevisionId: null,
+    });
+    if (!result.ok) { setError(result.message); return; }
+    await finish({ gardenId: d.gardenId, topicId: d.topicId, thoughtId: d.thoughtId, entryId: d.entryId });
+  }
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    if (!begin(event)) return;
     try {
-      const result = await createArea(
-        "garden",
-        gardenName,
-        "",
-        next.gardenRequestId,
-      );
-      if (!result.ok) {
-        setError(result.message);
-        return;
-      }
-      updateDraft({ gardenId: result.id!, step: 2 });
+      await plant("entry");
     } catch {
       setError("Could not save. Please retry.");
     } finally {
@@ -178,102 +233,7 @@ function FirstRunSession({ tenantId, onDone }: {
     }
   }
 
-  async function submitTopic(event: FormEvent<HTMLFormElement>) {
-    if (!begin(event)) return;
-    const ids = { ...current.current.starterIds };
-    for (const name of starters) ids[name] ??= crypto.randomUUID();
-    const next = updateDraft({ topicRequestId: current.current.topicRequestId || crypto.randomUUID(), starterIds: ids });
-    await queue.current;
-    if (invalidated.current) { end(); return; }
-    try {
-      const result = await createArea(
-        "plot",
-        topicName,
-        gardenId,
-        next.topicRequestId,
-      );
-      if (!result.ok) {
-        setError(result.message);
-        return;
-      }
-      const namedTopicId = result.id!;
-      updateDraft({ topicId: namedTopicId });
-      const typedTopic = topicName.trim().toLowerCase();
-      for (const starterName of starterNames) {
-        if (
-          !starters.includes(starterName) ||
-          starterName.toLowerCase() === typedTopic
-        )
-          continue;
-        const starterResult = await createArea(
-          "plot",
-          starterName,
-          gardenId,
-          next.starterIds[starterName],
-        );
-        if (!starterResult.ok) {
-          setError(starterResult.message);
-          return;
-        }
-      }
-      updateDraft({ step: 3 });
-    } catch {
-      setError("Could not save. Please retry.");
-    } finally {
-      end();
-    }
-  }
-
-  async function submitThought(event: FormEvent<HTMLFormElement>) {
-    if (!begin(event)) return;
-    const next = updateDraft({ thoughtRequestId: current.current.thoughtRequestId || crypto.randomUUID() });
-    await queue.current;
-    if (invalidated.current) { end(); return; }
-    try {
-      const result = await createArea(
-        "seed",
-        thoughtTitle,
-        topicId,
-        next.thoughtRequestId,
-      );
-      if (!result.ok) {
-        setError(result.message);
-        return;
-      }
-      updateDraft({ thoughtId: result.id!, step: 4 });
-    } catch {
-      setError("Could not save. Please retry.");
-    } finally {
-      end();
-    }
-  }
-
-  async function submitEntry(event: FormEvent<HTMLFormElement>) {
-    if (!begin(event)) return;
-    const next = updateDraft({ entryId: current.current.entryId || crypto.randomUUID(), revisionId: current.current.revisionId || crypto.randomUUID() });
-    await queue.current;
-    if (invalidated.current) { end(); return; }
-    try {
-      const result = await saveEntry({
-        seedId: thoughtId,
-        entryId: next.entryId,
-        revisionId: next.revisionId,
-        body,
-        expectedRevisionId: null,
-      });
-      if (!result.ok) {
-        setError(result.message);
-        return;
-      }
-      await finish({ gardenId, topicId, thoughtId, entryId: next.entryId });
-    } catch {
-      setError("Could not save. Please retry.");
-    } finally {
-      end();
-    }
-  }
-
-  function writeLater() {
+  async function writeLater() {
     if (
       body &&
       !window.confirm(
@@ -281,157 +241,135 @@ function FirstRunSession({ tenantId, onDone }: {
       )
     )
       return;
-    void finish({ gardenId, topicId, thoughtId });
+    if (!begin()) return;
+    try {
+      await plant("topic");
+    } catch {
+      setError("Could not save. Please retry.");
+    } finally {
+      end();
+    }
   }
+
+  // Seed, sprout, leaf, bud: one stage for each thing safely saved.
+  const saved = completed ? 4 : thoughtId ? 3 : topicId ? 2 : gardenId ? 1 : 0;
+  const derivedTitle = thoughtTitle.trim() || (body.trim() ? titleFromFirstLine(body) : "");
+  const values = {
+    garden: gardenName.trim() || DEFAULT_GARDEN_NAME,
+    topic: topicName.trim() || DEFAULT_TOPIC_NAME,
+    thought: derivedTitle || "named after your first line",
+    entry: "today, in your words",
+  };
+  const progress = !pending
+    ? ""
+    : saved === 0 ? "Planting your garden…"
+    : saved === 1 ? "Garden saved. Making its first topic…"
+    : saved === 2 ? "Topic saved. Starting the thought…"
+    : "Thought saved. Keeping your entry…";
 
   return (
     <section ref={root} className="first-run" aria-labelledby="first-run-title">
-      <p className="panel-kicker">First visit</p>
-      <h1 id="first-run-title">A place for what’s on your mind.</h1>
-      <p>
-        A garden holds topics. A topic groups related thoughts. A thought
-        collects dated entries, written whenever you return.
-      </p>
-      <p className="first-run-step" aria-live="polite">
-        Step {step} of 4 · {stepLabels[step - 1]}
-      </p>
-      <p className="first-run-backup" role="status">
-        {!ready ? "Checking for unfinished setup…" : recovered ? `Your unfinished setup has been recovered. ${storageNote}` : storageNote}
-      </p>
+      <div className="first-run-intro">
+        <p className="panel-kicker">First visit</p>
+        <h1 id="first-run-title">Begin with one thought.</h1>
+        <p className="first-run-lede">
+          Write it the way it is: unfinished is fine. Nothing interrupts you
+          here, and nothing rewrites it later.
+        </p>
 
-      {step === 1 && (
-        <form className="first-run-form" onSubmit={submitGarden} key="garden">
-          <div className="field">
-            <label htmlFor="first-run-garden">Name your garden</label>
-            <p>A separate space. One is plenty to begin.</p>
-            <input
-              id="first-run-garden"
-              value={gardenName}
-              onChange={(event) => updateDraft({ gardenName: event.target.value, gardenRequestId: "" })}
-              maxLength={120}
-              required
-              autoFocus
-              disabled={disabled}
-            />
-          </div>
-          <button className="primary-button" disabled={disabled}>
-            {pending ? "Saving…" : "Continue"}
-          </button>
-          <p role="status">{error}</p>
-          <p className="form-note">
-            Private by default. AI stays outside your writing.
-          </p>
-        </form>
-      )}
-
-      {step === 2 && (
-        <form className="first-run-form" onSubmit={submitTopic} key="topic">
-          <div className="field">
-            <label htmlFor="first-run-topic">Name a first topic</label>
-            <p>
-              Topics group related thoughts — e.g. Work, Reading, Questions.
-            </p>
-            <input
-              id="first-run-topic"
-              value={topicName}
-              onChange={(event) => updateDraft({ topicName: event.target.value, topicRequestId: "" })}
-              maxLength={120}
-              required
-              autoFocus
-              disabled={disabled}
-            />
-          </div>
-          <fieldset className="first-run-starters" disabled={disabled}>
-            <legend>Add a few starter topics too? Optional.</legend>
-            {starterNames.map((starterName) => (
-              <label key={starterName}>
-                <input
-                  type="checkbox"
-                  checked={starters.includes(starterName)}
-                  onChange={(event) =>
-                    updateDraft({ starters: event.target.checked
-                      ? [...starters, starterName]
-                      : starters.filter((name) => name !== starterName) })
-                  }
-                />
-                {starterName}
-              </label>
+        <figure className="first-run-model" aria-labelledby="first-run-model-title">
+          <figcaption id="first-run-model-title">Where your words will live</figcaption>
+          <ol>
+            {levels.map((level, index) => (
+              <li key={level.key} data-level={level.key} data-saved={index < saved || undefined}>
+                <Sprout stage={index as 0 | 1 | 2 | 3} />
+                <span className="first-run-level">
+                  <strong>{level.name}</strong>
+                  <span className="first-run-level-value">{values[level.key]}</span>
+                  <small>{level.gloss}</small>
+                </span>
+              </li>
             ))}
-          </fieldset>
-          <button className="primary-button" disabled={disabled}>
-            {pending ? "Saving…" : "Continue"}
-          </button>
-          <p role="status">{error}</p>
-          <p className="form-note">
-            Private by default. AI stays outside your writing.
-          </p>
-        </form>
-      )}
+          </ol>
+        </figure>
+      </div>
 
-      {step === 3 && (
-        <form className="first-run-form" onSubmit={submitThought} key="thought">
-          <div className="field">
-            <label htmlFor="first-run-thought">Name a first thought</label>
-            <p>
-              A thought is a named thread you can return to. A question works
-              well.
-            </p>
-            <input
-              id="first-run-thought"
-              value={thoughtTitle}
-              onChange={(event) => updateDraft({ thoughtTitle: event.target.value, thoughtRequestId: "" })}
-              maxLength={160}
-              required
-              autoFocus
-              disabled={disabled}
-            />
-          </div>
-          <button className="primary-button" disabled={disabled}>
-            {pending ? "Saving…" : "Continue"}
-          </button>
-          <p role="status">{error}</p>
-          <p className="form-note">
-            Private by default. AI stays outside your writing.
-          </p>
-        </form>
-      )}
+      <form className="first-run-sheet" onSubmit={submit}>
+        <div className="first-run-garden-name">
+          <label htmlFor="first-run-garden">Name your garden</label>
+          <input
+            id="first-run-garden"
+            value={gardenName}
+            onChange={(event) => updateDraft({ gardenName: event.target.value, gardenRequestId: "" })}
+            maxLength={120}
+            required
+            disabled={disabled || !!gardenId}
+          />
+        </div>
 
-      {step === 4 && (
-        <form className="first-run-form" onSubmit={submitEntry} key="write">
-          <div className="field">
-            <label htmlFor="first-run-writing">Write a first entry</label>
-            <textarea
-              id="first-run-writing"
-              className="first-run-writing"
-              value={body}
-              onChange={(event) => updateDraft({ body: event.target.value, revisionId: crypto.randomUUID() })}
-              maxLength={20000}
-              required
-              autoFocus
-              placeholder="A thought, a question, something you’re not ready to name…"
-              disabled={disabled}
-            />
-            <p>Dated and private. You can revise it later.</p>
+        <div className="first-run-page">
+          <label htmlFor="first-run-writing">Write a first entry</label>
+          <textarea
+            id="first-run-writing"
+            className="first-run-writing"
+            value={body}
+            onChange={(event) => updateDraft({ body: event.target.value, revisionId: crypto.randomUUID() })}
+            maxLength={20000}
+            required
+            placeholder="A thought, a question, something unfinished…"
+            disabled={disabled}
+          />
+        </div>
+
+        <details className="first-run-more">
+          <summary>Change the topic or title</summary>
+          <div className="first-run-more-fields">
+            <div className="field">
+              <label htmlFor="first-run-topic">Topic</label>
+              <input
+                id="first-run-topic"
+                value={topicName}
+                onChange={(event) => updateDraft({ topicName: event.target.value, topicRequestId: "" })}
+                maxLength={120}
+                disabled={disabled || !!topicId}
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="first-run-thought">Thought title</label>
+              <input
+                id="first-run-thought"
+                value={thoughtTitle}
+                onChange={(event) => updateDraft({ thoughtTitle: event.target.value, thoughtRequestId: "" })}
+                maxLength={160}
+                placeholder="Left blank, your first line becomes the title"
+                disabled={disabled || !!thoughtId}
+              />
+            </div>
           </div>
-          <div className="action-row">
-            <button className="primary-button" disabled={disabled}>
-              {pending ? "Saving…" : "Save entry"}
-            </button>
-            <button
-              type="button"
-              className="plain-button"
-              onClick={writeLater}
-              disabled={disabled}
-            >
-              Write later
-            </button>
-          </div>
-          <p role="status">{error}</p>
-          <p className="form-note">
-            Private by default. AI stays outside your writing.
-          </p>
-        </form>
-      )}
+          <p>You can add more topics and thoughts once you’re inside.</p>
+        </details>
+
+        <div className="action-row first-run-actions">
+          <button className="primary-button" disabled={disabled}>
+            {pending ? "Saving…" : "Save entry"}
+          </button>
+          <button
+            type="button"
+            className="plain-button"
+            onClick={writeLater}
+            disabled={disabled}
+          >
+            Write later
+          </button>
+        </div>
+        <p className="first-run-status" role="status">{error || progress}</p>
+        <p className="first-run-backup" role="status">
+          {!ready ? "Checking for unfinished setup…" : recovered ? `Your unfinished setup has been recovered. ${storageNote}` : storageNote}
+        </p>
+        <p className="form-note">
+          Private to your account. Dated when you save it; you can revise it later.
+        </p>
+      </form>
     </section>
   );
 }

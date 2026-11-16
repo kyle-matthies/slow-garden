@@ -101,16 +101,14 @@ export function LoginForm({ configured }: { configured: boolean }) {
 
   return (
     <section className="auth-panel" aria-labelledby="sign-in-title">
-      <p className="panel-kicker">Private account</p>
-      <h2 id="sign-in-title">Sign in to your garden</h2>
-      <p>
-        No password. Enter your email and we’ll send a six-digit code that
-        works for a few minutes. Type it here to open your garden.
-      </p>
-      <p>
-        You stay signed in on this browser between visits. On a shared device,
-        sign out when you finish.
-      </p>
+      <p className="panel-kicker">{codeSent ? "Check your email" : "Private account"}</p>
+      <h2 id="sign-in-title">{codeSent ? "Enter your code" : "Sign in to your garden"}</h2>
+      {!codeSent && (
+        <p>
+          No password. We’ll email you a six-digit code; type it here to open
+          your garden. New here? The same step creates your account.
+        </p>
+      )}
 
       {!codeSent ? (
         <form className="form-stack" onSubmit={sendCode}>
@@ -133,7 +131,7 @@ export function LoginForm({ configured }: { configured: boolean }) {
             type="submit"
             disabled={!configured || pending}
           >
-            {pending ? "Sending…" : "Send private sign-in code"}
+            {pending ? "Sending…" : "Email me a sign-in code"}
           </button>
         </form>
       ) : (
@@ -193,8 +191,8 @@ export function LoginForm({ configured }: { configured: boolean }) {
         {message}
       </p>
       <p className="form-note">
-        Personal notes are private by default. Slow Garden has no anonymous
-        garden access or public profile in this release.
+        You stay signed in on this browser between visits. On a shared
+        device, sign out when you finish.
       </p>
     </section>
   );

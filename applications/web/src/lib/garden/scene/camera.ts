@@ -56,7 +56,7 @@ export function nearestBed(theta: number, angles: readonly number[]): number {
 /** Grass at depth d (0 horizon .. 1 viewer) sits this far down the ground. */
 export const grassY = (d: number) => 0.015 + 0.985 * Math.pow(d, 1.35);
 /** Far grass travels less than near grass when the camera turns. */
-export const grassParallax = (d: number) => 0.32 + 0.88 * d;
+export const grassParallax = (d: number) => 0.72 + 0.4 * d;
 /** A plant at bed depth p (0 back .. 1 front) has its base this far down. */
 export const plantY = (p: number) => 0.1 + 0.78 * p;
 /** Parallax for a plant: the same as the grass at its base. */
@@ -71,4 +71,53 @@ export function isVisible(
   factor = 1,
 ) {
   return Math.abs(wrap(angle - theta * factor)) <= fov / 2 + halfWidth + 4;
+}
+
+/*
+ * Two camera levels. Looking across the garden, beds stand a fixed pitch
+ * apart so the neighbours of the bed you face show to either side; choosing a
+ * topic steps closer, until that one bed fills the view.
+ */
+export type SceneFrame = {
+  /** Pixels between neighbouring beds at garden level. */
+  pitch: number;
+  /** Width of a bed at garden level, in pixels. */
+  bedWidth: number;
+  /** Degrees between neighbouring beds (capped for gardens with few beds). */
+  spacing: number;
+  /** Pixels per degree of camera turn for the beds, at garden level. */
+  ppd: number;
+  /** How much closer the topic level stands. */
+  topicZoom: number;
+};
+
+export function sceneFrame(width: number, count: number): SceneFrame {
+  const phone = width <= 640;
+  const pitch = width * (phone ? 0.76 : 0.44);
+  const bed = pitch * (phone ? 0.82 : 0.86);
+  const topicBed = Math.min(width * (phone ? 0.96 : 0.62), 980);
+  // Two beds face each other; three or more sit a pitch apart. One or two
+  // beds never share the view, so their ring is simply wide.
+  const spacing = count >= 3 ? 360 / count : 180;
+  const span = count >= 3 ? spacing : 150;
+  return {
+    pitch,
+    bedWidth: bed,
+    spacing,
+    ppd: pitch / span,
+    topicZoom: topicBed / bed,
+  };
+}
+
+/** 1 for the bed the camera faces, falling to 0 one bed away. */
+export function facing(rel: number, spacing: number) {
+  return Math.max(0, 1 - Math.abs(rel) / Math.max(1, spacing));
+}
+
+/** Beds fade out before they pass behind the viewer. */
+export function bedOpacity(rel: number, spacing: number) {
+  const a = Math.abs(rel);
+  const from = Math.min(spacing * 1.15, 150);
+  const to = Math.min(spacing * 1.6, 176);
+  return Math.max(0, Math.min(1, (to - a) / (to - from)));
 }
