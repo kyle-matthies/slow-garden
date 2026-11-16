@@ -372,3 +372,25 @@ while the camera turns.
   the hosted project, two-user RLS has been exercised through the browser, and the
   static-export blockers recorded in
   `operations/CLIENT_DATA_LAYER_STAGE2_2026-11-16.md` are removed.
+
+## D-028: Three blooms per garden per night, shared across topics
+
+- Date: 2026-11-16
+- Status: Decided under the owner working agreement; reversible by Kyle. Implemented
+  in `20261116061751_tending_followups.sql`, not yet applied to the hosted project.
+- Context: the pre-apply review found the three-bloom cap was enforced per pass. Two
+  tended topics in one garden published six blooms in one night.
+- Decision: a tending cycle is one garden on one night, by the account's local date.
+  At most three blooms publish per cycle. Shares are fixed when the night's passes are
+  created: one pass gets three; two get two and one, the scope with more new writing
+  first; three or more get one each; unused shares are not handed on. Within a pass,
+  blooms publish in a fixed order by kind (echo, pattern, change, tension, connection,
+  question), then by how many revisions they cite. The model never chooses. A
+  per-garden, per-night counter locked at publish is the backstop. Withheld counts are
+  recorded without content.
+- An invited (manual) pass is its own cycle with its own cap of three, because the
+  person asked for it.
+- Known limit: a scope of more than twenty cross-connected topics is skipped by
+  nightly tending, with a note.
+- Revisit when: dogfooding shows the fixed sharing starves a topic that deserved a
+  bloom, or invited and nightly returns on the same day feel like too much.

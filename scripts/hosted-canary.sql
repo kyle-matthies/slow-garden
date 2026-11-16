@@ -29,7 +29,7 @@ end $$;
 -- Owner-only allowlist (private.ai_tenants) and transport freeze. Still inside the
 -- rollback: the runtime is switched on only within this uncommitted transaction,
 -- which no other session can see, and nothing reaches the worker or a provider.
--- Needs the migrations through 20261116023939_garden_scheduling.
+-- Needs the migrations through 20261116061751_tending_followups.
 reset role;
 update private.ai_runtime set enabled=true,model=coalesce(model,'synthetic-canary'),approved_at=coalesce(approved_at,now()) where singleton;
 update public.plots set ai_enabled=true where id='98989898-9898-4989-8989-989898989894';
@@ -50,6 +50,25 @@ do $$begin
 end $$;
 reset role;
 insert into private.ai_tenants(tenant_id,note) values('98989898-9898-4989-8989-989898989891','rollback-only canary');
+-- Nightly path, still rolled back (needs 20261116061751_tending_followups).
+-- The committing procedure must refuse to run inside a transaction, before doing
+-- anything; its real, committing run is scripts/hosted-nightly-canary.sql (runbook 3.12).
+-- The per-account enqueue it calls is exercised here for the canary tenant only.
+update public.accounts set tend_overnight=true,timezone='UTC' where id='98989898-9898-4989-8989-989898989891';
+do $$declare made integer;begin
+ begin
+  call private.run_nightly_enqueue();
+  raise exception 'the nightly procedure ran inside a transaction';
+ exception when sqlstate '25001' or sqlstate '2D000' then null;end;
+ made:=private.enqueue_nightly_for('98989898-9898-4989-8989-989898989891',date_trunc('day',now() at time zone 'UTC')::timestamp at time zone 'UTC'+interval '2 hours 30 minutes');
+ if made<>1 then raise exception 'nightly enqueue made % passes for the canary tenant, expected 1',made;end if;
+ if (select count(*) from public.garden_passes p join private.pass_inputs i on i.pass_id=p.id
+      where p.tenant_id='98989898-9898-4989-8989-989898989891' and p.trigger='nightly' and i.cycle_date is not null and i.bloom_allowance=3)<>1 then
+  raise exception 'the nightly pass was not stamped with its cycle and share';end if;
+ if exists(select 1 from public.garden_passes where trigger='nightly' and created_at=now() and tenant_id<>'98989898-9898-4989-8989-989898989891') then
+  raise exception 'a nightly pass was created for another tenant';end if;
+ update public.garden_passes set status='cancelled' where tenant_id='98989898-9898-4989-8989-989898989891' and trigger='nightly';
+end $$;
 set local role authenticated;
 select set_config('request.jwt.claim.sub','98989898-9898-4989-8989-989898989891',true);
 insert into public.garden_passes(id,garden_id,plot_ids) values('98989898-9898-4989-8989-98989898989a','98989898-9898-4989-8989-989898989893',array['98989898-9898-4989-8989-989898989894']::uuid[]);

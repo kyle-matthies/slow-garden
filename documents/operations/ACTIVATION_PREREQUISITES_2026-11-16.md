@@ -221,13 +221,45 @@ schemas and the corpus were not changed by this work (the values in the status r
   rates. If the owner chooses `sync`, both want a line.
 - `documents/operations/README.md` index: add this record.
 
-## 9. Reversal of the three migrations
+## 9. Reversal of the six November 16 migrations
 
 None is applied anywhere, so today reversal is "do not apply". After a hosted apply,
-run as the operator, in this order, with the runtime disabled and the queues drained
-(runbook Rollback). No user writing is touched by any step.
+reverse **the latest first**: each later migration replaces functions and depends on
+tables and columns of the earlier ones, so an earlier one cannot be removed while a
+later one is in place. Run as the operator, with `private.ai_runtime.enabled=false`,
+`nightly_enabled=false`, `deletion_enabled=false` and the queues drained (runbook
+Rollback), and ship each reversal as a new reviewed migration, not ad hoc. No step
+touches a person's writing, and none restores anything a person deleted.
 
-`20261116023939_garden_scheduling`:
+Order: 6, 5, 4, 3, 2, 1.
+
+**6. `20261116061751_tending_followups`**
+
+```sql
+drop trigger passes_lock_inputs_first on public.garden_passes;
+drop function private.lock_own_pass_inputs();
+-- re-create, from the files named:
+--   public.finish_garden_pass                         20261116023937_provider_transport.sql
+--   private.enqueue_nightly_for, private.run_nightly_enqueue,
+--   private.erase_garden, public.delete_plot, public.delete_account
+--                                                     20261116041903_browser_path_rules.sql
+drop table private.nightly_skips, private.bloom_cycles;
+alter table private.pass_inputs drop column cycle_date, drop column bloom_allowance, drop column blooms_withheld;
+```
+
+Effect: the bloom cap is per pass again (a garden with two tended topics can publish
+six in a night), and the four lock orders this migration made consistent revert. Do
+not run nightly tending without it.
+
+**5. `20261116041903_browser_path_rules`**: the full statement list is in
+[BROWSER_PATH_RULES_2026-11-16.md](BROWSER_PATH_RULES_2026-11-16.md), "Reversal". It
+re-points `slow-garden-nightly` at `select private.tick_nightly_enqueue()` and
+restores `prepare_pass`, the invalidation triggers, `erase_garden`, the deletion RPCs
+and `enqueue_nightly_passes` from migrations 1 to 4. Keep `deletion_enabled=false`
+until it is done: once the switch table is gone the deletion RPCs have no database
+switch, so `GARDEN_DELETION_ENABLED` must already be off in the web deployment.
+
+**4. `20261116023939_garden_scheduling`**
 
 ```sql
 select cron.unschedule('slow-garden-worker');
@@ -240,28 +272,31 @@ alter table private.ai_runtime drop column nightly_enabled;
 -- delete the Vault entry garden_worker_url; leave pg_cron and pg_net installed
 ```
 
-`20261116023937_provider_transport` (only with no sync pass unsettled:
+(Migration 5's `private.nightly_gates_open()` and `private.run_nightly_enqueue()` use
+`garden_worker_url()` and `nightly_enabled`; they are gone after step 5.)
+
+**3. `20261116023937_provider_transport`** (only with no sync pass unsettled:
 `select count(*) from private.pass_inputs where transport='sync' and actual_cents is null` is 0):
 
 ```sql
 update private.ai_runtime set transport='batch';
 drop trigger pass_inputs_freeze_runtime on private.pass_inputs;
 drop function private.freeze_pass_runtime(), public.mark_garden_dispatch(uuid,uuid,boolean,integer);
--- then re-create claim_garden_pass from 20261116023935 and keep_provider_orphan from
--- 20261116010931 (both reference the columns below), and only then:
+-- re-create claim_garden_pass from 20261116023935 and keep_provider_orphan from
+-- 20261116010931 (both reference the columns below); re-create finish_garden_pass
+-- from 20261010004736_tending_tiers.sql with its lease line changed to
+--   j.lease_until is null or j.lease_until<=now()
+-- (do not bring the NULL-unsafe lease check back). Only then:
 alter table private.pass_inputs drop column transport, drop column reasoning_effort,
   drop column dispatches, drop column provider_calls, drop column dispatch_open, drop column lost_cents;
 alter table private.ai_runtime drop column transport, drop column reasoning_effort;
 ```
 
-Keep this migration's `finish_garden_pass` unless its columns are dropped: it carries
-the NULL-safe lease check. If the columns go, re-create the function from
-`20261010004736_tending_tiers.sql` with the lease line changed to
-`j.lease_until is null or j.lease_until<=now()`. An older worker build keeps working
-against the new schema (`batch` passes need no new RPC).
+An older worker build keeps working against the new schema (`batch` passes need no
+new RPC), so the worker can be rolled back independently.
 
-`20261116023935_ai_tenant_allowlist` (this removes the owner-only guard: do it only
-with `private.ai_runtime.enabled=false`):
+**2. `20261116023935_ai_tenant_allowlist`** (this removes the owner-only guard: only
+with `private.ai_runtime.enabled=false`, and leave it false):
 
 ```sql
 drop trigger passes_allowlist on public.garden_passes;
@@ -274,7 +309,13 @@ drop function private.require_ai_tenant(), private.cancel_removed_ai_tenant(), p
 drop table private.ai_tenants;
 ```
 
-Concurrency notes. Pass creation locks `public.accounts` (for update), then the
+**1. `20261116010931_in_app_deletion`**: see
+[DELETION_2026-11-16.md](DELETION_2026-11-16.md), "Reversing this migration". Do not
+drop `private.provider_orphans` while it has rows, nor the `pass_inputs_keep_orphan`
+trigger while any path can delete a pass.
+
+Concurrency notes (the complete order after migration 6 is in
+[TENDING_FOLLOWUPS_2026-11-16.md](TENDING_FOLLOWUPS_2026-11-16.md)). Pass creation locks `public.accounts` (for update), then the
 tenant's `private.ai_tenants` row (for key share); allowlist removal locks that row,
 then `private.pass_inputs`, then `public.garden_passes`; account deletion locks
 `public.accounts` first and reaches the allowlist row by cascade. No two of these take
