@@ -8,7 +8,6 @@ import {
   type DeletionCounts,
   type DeletionKind,
 } from "./actions";
-import { useDeletionEnabled } from "./delete-flag";
 import { DeleteReauth } from "./delete-reauth";
 
 const NOUN: Record<DeletionKind, string> = {
@@ -53,6 +52,8 @@ export function erasedLines(kind: DeletionKind, c: DeletionCounts): string[] {
 }
 
 type Props = {
+  /** Deletion is switched on for this deployment (GardenData.deletionAvailable). */
+  enabled: boolean;
   kind: DeletionKind;
   /** Row id; ignored for an account. */
   id: string;
@@ -71,8 +72,8 @@ type Props = {
  * returns to the button that opened it.
  */
 export function DeleteControl(props: Props) {
-  // Off, or not yet known: nothing about deletion is rendered at all.
-  return useDeletionEnabled() ? <DeleteDialogControl {...props} /> : null;
+  // Off: nothing about deletion is rendered at all.
+  return props.enabled ? <DeleteDialogControl {...props} /> : null;
 }
 
 function DeleteDialogControl({
@@ -82,7 +83,7 @@ function DeleteDialogControl({
   exportGardenId,
   disabled = false,
   onDeleted,
-}: Props) {
+}: Omit<Props, "enabled">) {
   const noun = NOUN[kind];
   const typed = TYPED.includes(kind);
   const dialog = useRef<HTMLDialogElement>(null);

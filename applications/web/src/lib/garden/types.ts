@@ -39,6 +39,8 @@ export type GardenData = {
   seeds: Seed[];
   entries: Entry[];
   aiAvailable: boolean;
+  /** Permanent deletion is switched on (GARDEN_DELETION_ENABLED); absent means off. */
+  deletionAvailable?: boolean;
   /** Derived tending for this garden; absent before the tending migration. */
   tending?: Tending;
   /** Read-only operational history, distinct from permissions and scheduler activation. */

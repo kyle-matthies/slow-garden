@@ -376,13 +376,10 @@ const RECENT_SIGN_IN_REQUIRED = "SGA01";
 /**
  * Ship-order switch. Off by default: the deletion migration must be applied
  * to the database before this is turned on. While off, no delete control is
- * rendered and every deletion action refuses.
+ * rendered (GardenData.deletionAvailable) and every deletion action refuses.
  */
 function deletionOn(): boolean {
   return process.env.GARDEN_DELETION_ENABLED === "true";
-}
-export async function deletionEnabled(): Promise<boolean> {
-  return deletionOn();
 }
 export type DeleteAccountResult =
   | { ok: true }

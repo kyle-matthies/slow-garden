@@ -1,11 +1,9 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 import { DeleteControl, erasedLines } from "./delete-control";
 import { DeleteZone } from "./delete-zone";
-import { resetDeletionFlagForTests } from "./delete-flag";
 
 const actions = vi.hoisted(() => ({
-  deletionEnabled: vi.fn(),
   previewDeletion: vi.fn(),
   deleteItem: vi.fn(),
   deleteAccount: vi.fn(),
@@ -15,10 +13,8 @@ const drafts = vi.hoisted(() => ({ discardDeletedDrafts: vi.fn() }));
 vi.mock("./delete-drafts", () => drafts);
 const otp = vi.hoisted(() => ({ signInWithOtp: vi.fn(), verifyOtp: vi.fn() }));
 vi.mock("@/lib/supabase/client", () => ({ createClient: () => ({ auth: otp }) }));
-beforeEach(() => { resetDeletionFlagForTests(); actions.deletionEnabled.mockResolvedValue(true); });
 afterEach(() => { cleanup(); vi.resetAllMocks(); });
-/** Controls render only once the server has confirmed deletion is switched on. */
-const openDialog = async (name: string) => fireEvent.click(await screen.findByRole("button", { name }));
+const openDialog = (name: string) => fireEvent.click(screen.getByRole("button", { name }));
 
 const counts = { gardens: 0, topics: 0, thoughts: 0, entries: 1, versions: 3, returns: 1, responses: 1, marks: 2 };
 const preview = (extra = {}, confirmPhrase: string | null = null) =>
@@ -48,9 +44,9 @@ it("deletes an entry after a plain confirm, with counts shown and Cancel focused
   preview();
   actions.deleteItem.mockResolvedValue({ ok: true });
   const onDeleted = vi.fn();
-  render(<DeleteControl kind="entry" id="e1" name="this entry" onDeleted={onDeleted} />);
+  render(<DeleteControl enabled kind="entry" id="e1" name="this entry" onDeleted={onDeleted} />);
   expect(screen.queryByRole("dialog")).toBeNull();
-  await openDialog("Delete entry…");
+  openDialog("Delete entry…");
   const dialog = screen.getByRole("dialog", { name: "Delete this entry permanently?" });
   expect(dialog).toHaveAccessibleDescription("Archive hides. Delete erases, permanently.");
   expect(screen.getByRole("button", { name: "Cancel" })).toHaveFocus();
@@ -67,8 +63,8 @@ it("deletes an entry after a plain confirm, with counts shown and Cancel focused
 
 it("cancels without deleting and returns focus to the button that opened it", async () => {
   preview();
-  render(<DeleteControl kind="seed" id="s1" name="Leaving room" onDeleted={vi.fn()} />);
-  const trigger = await screen.findByRole("button", { name: "Delete thought…" });
+  render(<DeleteControl enabled kind="seed" id="s1" name="Leaving room" onDeleted={vi.fn()} />);
+  const trigger = screen.getByRole("button", { name: "Delete thought…" });
   fireEvent.click(trigger);
   await screen.findByText("This thought and its title");
   fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
@@ -77,31 +73,15 @@ it("cancels without deleting and returns focus to the button that opened it", as
   expect(actions.deleteItem).not.toHaveBeenCalled();
 });
 
-it("renders nothing at all while deletion is switched off", async () => {
-  actions.deletionEnabled.mockResolvedValue(false);
+it("renders nothing at all while deletion is switched off", () => {
   const { container } = render(
     <>
-      <DeleteControl kind="entry" id="e1" name="this entry" onDeleted={vi.fn()} />
-      <DeleteZone tenantId="t1" garden={{ id: "g1", name: "Home" }} seedIds={[]} go={vi.fn()} />
+      <DeleteControl enabled={false} kind="entry" id="e1" name="this entry" onDeleted={vi.fn()} />
+      <DeleteZone enabled={false} tenantId="t1" garden={{ id: "g1", name: "Home" }} seedIds={[]} go={vi.fn()} />
     </>,
   );
-  await waitFor(() => expect(actions.deletionEnabled).toHaveBeenCalled());
-  await new Promise((resolve) => setTimeout(resolve, 20));
   expect(container).toBeEmptyDOMElement();
-  expect(screen.queryByText(/Delete/)).toBeNull();
-});
-
-it("renders nothing when the switch cannot be read, and asks only once per page", async () => {
-  actions.deletionEnabled.mockRejectedValue(new Error("offline"));
-  const { container } = render(
-    <>
-      <DeleteControl kind="entry" id="e1" name="this entry" onDeleted={vi.fn()} />
-      <DeleteControl kind="entry" id="e2" name="this entry" onDeleted={vi.fn()} />
-    </>,
-  );
-  await new Promise((resolve) => setTimeout(resolve, 20));
-  expect(container).toBeEmptyDOMElement();
-  expect(actions.deletionEnabled).toHaveBeenCalledOnce();
+  expect(actions.previewDeletion).not.toHaveBeenCalled();
 });
 
 it("account deletion that needs a fresh sign-in offers the email code and returns to the same dialog", async () => {
@@ -110,8 +90,8 @@ it("account deletion that needs a fresh sign-in offers the email code and return
   otp.signInWithOtp.mockResolvedValue({ error: null });
   otp.verifyOtp.mockResolvedValueOnce({ error: new Error("bad") }).mockResolvedValueOnce({ error: null });
   const go = vi.fn();
-  render(<DeleteZone tenantId="t1" seedIds={[]} go={go} />);
-  await openDialog("Delete account…");
+  render(<DeleteZone enabled tenantId="t1" seedIds={[]} go={go} />);
+  openDialog("Delete account…");
   const field = await screen.findByRole("textbox", { name: "Type ada@example.test to confirm" });
   fireEvent.change(field, { target: { value: "ada@example.test" } });
   fireEvent.click(confirmButton("account"));
@@ -139,8 +119,8 @@ it("account deletion that needs a fresh sign-in offers the email code and return
 
 it("Escape cancels", async () => {
   preview();
-  render(<DeleteControl kind="entry" id="e1" name="this entry" onDeleted={vi.fn()} />);
-  await openDialog("Delete entry…");
+  render(<DeleteControl enabled kind="entry" id="e1" name="this entry" onDeleted={vi.fn()} />);
+  openDialog("Delete entry…");
   fireEvent(screen.getByRole("dialog"), new Event("cancel", { cancelable: true }));
   expect(screen.queryByRole("dialog")).toBeNull();
   expect(actions.deleteItem).not.toHaveBeenCalled();
@@ -150,8 +130,8 @@ it("a topic needs its exact name typed before the button works", async () => {
   preview({ topics: 1, thoughts: 2, entries: 5, versions: 6 });
   actions.deleteItem.mockResolvedValue({ ok: true });
   const onDeleted = vi.fn();
-  render(<DeleteControl kind="plot" id="p1" name="Mornings" onDeleted={onDeleted} />);
-  await openDialog("Delete topic…");
+  render(<DeleteControl enabled kind="plot" id="p1" name="Mornings" onDeleted={onDeleted} />);
+  openDialog("Delete topic…");
   screen.getByRole("dialog", { name: "Delete “Mornings” permanently?" });
   const field = screen.getByRole("textbox", { name: "Type Mornings to confirm" });
   expect(field).toHaveFocus();
@@ -169,8 +149,8 @@ it("a topic needs its exact name typed before the button works", async () => {
 
 it("a garden offers export first, for that garden", async () => {
   preview({ gardens: 1, topics: 1, thoughts: 1 });
-  render(<DeleteControl kind="garden" id="g1" name="Home" exportGardenId="g1" onDeleted={vi.fn()} />);
-  await openDialog("Delete garden…");
+  render(<DeleteControl enabled kind="garden" id="g1" name="Home" exportGardenId="g1" onDeleted={vi.fn()} />);
+  openDialog("Delete garden…");
   expect(screen.getByRole("link", { name: "Export first · Markdown" })).toHaveAttribute("href", "/garden/export?format=md&garden=g1");
   expect(screen.getByRole("link", { name: "Export first · JSON" })).toHaveAttribute("href", "/garden/export?garden=g1");
   await screen.findByText("1 topic");
@@ -178,8 +158,8 @@ it("a garden offers export first, for that garden", async () => {
 
 it("never enables deletion when the counts could not be read", async () => {
   actions.previewDeletion.mockResolvedValue({ ok: false, message: "Deletion is not available yet. Nothing was erased." });
-  render(<DeleteControl kind="entry" id="e1" name="this entry" onDeleted={vi.fn()} />);
-  await openDialog("Delete entry…");
+  render(<DeleteControl enabled kind="entry" id="e1" name="this entry" onDeleted={vi.fn()} />);
+  openDialog("Delete entry…");
   await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Deletion is not available yet. Nothing was erased."));
   expect(confirmButton("entry")).toBeDisabled();
 });
@@ -188,8 +168,8 @@ it("a refused deletion keeps the dialog open and says nothing was erased", async
   preview();
   actions.deleteItem.mockResolvedValue({ ok: false, message: "Could not delete. Nothing was erased; please retry." });
   const onDeleted = vi.fn();
-  render(<DeleteControl kind="entry" id="e1" name="this entry" onDeleted={onDeleted} />);
-  await openDialog("Delete entry…");
+  render(<DeleteControl enabled kind="entry" id="e1" name="this entry" onDeleted={onDeleted} />);
+  openDialog("Delete entry…");
   await screen.findByText("This entry, with 3 saved versions");
   fireEvent.click(confirmButton("entry"));
   await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Nothing was erased"));
@@ -202,10 +182,10 @@ it("settings: account deletion types the email, clears every local draft, and le
   preview({ gardens: 2, topics: 3, thoughts: 4, entries: 5, versions: 6 }, "ada@example.test");
   actions.deleteAccount.mockResolvedValue({ ok: true });
   const go = vi.fn();
-  render(<DeleteZone tenantId="t1" garden={{ id: "g1", name: "Home" }} seedIds={["s1"]} go={go} />);
-  expect(await screen.findByText(/Archive hides\. Delete erases, permanently\./)).toBeVisible();
+  render(<DeleteZone enabled tenantId="t1" garden={{ id: "g1", name: "Home" }} seedIds={["s1"]} go={go} />);
+  expect(screen.getByText(/Archive hides\. Delete erases, permanently\./)).toBeVisible();
   expect(screen.getByRole("button", { name: "Delete garden…" })).toBeVisible();
-  await openDialog("Delete account…");
+  openDialog("Delete account…");
   const field = await screen.findByRole("textbox", { name: "Type ada@example.test to confirm" });
   expect(screen.getByText("Your account and sign-in, on every device")).toBeVisible();
   expect(screen.getByRole("link", { name: "Export first · JSON" })).toHaveAttribute("href", "/garden/export");
@@ -221,8 +201,8 @@ it("settings: garden deletion discards that garden's drafts and reloads the work
   preview({ gardens: 1 });
   actions.deleteItem.mockResolvedValue({ ok: true });
   const go = vi.fn();
-  render(<DeleteZone tenantId="t1" garden={{ id: "g1", name: "Home" }} seedIds={["s1", "s2"]} go={go} />);
-  await openDialog("Delete garden…");
+  render(<DeleteZone enabled tenantId="t1" garden={{ id: "g1", name: "Home" }} seedIds={["s1", "s2"]} go={go} />);
+  openDialog("Delete garden…");
   const field = screen.getByRole("textbox", { name: "Type Home to confirm" });
   await waitFor(() => expect(actions.previewDeletion).toHaveBeenCalledWith("garden", "g1"));
   fireEvent.change(field, { target: { value: "Home" } });

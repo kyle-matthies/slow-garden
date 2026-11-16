@@ -70,6 +70,7 @@ function EntryCard({
   onRefresh,
   onArchive,
   onDeleted,
+  deletionAvailable = false,
   readOnly = false,
 }: {
   entry: Entry;
@@ -77,6 +78,7 @@ function EntryCard({
   onRefresh: () => void;
   onArchive: () => void;
   onDeleted: () => void | Promise<void>;
+  deletionAvailable?: boolean;
   readOnly?: boolean;
 }) {
   const [editing, setEditing] = useState(false),
@@ -163,6 +165,7 @@ function EntryCard({
           {entry.archived_at ? "Restore entry" : "Archive entry"}
         </button>
         <DeleteControl
+          enabled={deletionAvailable}
           kind="entry"
           id={entry.entry_id}
           name="this entry"
@@ -772,6 +775,7 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
             </button>
           </div>
           <DeleteZone
+            enabled={data.deletionAvailable === true}
             tenantId={data.tenantId}
             garden={garden ? { id: garden.id, name: garden.name } : undefined}
             seedIds={data.seeds.map((s) => s.id)}
@@ -1046,6 +1050,7 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
                         : "Archive thought"}
                     </button>
                     <DeleteControl
+                      enabled={data.deletionAvailable === true}
                       kind="seed"
                       id={seed.id}
                       name={seed.title}
@@ -1095,6 +1100,7 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
                       entry={e}
                       tenantId={data.tenantId}
                       onRefresh={refresh}
+                      deletionAvailable={data.deletionAvailable === true}
                       readOnly={
                         seed.status === "archived" ||
                         garden.status === "archived" ||
@@ -1266,6 +1272,7 @@ export function GardenWorkspace({ data }: { data: GardenData }) {
                   {plot.archived_at ? "Restore topic" : "Archive topic"}
                 </button>
                 <DeleteControl
+                  enabled={data.deletionAvailable === true}
                   kind="plot"
                   id={plot.id}
                   name={plot.name}

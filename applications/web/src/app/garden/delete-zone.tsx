@@ -1,7 +1,6 @@
 "use client";
 import { DeleteControl } from "./delete-control";
 import { discardDeletedDrafts } from "./delete-drafts";
-import { useDeletionEnabled } from "./delete-flag";
 
 /** Where a browser goes once its account no longer exists. */
 export const ACCOUNT_DELETED_PATH = "/account/deleted";
@@ -11,19 +10,22 @@ export const ACCOUNT_DELETED_PATH = "/account/deleted";
  * copy is always one step away, and says plainly how it differs from archive.
  */
 export function DeleteZone({
+  enabled,
   tenantId,
   garden,
   seedIds,
   go = (path: string) => window.location.assign(path),
 }: {
+  /** Deletion is switched on for this deployment (GardenData.deletionAvailable). */
+  enabled: boolean;
   tenantId: string;
   garden?: { id: string; name: string };
   /** Thoughts in the current garden, so their unsaved drafts can be discarded. */
   seedIds: readonly string[];
   go?: (path: string) => void;
 }) {
-  // Off, or not yet known: the section is not rendered at all.
-  if (!useDeletionEnabled()) return null;
+  // Off: the section is not rendered at all.
+  if (!enabled) return null;
   return (
     <section className="delete-zone" aria-labelledby="delete-zone-title">
       <h3 id="delete-zone-title">Delete</h3>
@@ -35,6 +37,7 @@ export function DeleteZone({
       <div className="delete-row">
         {garden && (
           <DeleteControl
+            enabled
             kind="garden"
             id={garden.id}
             name={garden.name}
@@ -46,6 +49,7 @@ export function DeleteZone({
           />
         )}
         <DeleteControl
+          enabled
           kind="account"
           id=""
           name="your account"

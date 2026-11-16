@@ -7,7 +7,7 @@ const db = vi.hoisted(() => ({
 const revalidatePath = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/supabase/server", () => ({ createClient: async () => db }));
 vi.mock("next/cache", () => ({ revalidatePath }));
-import { deleteAccount, deleteItem, deletionEnabled, previewDeletion } from "./actions";
+import { deleteAccount, deleteItem, previewDeletion } from "./actions";
 
 const ID = "dddddddd-dddd-4ddd-8ddd-ddddddddddd1";
 beforeEach(() => {
@@ -106,17 +106,12 @@ it.each([undefined, "false", "TRUE", "1"])("is off unless GARDEN_DELETION_ENABLE
   vi.unstubAllEnvs();
   if (value !== undefined) vi.stubEnv("GARDEN_DELETION_ENABLED", value);
   else vi.stubEnv("GARDEN_DELETION_ENABLED", "");
-  expect(await deletionEnabled()).toBe(false);
   const off = { ok: false, message: "Deletion is not available yet. Nothing was erased." };
   expect(await previewDeletion("entry", ID)).toEqual(off);
   expect(await deleteItem("garden", ID, "Name")).toEqual(off);
   expect(await deleteAccount("ada@example.test")).toEqual(off);
   expect(db.rpc).not.toHaveBeenCalled();
   expect(db.auth.signOut).not.toHaveBeenCalled();
-});
-
-it("reports the switch as on only when it is", async () => {
-  expect(await deletionEnabled()).toBe(true);
 });
 
 it("a stale or revoked session is asked to sign in again, and stays signed in", async () => {
