@@ -392,5 +392,11 @@ while the camera turns.
   person asked for it.
 - Known limit: a scope of more than twenty cross-connected topics is skipped by
   nightly tending, with a note.
+- Known limit: with four or more tended scopes in one garden, the fourth and later
+  scopes get a share of zero. Each is still budgeted and sent to the provider, shows
+  "No new reflection", and publishes its marks. Provider cost is spent on a pass that
+  cannot publish a bloom.
 - Revisit when: dogfooding shows the fixed sharing starves a topic that deserved a
-  bloom, or invited and nightly returns on the same day feel like too much.
+  bloom, invited and nightly returns on the same day feel like too much, or a garden
+  has four or more tended scopes (skip or rotate the zero-share passes rather than
+  paying for them).
