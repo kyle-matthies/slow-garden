@@ -678,6 +678,26 @@ describe("browser mode: what is on screen is the garden the address names", () =
     expect(w.tables.entries[0].archived_at).toEqual(expect.any(String));
   });
 
+  it("the full record opened the moment the garden appears is read for the garden that appeared", async () => {
+    const w = world(true);
+    // The first Returns read is made by the click itself, so it is the read
+    // most exposed to a guard that learns what is on screen too late.
+    const clicked = new Promise<void>((done) => {
+      const seen = new MutationObserver(() => {
+        const open = screen.queryByRole("button", { name: "Open the full record" });
+        if (!open) return;
+        seen.disconnect();
+        fireEvent.click(open);
+        done();
+      });
+      seen.observe(document.body, { childList: true, subtree: true });
+    });
+    start("browser", w, `/garden?garden=${G1}&topic=${P1}&view=returns`);
+    await clicked;
+    expect(await screen.findByRole("group", { name: /^Respond to / })).toBeVisible();
+    expect(screen.queryByText("Returns could not be loaded. Please retry.")).toBeNull();
+  });
+
   it("a garden that no longer exists: the nearest garden is shown, said to be so, and new writing goes to the garden shown", async () => {
     const w = twoGardens();
     const gone = "99999999-9999-4999-8999-999999999999";
