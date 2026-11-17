@@ -444,3 +444,28 @@ browser on unmount (existing behaviour, not re-tested against IndexedDB here).
    for the owner behind the flag; rollback is unsetting the variable.
 4. After that has run for the owner: delete the server actions, the two route handlers
    and the server store (stage 1 record, step 13).
+
+## Guard timing follow-up (2026-11-17)
+
+`journeys.test.tsx` failed intermittently in browser mode ("keeps a bloom from the full
+record in Returns", "archives an entry out of the active view…"). Cause, confirmed by
+reproduction: the gate told the guard what is on screen in a passive effect, so a click
+landing after the page was in the document but before that effect ran met a guard with
+no view. `loadReturns` threw (Returns showed "Returns could not be loaded. Please retry."
+over an empty cabinet) and writes were refused as "no longer the garden on screen".
+Nothing was written or lost. It was a real race in browser mode and the static export,
+not only a test artefact, though a person would need to click within the same tick.
+
+- Fix: commit 4c88544 (already on `main`) tells the guard in a layout effect, in the
+  same commit that puts the page in the document. The guard itself is unchanged: every
+  check and refusal in `guard.ts` and `guard.test.ts` is as it was.
+- Reproduction with that change reverted and the guard instrumented: 12 of 160 runs of
+  the main-journeys block failed under four-way contention, all in browser mode, six on
+  each of the two tests, each with the guard seeing a null view.
+- Tests that click in the tick the control appears: the write path (added with 4c88544)
+  and the Returns read path (added now). Both fail 3 of 3 with the change reverted.
+- With the fix: 110 of 110 consecutive isolated runs of the journeys file passed;
+  `tsc --noEmit`, `eslint .` and the full suite (53 files, 441 tests) pass.
+- Not verified: a real browser. The ordering relied on (layout effects run before any
+  event can be delivered to the new document) is React's commit contract, exercised
+  here only in jsdom.
