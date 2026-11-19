@@ -404,7 +404,10 @@ describe.each<Mode>(["server", "browser"])("the main journeys in %s mode", (mode
     expect(w.tables.plots[0]).toMatchObject({ ai_enabled: true, cross_pollinate: false });
 
     openMenu("Settings & export");
-    fireEvent.click(await screen.findByRole("checkbox", { name: "Tend my garden overnight" }));
+    // Choose a zone explicitly: the first-use default follows the device zone.
+    fireEvent.change(await screen.findByRole("combobox", { name: "Your time zone" }), { target: { value: "UTC" } });
+    await notice("Preference saved: overnight tending is off.");
+    fireEvent.click(screen.getByRole("checkbox", { name: "Tend my garden overnight" }));
     await notice("Preference saved for UTC. This does not start or confirm an overnight run.");
     expect(w.tables.accounts[0]).toMatchObject({ tend_overnight: true, timezone: "UTC" });
     await waitFor(() => expect(screen.getByRole("checkbox", { name: "Tend my garden overnight" })).toBeChecked());

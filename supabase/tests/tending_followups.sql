@@ -119,6 +119,8 @@ select is((select count(*) from public.blooms where garden_id='9aaaaaaa-aaaa-4aa
 
 -- Ties inside one kind: more distinct cited revisions first, then the earlier position.
 insert into public.garden_passes(id,tenant_id,garden_id,plot_ids,trigger) values('9fffffff-ffff-4fff-8fff-fffffffffff2','91111111-1111-4111-8111-111111111111','9aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2',array['9bbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb4']::uuid[],'nightly');
+-- Match the fixture's cycle date; prepare_pass overwrites created_at on insert.
+update public.garden_passes set created_at='2026-11-21 02:30:00+00' where id='9fffffff-ffff-4fff-8fff-fffffffffff2';
 update private.pass_inputs set cycle_date='2026-11-21',bloom_allowance=2,next_attempt_at=now()-interval '2 hours' where pass_id='9fffffff-ffff-4fff-8fff-fffffffffff2';
 set local role service_role;
 select public.claim_garden_pass() as tie \gset
