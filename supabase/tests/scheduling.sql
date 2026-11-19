@@ -122,6 +122,9 @@ select set_config('request.jwt.claim.sub','51111111-1111-4111-8111-111111111111'
 reset role;
 update private.ai_runtime set enabled=true;
 insert into public.garden_passes(id,tenant_id,garden_id,plot_ids,trigger) values('5fffffff-ffff-4fff-8fff-fffffffffff7','51111111-1111-4111-8111-111111111111','5aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',array['5bbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1']::uuid[],'nightly');
+-- prepare_pass stamps now() on insert. Put this cycle-less fixture on the
+-- test timeline afterwards, outside the later enqueue's 20-hour night window.
+update public.garden_passes set created_at='2026-11-17 02:30:00+00' where id='5fffffff-ffff-4fff-8fff-fffffffffff7';
 update private.ai_runtime set enabled=false;
 update public.garden_passes set status='processing' where id='5fffffff-ffff-4fff-8fff-fffffffffff7';
 update private.pass_inputs set cleanup_pending=true where pass_id='5fffffff-ffff-4fff-8fff-fffffffffff7';

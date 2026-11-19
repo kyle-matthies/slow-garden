@@ -404,7 +404,10 @@ describe.each<Mode>(["server", "browser"])("the main journeys in %s mode", (mode
     expect(w.tables.plots[0]).toMatchObject({ ai_enabled: true, cross_pollinate: false });
 
     openMenu("Settings & export");
-    fireEvent.click(await screen.findByRole("checkbox", { name: "Tend my garden overnight" }));
+    // Choose a zone explicitly: the first-use default follows the device zone.
+    fireEvent.change(await screen.findByRole("combobox", { name: "Your time zone" }), { target: { value: "UTC" } });
+    await notice("Preference saved: overnight tending is off.");
+    fireEvent.click(screen.getByRole("checkbox", { name: "Tend my garden overnight" }));
     await notice("Preference saved for UTC. This does not start or confirm an overnight run.");
     expect(w.tables.accounts[0]).toMatchObject({ tend_overnight: true, timezone: "UTC" });
     await waitFor(() => expect(screen.getByRole("checkbox", { name: "Tend my garden overnight" })).toBeChecked());
@@ -676,6 +679,26 @@ describe("browser mode: what is on screen is the garden the address names", () =
     await notice("entry archived. Find it in Archive; your writing was not deleted.");
     expect(screen.queryByText(/no longer the garden on screen/)).toBeNull();
     expect(w.tables.entries[0].archived_at).toEqual(expect.any(String));
+  });
+
+  it("the full record opened the moment the garden appears is read for the garden that appeared", async () => {
+    const w = world(true);
+    // The first Returns read is made by the click itself, so it is the read
+    // most exposed to a guard that learns what is on screen too late.
+    const clicked = new Promise<void>((done) => {
+      const seen = new MutationObserver(() => {
+        const open = screen.queryByRole("button", { name: "Open the full record" });
+        if (!open) return;
+        seen.disconnect();
+        fireEvent.click(open);
+        done();
+      });
+      seen.observe(document.body, { childList: true, subtree: true });
+    });
+    start("browser", w, `/garden?garden=${G1}&topic=${P1}&view=returns`);
+    await clicked;
+    expect(await screen.findByRole("group", { name: /^Respond to / })).toBeVisible();
+    expect(screen.queryByText("Returns could not be loaded. Please retry.")).toBeNull();
   });
 
   it("a garden that no longer exists: the nearest garden is shown, said to be so, and new writing goes to the garden shown", async () => {
