@@ -41,5 +41,7 @@ all 14 committed migrations applied. No hosted Supabase changes or provider call
 - Final-head CI results are recorded in the PR's verification
   section. Earlier-head CI cannot establish readiness of the remediated commit.
 
-No real browser, Safari, real phone, or hosted tenant journey was exercised here.
-The read-path regression runs in jsdom; production deployment is verified separately.
+The static export builds and its signed-out Chromium shell check passes at phone
+and desktop sizes (2/2), including document navigation, CSP and no backend requests.
+Authenticated hosted browser journeys, Safari and a real phone were not exercised.
+The Returns timing regression runs in jsdom; production deployment is verified separately.
